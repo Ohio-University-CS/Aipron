@@ -102,10 +102,28 @@ export default function CookingModeScreen() {
 
       <CookingStep
         step={activeStep || recipe.steps[0]}
-        isActive={true}
+        isActive
+        recipe={recipe}
       />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        <TouchableOpacity
+          style={styles.aiAssistantBanner}
+          onPress={() => router.push("/(tabs)/chat")}
+          activeOpacity={0.8}
+        >
+          <View style={styles.aiIconContainer}>
+            <Ionicons name="chatbubble-ellipses" size={18} color={colors.primary} />
+          </View>
+          <View style={styles.aiTextContainer}>
+            <Text style={styles.aiTitle}>Ask your AI chef</Text>
+            <Text style={styles.aiSubtitle} numberOfLines={1}>
+              “What can I cook with what I have?”
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.cookingTextSecondary} />
+        </TouchableOpacity>
+
         <VoiceIndicator
           isListening={isListening}
           isSpeaking={isSpeaking}
@@ -255,5 +273,37 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.cookingText,
     textAlign: "center",
+  },
+  aiAssistantBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.cookingTextSecondary + "20",
+    marginBottom: spacing.lg,
+  },
+  aiIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.cookingBackground,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiTextContainer: {
+    flex: 1,
+  },
+  aiTitle: {
+    ...typography.caption,
+    color: colors.cookingText,
+    fontWeight: "600",
+  },
+  aiSubtitle: {
+    ...typography.caption,
+    color: colors.cookingTextSecondary,
+    fontSize: 12,
+    marginTop: 2,
   },
 });
