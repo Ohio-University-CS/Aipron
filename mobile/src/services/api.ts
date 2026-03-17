@@ -1,4 +1,5 @@
 import axios from "axios";
+import { supabase } from "./supabase";
 import { useAuthStore } from "../store/useAuthStore";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
@@ -10,16 +11,15 @@ export const api = axios.create({
   },
 });
 
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
+api.interceptors.request.use(async (config) => {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Handle auth errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -30,15 +30,37 @@ api.interceptors.response.use(
   }
 );
 
-// Auth endpoints
 export const authApi = {
   register: async (email: string, password: string, name?: string) => {
-    const { data } = await api.post("/auth/register", { email, password, name });
-    return data;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name: name || undefined } },
+    });
+    if (error) throw error;
+    return {
+      user: {
+        id: data.user?.id,
+        email: data.user?.email,
+        name: data.user?.user_metadata?.name,
+      },
+      token: data.session?.access_token,
+    };
   },
   login: async (email: string, password: string) => {
-    const { data } = await api.post("/auth/login", { email, password });
-    return data;
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return {
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name,
+      },
+      token: data.session.access_token,
+    };
   },
   getMe: async () => {
     const { data } = await api.get("/auth/me");
@@ -46,7 +68,6 @@ export const authApi = {
   },
 };
 
-// Recipe endpoints
 export const recipeApi = {
   generate: async (prompt: string, options?: {
     dietaryFilters?: string[];
@@ -77,7 +98,6 @@ export const recipeApi = {
   },
 };
 
-// Pantry endpoints
 export const pantryApi = {
   getAll: async () => {
     const { data } = await api.get("/pantry");
@@ -97,7 +117,6 @@ export const pantryApi = {
   },
 };
 
-// Cooking endpoints
 export const cookingApi = {
   startSession: async (recipeId: string) => {
     const { data } = await api.post("/cooking/sessions", { recipeId });
@@ -117,7 +136,6 @@ export const cookingApi = {
   },
 };
 
-// Realtime endpoints
 export const realtimeApi = {
   createSession: async () => {
     const { data } = await api.post("/realtime/session");

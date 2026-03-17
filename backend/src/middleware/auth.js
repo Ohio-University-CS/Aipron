@@ -1,35 +1,27 @@
-import jwt from "jsonwebtoken";
-import { pool } from "../db/connection.js";
+import { supabaseAdmin, createUserClient } from "../db/supabase.js";
 
 export const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+    const token = authHeader && authHeader.split(" ")[1];
 
     if (!token) {
       return res.status(401).json({ error: "Access token required" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Verify user still exists
-    const result = await pool.query("SELECT id, email, name FROM users WHERE id = $1", [
-      decoded.userId,
-    ]);
+    const {
+      data: { user },
+      error,
+    } = await supabaseAdmin.auth.getUser(token);
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: "User not found" });
+    if (error || !user) {
+      return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    req.user = result.rows[0];
+    req.user = user;
+    req.supabase = createUserClient(token);
     next();
   } catch (error) {
-    if (error.name === "JsonWebTokenError") {
-      return res.status(403).json({ error: "Invalid token" });
-    }
-    if (error.name === "TokenExpiredError") {
-      return res.status(403).json({ error: "Token expired" });
-    }
     return res.status(500).json({ error: "Authentication error" });
   }
 };

@@ -2,11 +2,9 @@ import express from "express";
 import { body, validationResult } from "express-validator";
 import { authenticateToken } from "../middleware/auth.js";
 import { generateRecipe, getSubstitutions } from "../services/openai.js";
-import { pool } from "../db/connection.js";
 
 export const recipesRouter = express.Router();
 
-// Generate recipe
 recipesRouter.post(
   "/generate",
   authenticateToken,
@@ -31,35 +29,34 @@ recipesRouter.post(
         skillLevel,
       });
 
-      // Save recipe to database
-      const result = await pool.query(
-        `INSERT INTO recipes (
-          user_id, title, description, ingredients, steps,
-          prep_time, cook_time, total_time, servings, nutrition,
-          dietary_tags, cuisine, difficulty
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING id, created_at`,
-        [
-          req.user.id,
-          recipe.title,
-          recipe.description,
-          JSON.stringify(recipe.ingredients),
-          JSON.stringify(recipe.steps),
-          recipe.prepTime,
-          recipe.cookTime,
-          recipe.totalTime,
-          recipe.servings,
-          JSON.stringify(recipe.nutrition),
-          recipe.dietaryTags,
-          recipe.cuisine,
-          recipe.difficulty,
-        ]
-      );
+      const { data, error } = await req.supabase
+        .from("recipes")
+        .insert({
+          user_id: req.user.id,
+          title: recipe.title,
+          description: recipe.description,
+          ingredients: recipe.ingredients,
+          steps: recipe.steps,
+          prep_time: recipe.prepTime,
+          cook_time: recipe.cookTime,
+          total_time: recipe.totalTime,
+          servings: recipe.servings,
+          nutrition: recipe.nutrition,
+          dietary_tags: recipe.dietaryTags,
+          cuisine: recipe.cuisine,
+          difficulty: recipe.difficulty,
+        })
+        .select("id, created_at")
+        .single();
+
+      if (error) {
+        return res.status(500).json({ error: "Failed to save recipe" });
+      }
 
       res.json({
         ...recipe,
-        id: result.rows[0].id,
-        createdAt: result.rows[0].created_at,
+        id: data.id,
+        createdAt: data.created_at,
       });
     } catch (error) {
       next(error);
@@ -67,51 +64,43 @@ recipesRouter.post(
   }
 );
 
-// Get recipe by ID
 recipesRouter.get("/:id", authenticateToken, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      "SELECT * FROM recipes WHERE id = $1",
-      [id]
-    );
 
-    if (result.rows.length === 0) {
+    const { data, error } = await req.supabase
+      .from("recipes")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !data) {
       return res.status(404).json({ error: "Recipe not found" });
     }
 
-    const recipe = result.rows[0];
-    res.json({
-      ...recipe,
-      ingredients: recipe.ingredients,
-      steps: recipe.steps,
-      nutrition: recipe.nutrition,
-    });
+    res.json(data);
   } catch (error) {
     next(error);
   }
 });
 
-// Get user's recipes
 recipesRouter.get("/", authenticateToken, async (req, res, next) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM recipes WHERE user_id = $1 ORDER BY created_at DESC",
-      [req.user.id]
-    );
+    const { data, error } = await req.supabase
+      .from("recipes")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    res.json(result.rows.map((r) => ({
-      ...r,
-      ingredients: r.ingredients,
-      steps: r.steps,
-      nutrition: r.nutrition,
-    })));
+    if (error) {
+      return res.status(500).json({ error: "Failed to fetch recipes" });
+    }
+
+    res.json(data);
   } catch (error) {
     next(error);
   }
 });
 
-// Scale recipe
 recipesRouter.post(
   "/:id/scale",
   authenticateToken,
@@ -126,26 +115,24 @@ recipesRouter.post(
       const { id } = req.params;
       const { servings } = req.body;
 
-      const result = await pool.query(
-        "SELECT * FROM recipes WHERE id = $1 AND user_id = $2",
-        [id, req.user.id]
-      );
+      const { data: recipe, error } = await req.supabase
+        .from("recipes")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-      if (result.rows.length === 0) {
+      if (error || !recipe) {
         return res.status(404).json({ error: "Recipe not found" });
       }
 
-      const recipe = result.rows[0];
       const originalServings = recipe.servings;
       const scaleFactor = servings / originalServings;
 
-      // Scale ingredients
       const scaledIngredients = recipe.ingredients.map((ing) => ({
         ...ing,
         quantity: Math.round(ing.quantity * scaleFactor * 100) / 100,
       }));
 
-      // Scale nutrition
       const scaledNutrition = recipe.nutrition
         ? Object.fromEntries(
             Object.entries(recipe.nutrition).map(([key, value]) => [
@@ -167,7 +154,6 @@ recipesRouter.post(
   }
 );
 
-// Get ingredient substitutions
 recipesRouter.post(
   "/substitutions",
   authenticateToken,
