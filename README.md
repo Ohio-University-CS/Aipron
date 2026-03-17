@@ -60,6 +60,8 @@ You can run AIpron in **two modes**:
 - Node.js **v18+** installed
 - An OpenAI API key (optional if you just want to see the UI)
 
+> Note: This repo **does not include any real API keys**. The `.env` files are **gitignored**, so you will need to create your own `.env` from the provided `.env.example` and paste in your own `OPENAI_API_KEY`.
+
 ---
 
 ### Option A – UI only (fastest preview, no backend/DB)
@@ -115,6 +117,8 @@ Edit `backend/.env` and set:
 - `OPENAI_API_KEY` = your real OpenAI API key  
 - You can leave `DATABASE_URL` and others as-is for now if you’re just testing; DB-dependent endpoints may fail, but the server will still start.
 
+> Reminder: `backend/.env` is **ignored by git**. Each developer must provide their own API key locally.
+
 #### 3. Start the backend
 
 ```bash
@@ -137,6 +141,8 @@ Edit `mobile/.env`:
 ```env
 EXPO_PUBLIC_API_URL=http://localhost:3001
 ```
+
+> Reminder: `mobile/.env` is **ignored by git**. You’ll need your own local values (and your own `OPENAI_API_KEY` in `backend/.env`) to use AI features.
 
 #### 5. Start the mobile app (web preview)
 
