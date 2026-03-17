@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { v4 as uuidv4 } from "uuid";
-import { pool } from "../db/connection.js";
+import { supabaseAdmin } from "../db/supabase.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -12,24 +12,23 @@ const openai = new OpenAI({
 /**
  * Create a Realtime API session
  * Returns ephemeral token and connection details for client WebRTC connection
- * 
+ *
  * Note: OpenAI Realtime API uses WebRTC for bidirectional audio streaming.
  * The client connects directly to OpenAI's servers using the session token.
  */
 export async function createRealtimeSession(userId) {
   try {
     const sessionId = uuidv4();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-    // Store session metadata in database
-    await pool.query(
-      `INSERT INTO realtime_sessions (id, user_id, session_id, expires_at)
-       VALUES (gen_random_uuid(), $1, $2, $3)`,
-      [userId, sessionId, expiresAt]
-    );
+    const { error } = await supabaseAdmin
+      .from("realtime_sessions")
+      .insert({ user_id: userId, session_id: sessionId, expires_at: expiresAt });
 
-    // Generate client configuration for Realtime API
-    // The client will connect directly to OpenAI using WebRTC
+    if (error) {
+      throw new Error("Failed to store session metadata");
+    }
+
     const clientConfig = {
       model: "gpt-4o-realtime-preview-2024-12-17",
       voice: "alloy",
@@ -99,8 +98,6 @@ Be concise, clear, and encouraging.`,
       sessionId,
       expiresAt,
       clientConfig,
-      // Client will use OpenAI SDK to establish WebRTC connection
-      // with these configuration parameters
     };
   } catch (error) {
     console.error("Realtime session creation error:", error);
@@ -113,9 +110,10 @@ Be concise, clear, and encouraging.`,
  */
 export async function cleanupExpiredSessions() {
   try {
-    await pool.query(
-      "DELETE FROM realtime_sessions WHERE expires_at < NOW()"
-    );
+    await supabaseAdmin
+      .from("realtime_sessions")
+      .delete()
+      .lt("expires_at", new Date().toISOString());
   } catch (error) {
     console.error("Session cleanup error:", error);
   }

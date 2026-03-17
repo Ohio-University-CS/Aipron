@@ -2,6 +2,14 @@
  * Shared types for AIpron
  */
 
+export interface Profile {
+  id: string;
+  name?: string;
+  dietary_preferences: DietaryFilter[];
+  created_at: string;
+  updated_at: string;
+}
+
 export type DietaryFilter =
   | "vegetarian"
   | "vegan"
