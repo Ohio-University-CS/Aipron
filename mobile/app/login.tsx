@@ -1,69 +1,210 @@
 import React, { useState } from "react";
-import { View, TextInput, TouchableOpacity, StyleSheet, Text, Alert } from "react-native";
+import { View, TextInput, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { authApi } from "../src/services/api";
 import { useAuthStore } from "../src/store/useAuthStore";
-import { colors, spacing, borderRadius, typography } from "../src/constants/DesignTokens";
+import { spacing, borderRadius, typography } from "../src/constants/DesignTokens";
+import { useThemeColors } from "../src/hooks/useThemeColors";
 
-export default function LoginScreen() {
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface FieldErrors {
+  email: boolean;
+  password: boolean;
+  name: boolean;
+}
+
+interface LoginScreenProps {
+  onLoginSuccess?: () => void;
+}
+
+export default function LoginScreen({ onLoginSuccess }: LoginScreenProps = {}) {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
+  const c = useThemeColors();
+  const { setSession } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({ email: false, password: false, name: false });
+
+  const clearErrors = () => {
+    setErrorMessage("");
+    setFieldErrors({ email: false, password: false, name: false });
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (errorMessage) clearErrors();
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    if (errorMessage) clearErrors();
+  };
+
+  const handleNameChange = (text: string) => {
+    setName(text);
+    if (errorMessage) clearErrors();
+  };
+
+  const handleToggleMode = () => {
+    setIsRegister(!isRegister);
+    setName("");
+    clearErrors();
+  };
+
+  const validate = (): boolean => {
+    if (isRegister && !name.trim()) {
+      setErrorMessage("Please enter a username");
+      setFieldErrors({ email: false, password: false, name: true });
+      return false;
+    }
+    if (!email.trim() && !password) {
+      setErrorMessage("Please enter your email and password");
+      setFieldErrors({ email: true, password: true, name: false });
+      return false;
+    }
+    if (!email.trim()) {
+      setErrorMessage("Please enter your email address");
+      setFieldErrors({ email: true, password: false, name: false });
+      return false;
+    }
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setErrorMessage("Please enter a valid email address");
+      setFieldErrors({ email: true, password: false, name: false });
+      return false;
+    }
+    if (!password) {
+      setErrorMessage("Please enter your password");
+      setFieldErrors({ email: false, password: true, name: false });
+      return false;
+    }
+    if (isRegister && password.length < 6) {
+      setErrorMessage("Password must be at least 6 characters");
+      setFieldErrors({ email: false, password: true, name: false });
+      return false;
+    }
+    return true;
+  };
+
+  const getServerErrorMessage = (error: any): string => {
+    const msg: string =
+      error?.message ||
+      error?.response?.data?.error ||
+      error?.response?.data?.message ||
+      "";
+    const lower = msg.toLowerCase();
+
+    if (lower.includes("invalid login") || lower.includes("invalid credentials")) {
+      return "Invalid email or password";
+    }
+    if (lower.includes("already registered") || lower.includes("already exists") || lower.includes("duplicate")) {
+      return "An account with this email already exists";
+    }
+    if (lower.includes("rate limit") || lower.includes("too many")) {
+      return "Too many attempts. Please try again later";
+    }
+    return msg || "Authentication failed. Please try again";
+  };
 
   const handleSubmit = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
+    if (!validate()) return;
 
     setIsLoading(true);
+    clearErrors();
     try {
-      const data = isRegister
-        ? await authApi.register(email, password)
-        : await authApi.login(email, password);
-      
-      setAuth(data.user, data.token);
-      router.replace("/(tabs)/chat");
+      await (isRegister
+        ? await authApi.register(email, password, name.trim())
+        : await authApi.login(email, password));
+
+      const { data, error } = await authApi.getSession();
+      if (error) throw error;
+      setSession(data.session);
+
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      } else {
+        router.replace("/(tabs)/chat");
+      }
     } catch (error: any) {
-      Alert.alert("Error", error.response?.data?.error || "Authentication failed");
+      const msg = getServerErrorMessage(error);
+      setErrorMessage(msg);
+      if (msg.toLowerCase().includes("email")) {
+        setFieldErrors({ email: true, password: false, name: false });
+      } else if (msg.toLowerCase().includes("password")) {
+        setFieldErrors({ email: false, password: true, name: false });
+      } else {
+        setFieldErrors({ email: true, password: true, name: false });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>AIpron</Text>
-      <Text style={styles.subtitle}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
+      <Text style={[styles.title, { color: c.text }]}>AIpron</Text>
+      <Text style={[styles.subtitle, { color: c.textSecondary }]}>
         {isRegister ? "Create an account" : "Sign in to continue"}
       </Text>
 
+      {errorMessage !== "" && (
+        <View style={[styles.errorBanner, { backgroundColor: c.error + "15" }]}>
+          <Text style={styles.warningIcon}>{"\u26A0"}</Text>
+          <Text style={[styles.errorText, { color: c.error }]}>{errorMessage}</Text>
+        </View>
+      )}
+
+      {isRegister && (
+        <TextInput
+          style={[
+            styles.input,
+            { backgroundColor: c.surface, color: c.text },
+            fieldErrors.name && { borderColor: c.error, borderWidth: 1 },
+          ]}
+          placeholder="Username"
+          placeholderTextColor={c.textSecondary}
+          value={name}
+          onChangeText={handleNameChange}
+          autoCapitalize="none"
+          editable={!isLoading}
+        />
+      )}
+
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { backgroundColor: c.surface, color: c.text },
+          fieldErrors.email && { borderColor: c.error, borderWidth: 1 },
+        ]}
         placeholder="Email"
-        placeholderTextColor={colors.textSecondary}
+        placeholderTextColor={c.textSecondary}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={handleEmailChange}
         keyboardType="email-address"
         autoCapitalize="none"
         editable={!isLoading}
       />
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { backgroundColor: c.surface, color: c.text },
+          fieldErrors.password && { borderColor: c.error, borderWidth: 1 },
+        ]}
         placeholder="Password"
-        placeholderTextColor={colors.textSecondary}
+        placeholderTextColor={c.textSecondary}
         value={password}
-        onChangeText={setPassword}
+        onChangeText={handlePasswordChange}
         secureTextEntry
         editable={!isLoading}
       />
 
       <TouchableOpacity
-        style={[styles.button, isLoading && styles.buttonDisabled]}
+        style={[styles.button, { backgroundColor: c.primary }, isLoading && styles.buttonDisabled]}
         onPress={handleSubmit}
         disabled={isLoading}
       >
@@ -74,10 +215,10 @@ export default function LoginScreen() {
 
       <TouchableOpacity
         style={styles.switchButton}
-        onPress={() => setIsRegister(!isRegister)}
+        onPress={handleToggleMode}
         disabled={isLoading}
       >
-        <Text style={styles.switchText}>
+        <Text style={[styles.switchText, { color: c.primary }]}>
           {isRegister ? "Already have an account? Sign in" : "Don't have an account? Register"}
         </Text>
       </TouchableOpacity>
@@ -88,32 +229,42 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     padding: spacing.xl,
     justifyContent: "center",
   },
   title: {
     ...typography.h1,
-    color: colors.text,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
   subtitle: {
     ...typography.body,
-    color: colors.textSecondary,
     textAlign: "center",
     marginBottom: spacing.xl,
   },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.lg,
+  },
+  warningIcon: {
+    fontSize: 18,
+    marginRight: spacing.sm,
+  },
+  errorText: {
+    ...typography.caption,
+    fontWeight: "500",
+    flex: 1,
+  },
   input: {
     ...typography.body,
-    backgroundColor: colors.surface,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     marginBottom: spacing.md,
-    color: colors.text,
   },
   button: {
-    backgroundColor: colors.primary,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     alignItems: "center",
@@ -124,7 +275,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     ...typography.body,
-    color: colors.background,
+    color: "#FFFFFF",
     fontWeight: "600",
   },
   switchButton: {
@@ -133,6 +284,5 @@ const styles = StyleSheet.create({
   },
   switchText: {
     ...typography.caption,
-    color: colors.primary,
   },
 });
