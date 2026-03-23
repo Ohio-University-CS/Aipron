@@ -111,8 +111,11 @@ export const pantryApi = {
     const { data } = await api.delete(`/pantry/${id}`);
     return data;
   },
-  findRecipes: async (dietaryFilters?: string[]) => {
-    const { data } = await api.post("/pantry/recipes", { dietaryFilters });
+  findRecipes: async (options?: { dietaryFilters?: string[]; limit?: number }) => {
+    const { data } = await api.post("/pantry/recipes", {
+      dietaryFilters: options?.dietaryFilters,
+      limit: options?.limit,
+    });
     return data;
   },
 };

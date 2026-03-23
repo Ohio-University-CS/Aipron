@@ -156,6 +156,20 @@ Then:
 
 You should now see the mobile **Chat UI** running in your browser, hitting the backend at `http://localhost:3001`.
 
+### Web — Pantry Mode (optional)
+
+The Next.js app includes **Pantry Mode** at `/pantry` (also linked from the home demo).
+
+1. **CORS**: In `backend/.env`, ensure `ALLOWED_ORIGINS` includes your web origin, e.g. `http://localhost:3000` (default in `backend/.env.example`).
+2. **Env**: Copy `web/.env.example` to `web/.env` and set `NEXT_PUBLIC_API_URL=http://localhost:3001` if your API is elsewhere.
+3. **Run**:
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
+4. Open `http://localhost:3000/pantry`. Paste a **Supabase access token** from a logged-in session (e.g. mobile app / Supabase dashboard), click **Save token & connect**, then add pantry items and **Suggest recipes**.
+
 ---
 
 ## 📁 Project Structure
@@ -208,7 +222,7 @@ Aipron/
 ### Core Screens
 
 - **Chat**: Conversational recipe generation
-- **Pantry**: Manage ingredients and find recipes
+- **Pantry (Pantry Mode)**: Manage ingredients, tap **Suggest recipes** for zero-waste ranked ideas (uses `POST /api/pantry/recipes`)
 - **Recipes**: Browse saved recipes
 - **Profile**: User settings and preferences
 - **Cooking Mode**: Full-screen, hands-free cooking guidance
