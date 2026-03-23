@@ -47,11 +47,11 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     backgroundColor: colors.primary,
-    borderBottomRightRadius: borderRadius.xs,
+    borderBottomRightRadius: borderRadius.sm,
   },
   assistantBubble: {
     backgroundColor: colors.surface,
-    borderBottomLeftRadius: borderRadius.xs,
+    borderBottomLeftRadius: borderRadius.sm,
   },
   text: {
     ...typography.body,

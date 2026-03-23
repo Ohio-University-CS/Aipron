@@ -115,7 +115,8 @@ copy .env.example .env
 Edit `backend/.env` and set:
 
 - `OPENAI_API_KEY` = your real OpenAI API key  
-- You can leave `DATABASE_URL` and others as-is for now if you’re just testing; DB-dependent endpoints may fail, but the server will still start.
+- `DATABASE_URL` = your Supabase Postgres connection string (required for auth/pantry/recipes)
+- `JWT_SECRET` = any strong random string for signing backend JWTs
 
 > Reminder: `backend/.env` is **ignored by git**. Each developer must provide their own API key locally.
 
