@@ -62,8 +62,19 @@ const recipe = {
   ],
 };
 
+type BottomTab = "home" | "search" | "saved";
+
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<BottomTab>("home");
+
+  const goTab = (tab: BottomTab) => {
+    setActiveTab(tab);
+    setIsChatOpen(false);
+  };
+
+  const tabBtnClass = (tab: BottomTab) =>
+    `flex flex-col items-center gap-0.5 ${activeTab === tab ? "text-orange-500" : "text-gray-400"}`;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-900 p-4">
@@ -79,26 +90,63 @@ export default function Home() {
               <p className="text-xs font-medium text-orange-100">
                 AI Cooking Assistant
               </p>
-              <h1 className="text-xl font-bold text-white">Today&apos;s Recipe</h1>
+              <h1 className="text-xl font-bold text-white">
+                {activeTab === "saved"
+                  ? "Favorites"
+                  : activeTab === "search"
+                    ? "Search"
+                    : "Today's Recipe"}
+              </h1>
+              {activeTab === "saved" && (
+                <p className="mt-1 text-xs text-orange-100">0 recipes saved</p>
+              )}
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
-              <span className="text-2xl">🍳</span>
+              <span className="text-2xl">
+                {activeTab === "saved" ? "❤️" : "🍳"}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Scrollable content */}
         <div className="h-[calc(100%-120px)] space-y-4 overflow-y-auto px-4 pb-20 pt-3">
-          <RecipeHeader
-            title={recipe.title}
-            image={recipe.image}
-            prepTime={recipe.prepTime}
-            cookTime={recipe.cookTime}
-            servings={recipe.servings}
-          />
-          <CookingTimer />
-          <IngredientsList ingredients={recipe.ingredients} />
-          <CookingSteps steps={recipe.steps} />
+          {activeTab === "home" && (
+            <>
+              <RecipeHeader
+                title={recipe.title}
+                image={recipe.image}
+                prepTime={recipe.prepTime}
+                cookTime={recipe.cookTime}
+                servings={recipe.servings}
+              />
+              <CookingTimer />
+              <IngredientsList ingredients={recipe.ingredients} />
+              <CookingSteps steps={recipe.steps} />
+            </>
+          )}
+          {activeTab === "search" && (
+            <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
+              <span className="text-4xl opacity-60">🔍</span>
+              <p className="mt-4 text-sm font-medium text-gray-700">
+                Search recipes
+              </p>
+              <p className="mt-2 text-xs text-gray-500">
+                This preview tab is static. Use the Expo app for full search.
+              </p>
+            </div>
+          )}
+          {activeTab === "saved" && (
+            <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
+              <span className="text-5xl opacity-40">❤️</span>
+              <p className="mt-6 text-base font-semibold text-gray-800">
+                You have no recipes saved
+              </p>
+              <p className="mt-2 text-sm text-gray-500">
+                Save a recipe with the heart icon and it will appear here.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* AI Chat Overlay */}
@@ -112,14 +160,20 @@ export default function Home() {
         <div className="absolute bottom-0 left-0 right-0 z-20 flex h-16 items-center justify-around border-t border-gray-100 bg-white px-6">
           <button
             type="button"
-            className="flex flex-col items-center gap-0.5 text-orange-500"
+            onClick={() => goTab("home")}
+            className={tabBtnClass("home")}
           >
             <span className="text-lg">🏠</span>
-            <span className="text-[10px] font-medium">Home</span>
+            <span
+              className={`text-[10px] ${activeTab === "home" ? "font-medium" : ""}`}
+            >
+              Home
+            </span>
           </button>
           <button
             type="button"
-            className="flex flex-col items-center gap-0.5 text-gray-400"
+            onClick={() => goTab("search")}
+            className={tabBtnClass("search")}
           >
             <span className="text-lg">🔍</span>
             <span className="text-[10px]">Search</span>
@@ -133,13 +187,15 @@ export default function Home() {
           </button>
           <button
             type="button"
-            className="flex flex-col items-center gap-0.5 text-gray-400"
+            onClick={() => goTab("saved")}
+            className={tabBtnClass("saved")}
           >
             <span className="text-lg">❤️</span>
             <span className="text-[10px]">Saved</span>
           </button>
           <button
             type="button"
+            onClick={() => {}}
             className="flex flex-col items-center gap-0.5 text-gray-400"
           >
             <span className="text-lg">👤</span>
