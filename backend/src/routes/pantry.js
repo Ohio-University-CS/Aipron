@@ -87,7 +87,10 @@ pantryRouter.delete("/:id", authenticateToken, async (req, res, next) => {
 pantryRouter.post(
   "/recipes",
   authenticateToken,
-  [body("dietaryFilters").optional().isArray()],
+  [
+    body("dietaryFilters").optional().isArray(),
+    body("budgetMode").optional().isBoolean(),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -104,13 +107,15 @@ pantryRouter.post(
       }
 
       const ingredients = pantryItems.map((r) => r.name);
-      const { dietaryFilters = [] } = req.body;
+      const { dietaryFilters = [], budgetMode = false } = req.body;
 
       if (ingredients.length === 0) {
         return res.json([]);
       }
 
-      const recipes = await findPantryRecipes(ingredients, dietaryFilters, 5);
+      const recipes = await findPantryRecipes(ingredients, dietaryFilters, 5, {
+        budgetMode,
+      });
 
       res.json(recipes);
     } catch (error) {

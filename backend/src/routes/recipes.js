@@ -13,6 +13,7 @@ recipesRouter.post(
     body("dietaryFilters").optional().isArray(),
     body("servings").optional().isInt({ min: 1, max: 12 }),
     body("skillLevel").optional().isIn(["beginner", "intermediate", "advanced"]),
+    body("budgetMode").optional().isBoolean(),
   ],
   async (req, res, next) => {
     try {
@@ -21,12 +22,19 @@ recipesRouter.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { prompt, dietaryFilters = [], servings = 4, skillLevel = "intermediate" } = req.body;
+      const {
+        prompt,
+        dietaryFilters = [],
+        servings = 4,
+        skillLevel = "intermediate",
+        budgetMode = false,
+      } = req.body;
 
       const recipe = await generateRecipe(prompt, {
         dietaryFilters,
         servings,
         skillLevel,
+        budgetMode,
       });
 
       const { data, error } = await req.supabase
@@ -207,7 +215,10 @@ recipesRouter.post(
 recipesRouter.post(
   "/substitutions",
   authenticateToken,
-  [body("ingredient").notEmpty()],
+  [
+    body("ingredient").notEmpty(),
+    body("budgetMode").optional().isBoolean(),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -215,8 +226,10 @@ recipesRouter.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { ingredient, dietaryFilters = [] } = req.body;
-      const substitutions = await getSubstitutions(ingredient, dietaryFilters);
+      const { ingredient, dietaryFilters = [], budgetMode = false } = req.body;
+      const substitutions = await getSubstitutions(ingredient, dietaryFilters, {
+        budgetMode,
+      });
 
       res.json({ ingredient, substitutions });
     } catch (error) {

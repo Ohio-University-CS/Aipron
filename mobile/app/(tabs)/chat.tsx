@@ -4,6 +4,7 @@ import { ChatComposer } from "../../src/components/ChatComposer";
 import { ChatMessage } from "../../src/components/ChatMessage";
 import { RecipeCard } from "../../src/components/RecipeCard";
 import { recipeApi } from "../../src/services/api";
+import { useBudgetModeStore } from "../../src/store/useBudgetModeStore";
 import { colors, spacing, typography, borderRadius } from "../../src/constants/DesignTokens";
 import { Recipe } from "@aipron/shared";
 import { useRouter } from "expo-router";
@@ -18,6 +19,7 @@ interface ChatEntry {
 }
 
 export default function ChatScreen() {
+  const budgetMode = useBudgetModeStore((s) => s.budgetMode);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -38,7 +40,7 @@ export default function ChatScreen() {
     setIsLoading(true);
 
     try {
-      const recipe = await recipeApi.generate(message);
+      const recipe = await recipeApi.generate(message, { budgetMode });
       setRecipes((prev) => [recipe, ...prev]);
 
       const assistantMessage: ChatEntry = {
