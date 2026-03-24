@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,9 +6,15 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Recipe } from "@aipron/shared";
+import { RecipeCard } from "../src/components/RecipeCard";
+import { recipeApi } from "../src/services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
+
+type MockTab = "home" | "search" | "saved";
 
 const recipe = {
   title: "Classic Spaghetti Carbonara",
@@ -65,8 +71,42 @@ const recipe = {
 };
 
 export default function WebPreviewScreen() {
+  const [activeTab, setActiveTab] = useState<MockTab>("home");
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
+  );
+  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+
+  const loadSavedRecipes = useCallback(async () => {
+    setSavedLoading(true);
+    try {
+      const list = await recipeApi.getSaved();
+      setSavedRecipes(list);
+    } catch {
+      setSavedRecipes([]);
+    } finally {
+      setSavedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "saved") {
+      loadSavedRecipes();
+    }
+  }, [activeTab, loadSavedRecipes]);
+
+  const handleUnsave = useCallback(
+    async (recipeId: string) => {
+      const previous = savedRecipes;
+      setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+      try {
+        await recipeApi.unsave(recipeId);
+      } catch {
+        setSavedRecipes(previous);
+      }
+    },
+    [savedRecipes]
   );
 
   const toggleIngredient = (id: string) => {
@@ -87,16 +127,35 @@ export default function WebPreviewScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerTextBlock}>
             <Text style={styles.headerEyebrow}>AI Cooking Assistant</Text>
-            <Text style={styles.headerTitle}>Today&apos;s Recipe</Text>
+            <Text style={styles.headerTitle}>
+              {activeTab === "saved"
+                ? "Favorites"
+                : activeTab === "search"
+                  ? "Search"
+                  : "Today's Recipe"}
+            </Text>
+            {activeTab === "saved" && (
+              <Text style={styles.headerSubtitle}>
+                {savedRecipes.length} recipe{savedRecipes.length === 1 ? "" : "s"}{" "}
+                saved
+              </Text>
+            )}
           </View>
           <View style={styles.headerIcon}>
-            <Text style={styles.headerIconEmoji}>🍳</Text>
+            <Text style={styles.headerIconEmoji}>
+              {activeTab === "saved"
+                ? "❤️"
+                : activeTab === "search"
+                  ? "🔍"
+                  : "🍳"}
+            </Text>
           </View>
         </View>
 
-        {/* Content */}
+        {/* Content — swaps inside the phone frame only */}
+        {activeTab === "home" && (
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -244,29 +303,153 @@ export default function WebPreviewScreen() {
             ))}
           </View>
         </ScrollView>
+        )}
 
-        {/* Bottom nav / AI CTA */}
+        {activeTab === "search" && (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.placeholderScroll}
+          >
+            <View style={styles.placeholderInner}>
+              <Text style={styles.placeholderEmoji}>🔍</Text>
+              <Text style={styles.placeholderTitle}>Search recipes</Text>
+              <Text style={styles.placeholderBody}>
+                Browse and filter in the full app; this preview stays on one
+                screen.
+              </Text>
+            </View>
+          </ScrollView>
+        )}
+
+        {activeTab === "saved" && (
+          <View style={styles.savedListWrap}>
+            <FlatList
+              data={savedRecipes}
+              keyExtractor={(item) => item.id || `favorite-${item.title}`}
+              contentContainerStyle={styles.savedListContent}
+              refreshing={savedLoading}
+              onRefresh={loadSavedRecipes}
+              ListEmptyComponent={
+                <View style={styles.savedEmpty}>
+                  <Ionicons
+                    name="heart-outline"
+                    size={64}
+                    color={colors.textDisabled}
+                  />
+                  <Text style={styles.savedEmptyTitle}>
+                    you have no recipes saved
+                  </Text>
+                  <Text style={styles.savedEmptySub}>
+                    Save a recipe with the heart icon and it will appear here.
+                  </Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <RecipeCard
+                  recipe={item}
+                  isSaved
+                  onToggleSave={handleUnsave}
+                  onPress={() => {}}
+                />
+              )}
+            />
+          </View>
+        )}
+
+        {/* Bottom nav — same chrome as before; only switches in-frame tab */}
         <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.bottomItem}>
-            <Text style={styles.bottomIcon}>🏠</Text>
-            <Text style={styles.bottomLabelActive}>Home</Text>
+          <TouchableOpacity
+            style={styles.bottomItem}
+            onPress={() => setActiveTab("home")}
+            accessibilityRole="button"
+            accessibilityLabel="Home"
+          >
+            <Text
+              style={
+                activeTab === "home"
+                  ? styles.bottomIcon
+                  : styles.bottomIconInactive
+              }
+            >
+              🏠
+            </Text>
+            <Text
+              style={
+                activeTab === "home"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
+              Home
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bottomItem}>
-            <Text style={styles.bottomIconInactive}>🔍</Text>
-            <Text style={styles.bottomLabel}>Search</Text>
+          <TouchableOpacity
+            style={styles.bottomItem}
+            onPress={() => setActiveTab("search")}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <Text
+              style={
+                activeTab === "search"
+                  ? styles.bottomIcon
+                  : styles.bottomIconInactive
+              }
+            >
+              🔍
+            </Text>
+            <Text
+              style={
+                activeTab === "search"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
+              Search
+            </Text>
           </TouchableOpacity>
           <View style={styles.bottomCenterFabWrapper}>
-            <TouchableOpacity style={styles.bottomFab}>
+            <View style={styles.bottomFab} accessibilityRole="image">
               <Ionicons name="sparkles" size={20} color={colors.background} />
-            </TouchableOpacity>
+            </View>
           </View>
-          <TouchableOpacity style={styles.bottomItem}>
-            <Text style={styles.bottomIconInactive}>❤️</Text>
-            <Text style={styles.bottomLabel}>Saved</Text>
+          <TouchableOpacity
+            style={styles.bottomItem}
+            onPress={() => setActiveTab("saved")}
+            accessibilityRole="button"
+            accessibilityLabel="Saved"
+          >
+            <Text
+              style={
+                activeTab === "saved"
+                  ? styles.bottomIcon
+                  : styles.bottomIconInactive
+              }
+            >
+              ❤️
+            </Text>
+            <Text
+              style={
+                activeTab === "saved"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
+              Saved
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bottomItem}>
-            <Text style={styles.bottomIconInactive}>👤</Text>
-            <Text style={styles.bottomLabel}>Profile</Text>
+          <TouchableOpacity
+            style={styles.bottomItem}
+            onPress={() => {}}
+            accessibilityRole="button"
+            accessibilityLabel="Profile"
+          >
+            <Text style={styles.bottomIconInactive}>
+              👤
+            </Text>
+            <Text style={styles.bottomLabel}>
+              Profile
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -313,6 +496,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  headerTextBlock: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
   headerEyebrow: {
     ...typography.caption,
     color: "#FED7AA",
@@ -321,6 +508,11 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.background,
     marginTop: 2,
+  },
+  headerSubtitle: {
+    ...typography.caption,
+    color: "#FED7AA",
+    marginTop: 4,
   },
   headerIcon: {
     width: 40,
@@ -335,6 +527,60 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+  },
+  savedListWrap: {
+    flex: 1,
+  },
+  savedListContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: 80,
+    flexGrow: 1,
+  },
+  savedEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xxl * 2,
+    paddingHorizontal: spacing.lg,
+  },
+  savedEmptyTitle: {
+    ...typography.h2,
+    color: colors.text,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    textAlign: "center",
+  },
+  savedEmptySub: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  placeholderScroll: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: 80,
+    justifyContent: "center",
+  },
+  placeholderInner: {
+    alignItems: "center",
+    paddingVertical: spacing.xxl,
+  },
+  placeholderEmoji: {
+    fontSize: 48,
+    opacity: 0.65,
+  },
+  placeholderTitle: {
+    ...typography.h2,
+    color: colors.text,
+    marginTop: spacing.md,
+    textAlign: "center",
+  },
+  placeholderBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    textAlign: "center",
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
