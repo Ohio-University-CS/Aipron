@@ -82,6 +82,9 @@ export const authApi = {
       token: data.session.access_token,
     };
   },
+  getSession: async () => {
+    return supabase.auth.getSession();
+  },
   getMe: async () => {
     const { data } = await api.get("/auth/me");
     return data;
