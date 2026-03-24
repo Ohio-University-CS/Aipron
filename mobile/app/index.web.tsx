@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,15 +6,15 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
-import { useThemeColors } from "../src/hooks/useThemeColors";
-import ProfileScreen from "./(tabs)/profile";
-import LoginScreen from "./login";
-import SettingsScreen from "./settings";
-import HelpScreen from "./help";
-import AboutScreen from "./about";
+import { Recipe } from "@aipron/shared";
+import { RecipeCard } from "../src/components/RecipeCard";
+import { recipeApi } from "../src/services/api";
+import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
+
+type MockTab = "home" | "search" | "saved";
 
 const recipe = {
   title: "Classic Spaghetti Carbonara",
@@ -71,10 +71,42 @@ const recipe = {
 };
 
 export default function WebPreviewScreen() {
-  const c = useThemeColors();
-  const [activeView, setActiveView] = useState<"recipe" | "profile" | "login" | "settings" | "help" | "about">("recipe");
+  const [activeTab, setActiveTab] = useState<MockTab>("home");
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
+  );
+  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+
+  const loadSavedRecipes = useCallback(async () => {
+    setSavedLoading(true);
+    try {
+      const list = await recipeApi.getSaved();
+      setSavedRecipes(list);
+    } catch {
+      setSavedRecipes([]);
+    } finally {
+      setSavedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "saved") {
+      loadSavedRecipes();
+    }
+  }, [activeTab, loadSavedRecipes]);
+
+  const handleUnsave = useCallback(
+    async (recipeId: string) => {
+      const previous = savedRecipes;
+      setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+      try {
+        await recipeApi.unsave(recipeId);
+      } catch {
+        setSavedRecipes(previous);
+      }
+    },
+    [savedRecipes]
   );
 
   const toggleIngredient = (id: string) => {
@@ -89,28 +121,47 @@ export default function WebPreviewScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.deviceFrame, { backgroundColor: c.background }]}>
+      <View style={styles.deviceFrame}>
         {/* Status bar notch */}
         <View style={styles.notch} />
 
-        {/* Content: Recipe or Profile */}
-        {activeView === "recipe" ? (
-          <>
-            <View style={[styles.header, { backgroundColor: c.primary }]}>
-              <View>
-                <Text style={[styles.headerEyebrow, { color: c.headerAccent }]}>AI Cooking Assistant</Text>
-                <Text style={styles.headerTitle}>Today&apos;s Recipe</Text>
-              </View>
-              <View style={styles.headerIcon}>
-                <Text style={styles.headerIconEmoji}>🍳</Text>
-              </View>
-            </View>
-            <ScrollView
-          style={[styles.scroll, { backgroundColor: c.surfaceWarm }]}
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerEyebrow}>AI Cooking Assistant</Text>
+            <Text style={styles.headerTitle}>
+              {activeTab === "saved"
+                ? "Favorites"
+                : activeTab === "search"
+                  ? "Search"
+                  : "Today's Recipe"}
+            </Text>
+            {activeTab === "saved" && (
+              <Text style={styles.headerSubtitle}>
+                {savedRecipes.length} recipe{savedRecipes.length === 1 ? "" : "s"}{" "}
+                saved
+              </Text>
+            )}
+          </View>
+          <View style={styles.headerIcon}>
+            <Text style={styles.headerIconEmoji}>
+              {activeTab === "saved"
+                ? "❤️"
+                : activeTab === "search"
+                  ? "🔍"
+                  : "🍳"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Content — swaps inside the phone frame only */}
+        {activeTab === "home" && (
+        <ScrollView
+          style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
         >
           {/* Recipe header card */}
-          <View style={[styles.recipeCard, { backgroundColor: c.card }]}>
+          <View style={styles.recipeCard}>
             <View style={styles.recipeImageWrapper}>
               <Image
                 source={{ uri: recipe.image }}
@@ -119,68 +170,87 @@ export default function WebPreviewScreen() {
               />
               <View style={styles.recipeImageOverlay} />
               <View style={styles.recipeImageContent}>
-                <View style={[styles.recipeChip, { backgroundColor: c.primary }]}>
+                <View style={styles.recipeChip}>
                   <Text style={styles.recipeChipDot}>•</Text>
                   <Text style={styles.recipeChipText}>Featured recipe</Text>
                 </View>
                 <Text style={styles.recipeName}>{recipe.title}</Text>
               </View>
             </View>
-            <View style={[styles.recipeMetaRow, { backgroundColor: c.surfaceWarm }]}>
+            <View style={styles.recipeMetaRow}>
               <View style={styles.recipeMetaItem}>
-                <View style={[styles.metaIconBadge, { backgroundColor: c.surfaceWarmAlt }]}>
-                  <Ionicons name="time-outline" size={16} color={c.primary} />
+                <View style={styles.metaIconBadge}>
+                  <Ionicons
+                    name="time-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
                 </View>
-                <Text style={[styles.metaLabel, { color: c.textSecondary }]}>Prep</Text>
-                <Text style={[styles.metaValue, { color: c.text }]}>{recipe.prepTime}</Text>
+                <Text style={styles.metaLabel}>Prep</Text>
+                <Text style={styles.metaValue}>{recipe.prepTime}</Text>
               </View>
               <View style={styles.recipeMetaItem}>
-                <View style={[styles.metaIconBadge, { backgroundColor: c.surfaceWarmAlt }]}>
-                  <Ionicons name="flame-outline" size={16} color={c.primary} />
+                <View style={styles.metaIconBadge}>
+                  <Ionicons
+                    name="flame-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
                 </View>
-                <Text style={[styles.metaLabel, { color: c.textSecondary }]}>Cook</Text>
-                <Text style={[styles.metaValue, { color: c.text }]}>{recipe.cookTime}</Text>
+                <Text style={styles.metaLabel}>Cook</Text>
+                <Text style={styles.metaValue}>{recipe.cookTime}</Text>
               </View>
               <View style={styles.recipeMetaItem}>
-                <View style={[styles.metaIconBadge, { backgroundColor: c.surfaceWarmAlt }]}>
-                  <Ionicons name="people-outline" size={16} color={c.primary} />
+                <View style={styles.metaIconBadge}>
+                  <Ionicons
+                    name="people-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
                 </View>
-                <Text style={[styles.metaLabel, { color: c.textSecondary }]}>Serves</Text>
-                <Text style={[styles.metaValue, { color: c.text }]}>{recipe.servings}</Text>
+                <Text style={styles.metaLabel}>Serves</Text>
+                <Text style={styles.metaValue}>{recipe.servings}</Text>
               </View>
             </View>
           </View>
 
           {/* Ingredients */}
-          <View style={[styles.ingredientsCard, { backgroundColor: c.surfaceWarm }]}>
+          <View style={styles.ingredientsCard}>
             <View style={styles.ingredientsHeaderRow}>
-              <View style={[styles.ingredientsAccent, { backgroundColor: c.primary }]} />
-              <Text style={[styles.ingredientsTitle, { color: c.text }]}>Ingredients</Text>
+              <View style={styles.ingredientsAccent} />
+              <Text style={styles.ingredientsTitle}>Ingredients</Text>
               <View style={{ flex: 1 }} />
-              <Text style={[styles.ingredientsAdjust, { color: c.primary }]}>Adjust for guests</Text>
+              <Text style={styles.ingredientsAdjust}>Adjust for guests</Text>
             </View>
             {recipe.ingredients.map((item) => {
               const isChecked = checkedIngredients.has(item.id);
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={[styles.ingredientRow, { backgroundColor: c.background, borderTopColor: c.ingredientBorder }]}
+                  style={styles.ingredientRow}
                   activeOpacity={0.8}
                   onPress={() => toggleIngredient(item.id)}
                 >
                   <View style={styles.ingredientLeft}>
                     <View style={styles.checkboxOuter}>
                       {isChecked ? (
-                        <Ionicons name="checkmark-circle" size={20} color={c.primary} />
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={colors.primary}
+                        />
                       ) : (
-                        <Ionicons name="ellipse-outline" size={20} color={c.textSecondary} />
+                        <Ionicons
+                          name="ellipse-outline"
+                          size={20}
+                          color={colors.textSecondary}
+                        />
                       )}
                     </View>
                     <Text
                       style={[
                         styles.ingredientName,
-                        { color: c.text },
-                        isChecked && { color: c.textSecondary, textDecorationLine: "line-through" as const },
+                        isChecked && styles.ingredientNameChecked,
                       ]}
                     >
                       {item.name}
@@ -189,8 +259,7 @@ export default function WebPreviewScreen() {
                   <Text
                     style={[
                       styles.ingredientAmount,
-                      { color: c.primary },
-                      isChecked && { color: c.textSecondary, fontWeight: "400" as const },
+                      isChecked && styles.ingredientAmountChecked,
                     ]}
                   >
                     {item.amount}
@@ -201,22 +270,30 @@ export default function WebPreviewScreen() {
           </View>
 
           {/* Steps */}
-          <View style={[styles.stepsCard, { backgroundColor: c.card }]}>
+          <View style={styles.stepsCard}>
             <View style={styles.stepsHeaderRow}>
-              <Ionicons name="restaurant-outline" size={18} color={c.primary} />
-              <Text style={[styles.stepsTitle, { color: c.text }]}>Cooking steps</Text>
+              <Ionicons
+                name="restaurant-outline"
+                size={18}
+                color={colors.primary}
+              />
+              <Text style={styles.stepsTitle}>Cooking steps</Text>
             </View>
             {recipe.steps.map((step) => (
               <View key={step.id} style={styles.stepRow}>
-                <View style={[styles.stepNumberCircle, { backgroundColor: c.surfaceWarm }]}>
-                  <Text style={[styles.stepNumberText, { color: c.primary }]}>{step.id}</Text>
+                <View style={styles.stepNumberCircle}>
+                  <Text style={styles.stepNumberText}>{step.id}</Text>
                 </View>
                 <View style={styles.stepContent}>
-                  <Text style={[styles.stepInstruction, { color: c.text }]}>{step.instruction}</Text>
+                  <Text style={styles.stepInstruction}>{step.instruction}</Text>
                   {step.duration && (
-                    <View style={[styles.stepDurationChip, { backgroundColor: c.surfaceWarm }]}>
-                      <Ionicons name="time-outline" size={12} color={c.primary} />
-                      <Text style={[styles.stepDurationText, { color: c.primary }]}>
+                    <View style={styles.stepDurationChip}>
+                      <Ionicons
+                        name="time-outline"
+                        size={12}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.stepDurationText}>
                         {step.duration}
                       </Text>
                     </View>
@@ -226,70 +303,153 @@ export default function WebPreviewScreen() {
             ))}
           </View>
         </ScrollView>
-          </>
-        ) : activeView === "profile" ? (
-          <View style={[styles.profileContainer, { backgroundColor: c.background }]}>
-            <ProfileScreen
-              onNavigateToLogin={() => setActiveView("login")}
-              onNavigateToSettings={() => setActiveView("settings")}
-              onNavigateToHelp={() => setActiveView("help")}
-              onNavigateToAbout={() => setActiveView("about")}
-              onLogout={() => setActiveView("login")}
+        )}
+
+        {activeTab === "search" && (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.placeholderScroll}
+          >
+            <View style={styles.placeholderInner}>
+              <Text style={styles.placeholderEmoji}>🔍</Text>
+              <Text style={styles.placeholderTitle}>Search recipes</Text>
+              <Text style={styles.placeholderBody}>
+                Browse and filter in the full app; this preview stays on one
+                screen.
+              </Text>
+            </View>
+          </ScrollView>
+        )}
+
+        {activeTab === "saved" && (
+          <View style={styles.savedListWrap}>
+            <FlatList
+              data={savedRecipes}
+              keyExtractor={(item) => item.id || `favorite-${item.title}`}
+              contentContainerStyle={styles.savedListContent}
+              refreshing={savedLoading}
+              onRefresh={loadSavedRecipes}
+              ListEmptyComponent={
+                <View style={styles.savedEmpty}>
+                  <Ionicons
+                    name="heart-outline"
+                    size={64}
+                    color={colors.textDisabled}
+                  />
+                  <Text style={styles.savedEmptyTitle}>
+                    you have no recipes saved
+                  </Text>
+                  <Text style={styles.savedEmptySub}>
+                    Save a recipe with the heart icon and it will appear here.
+                  </Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <RecipeCard
+                  recipe={item}
+                  isSaved
+                  onToggleSave={handleUnsave}
+                  onPress={() => {}}
+                />
+              )}
             />
-          </View>
-        ) : activeView === "settings" ? (
-          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
-            <SettingsScreen onBack={() => setActiveView("profile")} />
-          </View>
-        ) : activeView === "help" ? (
-          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
-            <HelpScreen onBack={() => setActiveView("profile")} />
-          </View>
-        ) : activeView === "about" ? (
-          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
-            <AboutScreen onBack={() => setActiveView("profile")} />
-          </View>
-        ) : (
-          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
-            <TouchableOpacity
-              style={styles.loginBackButton}
-              onPress={() => setActiveView("profile")}
-            >
-              <Ionicons name="arrow-back" size={20} color={c.text} />
-              <Text style={[styles.loginBackText, { color: c.text }]}>Back</Text>
-            </TouchableOpacity>
-            <LoginScreen onLoginSuccess={() => setActiveView("recipe")} />
           </View>
         )}
 
-        {/* Bottom nav / AI CTA */}
-        <View style={[styles.bottomBar, { backgroundColor: c.background, borderTopColor: c.border }]}>
+        {/* Bottom nav — same chrome as before; only switches in-frame tab */}
+        <View style={styles.bottomBar}>
           <TouchableOpacity
             style={styles.bottomItem}
-            onPress={() => setActiveView("recipe")}
+            onPress={() => setActiveTab("home")}
+            accessibilityRole="button"
+            accessibilityLabel="Home"
           >
-            <Text style={activeView === "recipe" ? styles.bottomIcon : styles.bottomIconInactive}>🏠</Text>
-            <Text style={[activeView === "recipe" ? styles.bottomLabelActive : styles.bottomLabel, activeView === "recipe" && { color: c.primary }]}>Home</Text>
+            <Text
+              style={
+                activeTab === "home"
+                  ? styles.bottomIcon
+                  : styles.bottomIconInactive
+              }
+            >
+              🏠
+            </Text>
+            <Text
+              style={
+                activeTab === "home"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
+              Home
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bottomItem}>
-            <Text style={styles.bottomIconInactive}>🔍</Text>
-            <Text style={styles.bottomLabel}>Search</Text>
+          <TouchableOpacity
+            style={styles.bottomItem}
+            onPress={() => setActiveTab("search")}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <Text
+              style={
+                activeTab === "search"
+                  ? styles.bottomIcon
+                  : styles.bottomIconInactive
+              }
+            >
+              🔍
+            </Text>
+            <Text
+              style={
+                activeTab === "search"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
+              Search
+            </Text>
           </TouchableOpacity>
           <View style={styles.bottomCenterFabWrapper}>
-            <TouchableOpacity style={[styles.bottomFab, { backgroundColor: c.primary }]}>
-              <Ionicons name="sparkles" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
+            <View style={styles.bottomFab} accessibilityRole="image">
+              <Ionicons name="sparkles" size={20} color={colors.background} />
+            </View>
           </View>
-          <TouchableOpacity style={styles.bottomItem}>
-            <Text style={styles.bottomIconInactive}>❤️</Text>
-            <Text style={styles.bottomLabel}>Saved</Text>
+          <TouchableOpacity
+            style={styles.bottomItem}
+            onPress={() => setActiveTab("saved")}
+            accessibilityRole="button"
+            accessibilityLabel="Saved"
+          >
+            <Text
+              style={
+                activeTab === "saved"
+                  ? styles.bottomIcon
+                  : styles.bottomIconInactive
+              }
+            >
+              ❤️
+            </Text>
+            <Text
+              style={
+                activeTab === "saved"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
+              Saved
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.bottomItem}
-            onPress={() => setActiveView("profile")}
+            onPress={() => {}}
+            accessibilityRole="button"
+            accessibilityLabel="Profile"
           >
-            <Text style={activeView !== "recipe" ? styles.bottomIcon : styles.bottomIconInactive}>👤</Text>
-            <Text style={[activeView !== "recipe" ? styles.bottomLabelActive : styles.bottomLabel, activeView !== "recipe" && { color: c.primary }]}>Profile</Text>
+            <Text style={styles.bottomIconInactive}>
+              👤
+            </Text>
+            <Text style={styles.bottomLabel}>
+              Profile
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -307,12 +467,11 @@ const styles = StyleSheet.create({
   },
   deviceFrame: {
     width: 390,
-    maxWidth: "100%",
     height: 844,
-    maxHeight: "100%",
     borderRadius: 48,
     borderWidth: 8,
     borderColor: "#020617",
+    backgroundColor: "#FEF3C7",
     ...shadows.lg,
     overflow: "hidden",
   },
@@ -332,17 +491,28 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
+    backgroundColor: colors.primary,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  headerTextBlock: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
   headerEyebrow: {
     ...typography.caption,
+    color: "#FED7AA",
   },
   headerTitle: {
     ...typography.h2,
-    color: "#FFFFFF",
+    color: colors.background,
     marginTop: 2,
+  },
+  headerSubtitle: {
+    ...typography.caption,
+    color: "#FED7AA",
+    marginTop: 4,
   },
   headerIcon: {
     width: 40,
@@ -355,28 +525,62 @@ const styles = StyleSheet.create({
   headerIconEmoji: {
     fontSize: 22,
   },
-  profileContainer: {
-    flex: 1,
-    minHeight: 0,
-    paddingTop: 36,
-  },
-  innerViewContainer: {
-    flex: 1,
-    minHeight: 0,
-    paddingTop: 36,
-  },
-  loginBackButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  loginBackText: {
-    ...typography.body,
-  },
   scroll: {
     flex: 1,
+  },
+  savedListWrap: {
+    flex: 1,
+  },
+  savedListContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: 80,
+    flexGrow: 1,
+  },
+  savedEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xxl * 2,
+    paddingHorizontal: spacing.lg,
+  },
+  savedEmptyTitle: {
+    ...typography.h2,
+    color: colors.text,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    textAlign: "center",
+  },
+  savedEmptySub: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  placeholderScroll: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: 80,
+    justifyContent: "center",
+  },
+  placeholderInner: {
+    alignItems: "center",
+    paddingVertical: spacing.xxl,
+  },
+  placeholderEmoji: {
+    fontSize: 48,
+    opacity: 0.65,
+  },
+  placeholderTitle: {
+    ...typography.h2,
+    color: colors.text,
+    marginTop: spacing.md,
+    textAlign: "center",
+  },
+  placeholderBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    textAlign: "center",
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
@@ -385,6 +589,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   recipeCard: {
+    backgroundColor: colors.background,
     borderRadius: borderRadius.xl,
     overflow: "hidden",
     ...shadows.md,
@@ -399,10 +604,7 @@ const styles = StyleSheet.create({
   },
   recipeImageOverlay: {
     position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
+    inset: 0,
     backgroundColor: "rgba(0,0,0,0.35)",
   },
   recipeImageContent: {
@@ -418,20 +620,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: 999,
+    backgroundColor: colors.primary,
   },
   recipeChipDot: {
-    color: "#FFFFFF",
+    color: colors.background,
     marginRight: 4,
   },
   recipeChipText: {
     ...typography.caption,
-    color: "#FFFFFF",
+    color: colors.background,
     fontSize: 11,
     textTransform: "uppercase",
   },
   recipeName: {
     ...typography.h2,
-    color: "#FFFFFF",
+    color: colors.background,
     marginTop: spacing.sm,
   },
   recipeMetaRow: {
@@ -439,6 +642,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+    backgroundColor: "#FFFBEB",
   },
   recipeMetaItem: {
     flex: 1,
@@ -448,20 +652,24 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
   },
   metaLabel: {
     ...typography.caption,
+    color: colors.textSecondary,
     fontSize: 11,
   },
   metaValue: {
     ...typography.caption,
+    color: colors.text,
     fontWeight: "600",
     fontSize: 11,
   },
   ingredientsCard: {
+    backgroundColor: "#FFFBEB",
     borderRadius: borderRadius.xl,
     paddingVertical: spacing.sm,
   },
@@ -475,14 +683,17 @@ const styles = StyleSheet.create({
     width: 3,
     height: 24,
     borderRadius: 999,
+    backgroundColor: colors.primary,
     marginRight: spacing.sm,
   },
   ingredientsTitle: {
     ...typography.body,
     fontWeight: "600",
+    color: colors.text,
   },
   ingredientsAdjust: {
     ...typography.caption,
+    color: colors.primary,
     textDecorationLine: "underline",
     fontSize: 12,
   },
@@ -492,7 +703,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
+    borderTopColor: "#FEE2E2",
   },
   ingredientLeft: {
     flexDirection: "row",
@@ -508,13 +721,24 @@ const styles = StyleSheet.create({
   },
   ingredientName: {
     ...typography.body,
+    color: colors.text,
     flexShrink: 1,
+  },
+  ingredientNameChecked: {
+    color: colors.textSecondary,
+    textDecorationLine: "line-through",
   },
   ingredientAmount: {
     ...typography.caption,
+    color: colors.primary,
     fontWeight: "600",
   },
+  ingredientAmountChecked: {
+    color: colors.textSecondary,
+    fontWeight: "400",
+  },
   stepsCard: {
+    backgroundColor: colors.background,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     ...shadows.md,
@@ -528,6 +752,7 @@ const styles = StyleSheet.create({
   stepsTitle: {
     ...typography.body,
     fontWeight: "600",
+    color: colors.text,
   },
   stepRow: {
     flexDirection: "row",
@@ -539,11 +764,13 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+    backgroundColor: "#FFFBEB",
     alignItems: "center",
     justifyContent: "center",
   },
   stepNumberText: {
     ...typography.caption,
+    color: colors.primary,
     fontWeight: "600",
   },
   stepContent: {
@@ -551,6 +778,7 @@ const styles = StyleSheet.create({
   },
   stepInstruction: {
     ...typography.body,
+    color: colors.text,
   },
   stepDurationChip: {
     alignSelf: "flex-start",
@@ -561,9 +789,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: 999,
+    backgroundColor: "#FFFBEB",
   },
   stepDurationText: {
     ...typography.caption,
+    color: colors.primary,
     fontSize: 11,
   },
   bottomBar: {
@@ -572,7 +802,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 64,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
+    borderTopColor: colors.border,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
@@ -593,11 +825,12 @@ const styles = StyleSheet.create({
   bottomLabelActive: {
     ...typography.caption,
     fontSize: 11,
+    color: colors.primary,
   },
   bottomLabel: {
     ...typography.caption,
     fontSize: 11,
-    color: "#9E9E9E",
+    color: colors.textSecondary,
   },
   bottomCenterFabWrapper: {
     marginTop: -24,
@@ -606,8 +839,10 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     ...shadows.md,
   },
 });
+
