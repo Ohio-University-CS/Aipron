@@ -13,8 +13,14 @@ import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "../src/components/RecipeCard";
 import { recipeApi } from "../src/services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
+import { useThemeColors } from "../src/hooks/useThemeColors";
+import ProfileScreen from "./(tabs)/profile";
+import LoginScreen from "./login";
+import SettingsScreen from "./settings";
+import HelpScreen from "./help";
+import AboutScreen from "./about";
 
-type MockTab = "home" | "search" | "saved";
+type MockTab = "home" | "search" | "saved" | "profile" | "settings" | "help" | "about" | "login";
 
 const recipe = {
   title: "Classic Spaghetti Carbonara",
@@ -71,6 +77,7 @@ const recipe = {
 };
 
 export default function WebPreviewScreen() {
+  const c = useThemeColors();
   const [activeTab, setActiveTab] = useState<MockTab>("home");
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
@@ -134,7 +141,17 @@ export default function WebPreviewScreen() {
                 ? "Favorites"
                 : activeTab === "search"
                   ? "Search"
-                  : "Today's Recipe"}
+                  : activeTab === "profile"
+                    ? "Profile"
+                    : activeTab === "settings"
+                      ? "Settings"
+                      : activeTab === "help"
+                        ? "Help & Support"
+                        : activeTab === "about"
+                          ? "About"
+                          : activeTab === "login"
+                            ? "Login"
+                            : "Today's Recipe"}
             </Text>
             {activeTab === "saved" && (
               <Text style={styles.headerSubtitle}>
@@ -149,7 +166,17 @@ export default function WebPreviewScreen() {
                 ? "❤️"
                 : activeTab === "search"
                   ? "🔍"
-                  : "🍳"}
+                  : activeTab === "profile"
+                    ? "👤"
+                    : activeTab === "settings"
+                      ? "⚙️"
+                      : activeTab === "help"
+                        ? "❓"
+                        : activeTab === "about"
+                          ? "ℹ️"
+                          : activeTab === "login"
+                            ? "🔐"
+                            : "🍳"}
             </Text>
           </View>
         </View>
@@ -356,6 +383,49 @@ export default function WebPreviewScreen() {
           </View>
         )}
 
+        {activeTab === "profile" && (
+          <View style={[styles.profileContainer, { backgroundColor: c.background }]}>
+            <ProfileScreen
+              onNavigateToLogin={() => setActiveTab("login")}
+              onNavigateToSettings={() => setActiveTab("settings")}
+              onNavigateToHelp={() => setActiveTab("help")}
+              onNavigateToAbout={() => setActiveTab("about")}
+              onLogout={() => setActiveTab("login")}
+            />
+          </View>
+        )}
+
+        {activeTab === "settings" && (
+          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
+            <SettingsScreen onBack={() => setActiveTab("profile")} />
+          </View>
+        )}
+
+        {activeTab === "help" && (
+          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
+            <HelpScreen onBack={() => setActiveTab("profile")} />
+          </View>
+        )}
+
+        {activeTab === "about" && (
+          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
+            <AboutScreen onBack={() => setActiveTab("profile")} />
+          </View>
+        )}
+
+        {activeTab === "login" && (
+          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
+            <TouchableOpacity
+              style={styles.loginBackButton}
+              onPress={() => setActiveTab("profile")}
+            >
+              <Ionicons name="arrow-back" size={20} color={c.text} />
+              <Text style={[styles.loginBackText, { color: c.text }]}>Back</Text>
+            </TouchableOpacity>
+            <LoginScreen onLoginSuccess={() => setActiveTab("home")} />
+          </View>
+        )}
+
         {/* Bottom nav — same chrome as before; only switches in-frame tab */}
         <View style={styles.bottomBar}>
           <TouchableOpacity
@@ -440,14 +510,26 @@ export default function WebPreviewScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.bottomItem}
-            onPress={() => {}}
+            onPress={() => setActiveTab("profile")}
             accessibilityRole="button"
             accessibilityLabel="Profile"
           >
-            <Text style={styles.bottomIconInactive}>
+            <Text
+              style={
+                activeTab === "profile"
+                  ? styles.bottomIcon
+                  : styles.bottomIconInactive
+              }
+            >
               👤
             </Text>
-            <Text style={styles.bottomLabel}>
+            <Text
+              style={
+                activeTab === "profile"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
               Profile
             </Text>
           </TouchableOpacity>
@@ -843,6 +925,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     ...shadows.md,
+  },
+  profileContainer: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  innerViewContainer: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  loginBackButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  loginBackText: {
+    ...typography.body,
   },
 });
 
