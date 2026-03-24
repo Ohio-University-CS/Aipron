@@ -1,6 +1,7 @@
 import axios from "axios";
 import { supabase } from "./supabase";
 import { useAuthStore } from "../store/useAuthStore";
+import { Recipe } from "@aipron/shared";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -29,6 +30,25 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
+  const prepTime = recipe.prepTime ?? recipe.prep_time;
+  const cookTime = recipe.cookTime ?? recipe.cook_time;
+  const totalTime = recipe.totalTime ?? recipe.total_time;
+  const dietaryTags = recipe.dietaryTags ?? recipe.dietary_tags;
+  const createdAt = recipe.createdAt ?? recipe.created_at;
+  const updatedAt = recipe.updatedAt ?? recipe.updated_at;
+
+  return {
+    ...recipe,
+    prepTime: typeof prepTime === "number" ? prepTime : 0,
+    cookTime: typeof cookTime === "number" ? cookTime : 0,
+    totalTime: typeof totalTime === "number" ? totalTime : 0,
+    dietaryTags: Array.isArray(dietaryTags) ? dietaryTags : [],
+    createdAt: createdAt ? new Date(String(createdAt)) : undefined,
+    updatedAt: updatedAt ? new Date(String(updatedAt)) : undefined,
+  } as Recipe;
+};
 
 export const authApi = {
   register: async (email: string, password: string, name?: string) => {
@@ -63,7 +83,7 @@ export const authApi = {
     };
   },
   getSession: async () => {
-    return await supabase.auth.getSession();
+    return supabase.auth.getSession();
   },
   getMe: async () => {
     const { data } = await api.get("/auth/me");
@@ -82,11 +102,11 @@ export const recipeApi = {
   },
   getById: async (id: string) => {
     const { data } = await api.get(`/recipes/${id}`);
-    return data;
+    return normalizeRecipe(data);
   },
   getAll: async () => {
     const { data } = await api.get("/recipes");
-    return data;
+    return Array.isArray(data) ? data.map(normalizeRecipe) : [];
   },
   scale: async (id: string, servings: number) => {
     const { data } = await api.post(`/recipes/${id}/scale`, { servings });
@@ -98,6 +118,29 @@ export const recipeApi = {
       dietaryFilters,
     });
     return data;
+  },
+  save: async (id: string) => {
+    const { data } = await api.post(`/recipes/${id}/save`);
+    return data;
+  },
+  unsave: async (id: string) => {
+    const { data } = await api.delete(`/recipes/${id}/save`);
+    return data;
+  },
+  getSaved: async () => {
+    const { data } = await api.get("/recipes/saved");
+    return Array.isArray(data) ? data.map(normalizeRecipe) : [];
+  },
+  getSavedIds: async (): Promise<string[]> => {
+    const { data } = await api.get("/recipes/saved/ids");
+    // Normalize response to a string array to avoid non-string entries.
+    if (Array.isArray(data)) {
+      return data.filter((id): id is string => typeof id === "string");
+    }
+    if (data && Array.isArray((data as any).ids)) {
+      return (data as any).ids.filter((id: unknown): id is string => typeof id === "string");
+    }
+    return [];
   },
 };
 
