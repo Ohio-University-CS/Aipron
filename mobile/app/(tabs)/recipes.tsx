@@ -39,36 +39,40 @@ export default function RecipesScreen() {
   };
 
   const handleToggleSave = useCallback(async (recipeId: string) => {
-    const wasSaved = savedIds.has(recipeId);
     setSavedIds((prev) => {
+      const wasSaved = prev.has(recipeId);
       const next = new Set(prev);
+
       if (wasSaved) {
         next.delete(recipeId);
       } else {
         next.add(recipeId);
       }
+
+      (async () => {
+        try {
+          if (wasSaved) {
+            await recipeApi.unsave(recipeId);
+          } else {
+            await recipeApi.save(recipeId);
+          }
+        } catch (error) {
+          console.error("Failed to toggle save:", error);
+          setSavedIds((current) => {
+            const reverted = new Set(current);
+            if (wasSaved) {
+              reverted.add(recipeId);
+            } else {
+              reverted.delete(recipeId);
+            }
+            return reverted;
+          });
+        }
+      })();
+
       return next;
     });
-
-    try {
-      if (wasSaved) {
-        await recipeApi.unsave(recipeId);
-      } else {
-        await recipeApi.save(recipeId);
-      }
-    } catch (error) {
-      console.error("Failed to toggle save:", error);
-      setSavedIds((prev) => {
-        const reverted = new Set(prev);
-        if (wasSaved) {
-          reverted.add(recipeId);
-        } else {
-          reverted.delete(recipeId);
-        }
-        return reverted;
-      });
-    }
-  }, [savedIds]);
+  }, []);
 
   const displayedRecipes = filter === "saved"
     ? recipes.filter((r) => r.id && savedIds.has(r.id))
@@ -118,7 +122,7 @@ export default function RecipesScreen() {
 
       <FlatList
         data={displayedRecipes}
-        keyExtractor={(item) => item.id || Math.random().toString()}
+        keyExtractor={(item, index) => item.id || `recipe-${index}`}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>

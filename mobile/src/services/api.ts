@@ -130,7 +130,14 @@ export const recipeApi = {
   },
   getSavedIds: async (): Promise<string[]> => {
     const { data } = await api.get("/recipes/saved/ids");
-    return data;
+    // Normalize response to a string array to avoid non-string entries.
+    if (Array.isArray(data)) {
+      return data.filter((id): id is string => typeof id === "string");
+    }
+    if (data && Array.isArray((data as any).ids)) {
+      return (data as any).ids.filter((id: unknown): id is string => typeof id === "string");
+    }
+    return [];
   },
 };
 

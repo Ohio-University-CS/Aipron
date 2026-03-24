@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { colors, spacing, borderRadius, typography, shadows } from "../constants/DesignTokens";
@@ -47,7 +47,10 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
             style={styles.saveBadge}
             onPress={(e) => {
               e.stopPropagation?.();
-              onToggleSave(recipe.id!);
+              if (!recipe.id) {
+                return;
+              }
+              onToggleSave(recipe.id);
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
