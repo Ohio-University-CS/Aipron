@@ -88,6 +88,21 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
             </View>
           )}
         </View>
+        {(recipe.estimatedCostBand === "low" || recipe.budgetNotes) && (
+          <View style={styles.budgetRow}>
+            {recipe.estimatedCostBand === "low" && (
+              <View style={styles.budgetChip}>
+                <Ionicons name="wallet-outline" size={14} color={colors.primary} />
+                <Text style={styles.budgetChipText}>Budget-friendly</Text>
+              </View>
+            )}
+            {recipe.budgetNotes ? (
+              <Text style={styles.budgetNotes} numberOfLines={2}>
+                {recipe.budgetNotes}
+              </Text>
+            ) : null}
+          </View>
+        )}
         {recipe.dietaryTags.length > 0 && (
           <View style={styles.tags}>
             {recipe.dietaryTags.slice(0, 3).map((tag) => (
@@ -192,6 +207,32 @@ const styles = StyleSheet.create({
   metaText: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  budgetRow: {
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  budgetChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: spacing.xs / 2,
+    backgroundColor: colors.primaryLight + "25",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: borderRadius.sm,
+  },
+  budgetChipText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  budgetNotes: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
   },
   tags: {
     flexDirection: "row",
