@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "expo-module-scripts": "^55.0.2",
     "tailwindcss": "^4.2.1"
   }
 }
