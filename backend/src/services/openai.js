@@ -103,9 +103,32 @@ Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
  * Find recipes matching pantry ingredients
  */
 export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5) {
-  const prompt = `Given these ingredients: ${ingredients.join(", ")}, suggest ${limit} recipes that use most of them.
+  const prompt = `You are a practical home-cooking assistant.
+Given pantry ingredients: ${ingredients.join(", ")}.
 Dietary restrictions: ${dietaryFilters.join(", ") || "none"}.
-Return JSON array of recipes with match percentage.`;
+
+Return valid JSON in this exact shape:
+{
+  "recipes": [
+    {
+      "title": "Recipe name",
+      "description": "1 short sentence",
+      "servings": 2,
+      "totalTime": 30,
+      "difficulty": "beginner",
+      "matchPercentage": 80,
+      "availableIngredients": ["item from pantry"],
+      "missingIngredients": ["small optional items to buy"]
+    }
+  ]
+}
+
+Rules:
+- Return exactly ${limit} recipes.
+- Use pantry ingredients as much as possible.
+- Keep missingIngredients short and realistic.
+- matchPercentage must be 0-100.
+- difficulty must be one of: beginner, intermediate, advanced.`;
 
   try {
     const openai = getOpenAIClient();
@@ -117,7 +140,7 @@ Return JSON array of recipes with match percentage.`;
     });
 
     const result = JSON.parse(completion.choices[0].message.content);
-    return result.recipes || [];
+    return Array.isArray(result.recipes) ? result.recipes : [];
   } catch (error) {
     console.error("OpenAI API error:", error);
     throw new Error("Failed to find pantry recipes");

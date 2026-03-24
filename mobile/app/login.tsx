@@ -4,10 +4,11 @@ import { useRouter } from "expo-router";
 import { authApi } from "../src/services/api";
 import { useAuthStore } from "../src/store/useAuthStore";
 import { colors, spacing, borderRadius, typography } from "../src/constants/DesignTokens";
+import { supabase } from "../src/services/supabase";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
+  const { setSession } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,8 +25,9 @@ export default function LoginScreen() {
       const data = isRegister
         ? await authApi.register(email, password)
         : await authApi.login(email, password);
-      
-      setAuth(data.user, data.token);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      setSession(sessionData.session ?? null);
       router.replace("/(tabs)/chat");
     } catch (error: any) {
       Alert.alert("Error", error.response?.data?.error || "Authentication failed");

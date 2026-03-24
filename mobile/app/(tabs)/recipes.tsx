@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, Text, FlatList } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { recipeApi } from "../../src/services/api";
 import { RecipeCard } from "../../src/components/RecipeCard";
 import { colors, spacing, typography } from "../../src/constants/DesignTokens";
@@ -16,6 +17,12 @@ export default function RecipesScreen() {
   useEffect(() => {
     loadRecipes();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadRecipes();
+    }, [])
+  );
 
   const loadRecipes = async () => {
     try {

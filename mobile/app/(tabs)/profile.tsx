@@ -34,12 +34,12 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {user?.name && (
+        {user?.user_metadata?.name && (
           <View style={styles.infoCard}>
             <Ionicons name="person-outline" size={20} color={colors.textSecondary} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Name</Text>
-              <Text style={styles.infoValue}>{user.name}</Text>
+              <Text style={styles.infoValue}>{String(user.user_metadata.name)}</Text>
             </View>
           </View>
         )}
