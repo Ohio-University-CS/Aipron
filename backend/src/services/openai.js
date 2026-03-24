@@ -100,6 +100,30 @@ Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
 }
 
 /**
+ * Multi-turn chat with the AI cooking assistant
+ */
+export async function chatWithAssistant(messages) {
+  const systemPrompt =
+    "You are a helpful AI cooking assistant for the Aipron app. " +
+    "Help users with cooking questions, recipe tips, ingredient substitutions, " +
+    "and techniques. Be friendly and concise.";
+
+  try {
+    const openai = getOpenAIClient();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      temperature: 0.7,
+    });
+
+    return completion.choices[0].message.content;
+  } catch (error) {
+    console.error("OpenAI chat error:", error);
+    throw new Error("Failed to get assistant response");
+  }
+}
+
+/**
  * Find recipes matching pantry ingredients
  */
 export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5) {
