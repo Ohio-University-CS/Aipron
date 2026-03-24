@@ -38,6 +38,8 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
   const dietaryTags = recipe.dietaryTags ?? recipe.dietary_tags;
   const createdAt = recipe.createdAt ?? recipe.created_at;
   const updatedAt = recipe.updatedAt ?? recipe.updated_at;
+  const estimatedCostBand = recipe.estimatedCostBand ?? recipe.estimated_cost_band;
+  const budgetNotes = recipe.budgetNotes ?? recipe.budget_notes;
 
   return {
     ...recipe,
@@ -45,6 +47,11 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
     cookTime: typeof cookTime === "number" ? cookTime : 0,
     totalTime: typeof totalTime === "number" ? totalTime : 0,
     dietaryTags: Array.isArray(dietaryTags) ? dietaryTags : [],
+    estimatedCostBand:
+      estimatedCostBand === "low" || estimatedCostBand === "medium" || estimatedCostBand === "high"
+        ? estimatedCostBand
+        : undefined,
+    budgetNotes: typeof budgetNotes === "string" ? budgetNotes : undefined,
     createdAt: createdAt ? new Date(String(createdAt)) : undefined,
     updatedAt: updatedAt ? new Date(String(updatedAt)) : undefined,
   } as Recipe;
@@ -96,9 +103,10 @@ export const recipeApi = {
     dietaryFilters?: string[];
     servings?: number;
     skillLevel?: "beginner" | "intermediate" | "advanced";
+    budgetMode?: boolean;
   }) => {
     const { data } = await api.post("/recipes/generate", { prompt, ...options });
-    return data;
+    return normalizeRecipe(data as Record<string, unknown>);
   },
   getById: async (id: string) => {
     const { data } = await api.get(`/recipes/${id}`);
@@ -112,10 +120,15 @@ export const recipeApi = {
     const { data } = await api.post(`/recipes/${id}/scale`, { servings });
     return data;
   },
-  getSubstitutions: async (ingredient: string, dietaryFilters?: string[]) => {
+  getSubstitutions: async (
+    ingredient: string,
+    dietaryFilters?: string[],
+    options?: { budgetMode?: boolean }
+  ) => {
     const { data } = await api.post("/recipes/substitutions", {
       ingredient,
       dietaryFilters,
+      ...options,
     });
     return data;
   },
@@ -157,8 +170,8 @@ export const pantryApi = {
     const { data } = await api.delete(`/pantry/${id}`);
     return data;
   },
-  findRecipes: async (dietaryFilters?: string[]) => {
-    const { data } = await api.post("/pantry/recipes", { dietaryFilters });
+  findRecipes: async (dietaryFilters?: string[], options?: { budgetMode?: boolean }) => {
+    const { data } = await api.post("/pantry/recipes", { dietaryFilters, ...options });
     return data;
   },
 };

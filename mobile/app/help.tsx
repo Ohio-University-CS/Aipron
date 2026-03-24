@@ -26,6 +26,11 @@ const faqs = [
       "AIpron supports vegetarian, vegan, gluten-free, dairy-free, nut-free, halal, keto, and low-carb dietary preferences. You can set these in Settings > Dietary Preferences.",
   },
   {
+    question: "What is Budget mode?",
+    answer:
+      "When Budget mode is on in Settings, generated recipes favor affordable, common ingredients. Any cost band or notes shown are rough estimates from the AI, not guaranteed store prices—always check local costs yourself.",
+  },
+  {
     question: "How does the cooking timer work?",
     answer:
       "During step-by-step cooking mode, timers are automatically set based on each step's duration. You'll receive audio and visual notifications when a timer completes.",
