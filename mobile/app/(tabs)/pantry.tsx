@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -7,12 +7,15 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { pantryApi, recipeApi } from "../../src/services/api";
 import { colors, spacing, borderRadius, typography, shadows } from "../../src/constants/DesignTokens";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuthStore } from "../../src/store/useAuthStore";
 
 interface PantryItem {
   id: string;
@@ -33,53 +36,119 @@ interface PantryRecipeSuggestion {
   missingIngredients?: string[];
 }
 
+function normalizePantryRow(row: Record<string, unknown>): PantryItem {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    quantity: row.quantity != null ? Number(row.quantity) : undefined,
+    unit: row.unit != null ? String(row.unit) : undefined,
+    expiresAt: row.expires_at ? new Date(String(row.expires_at)) : undefined,
+  };
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === "object" && "response" in error) {
+    const data = (error as { response?: { data?: { error?: string } } }).response?.data;
+    if (data?.error && typeof data.error === "string") return data.error;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 export default function PantryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, isLoading: authLoading } = useAuthStore();
+
   const [items, setItems] = useState<PantryItem[]>([]);
   const [suggestions, setSuggestions] = useState<PantryRecipeSuggestion[]>([]);
   const [newItem, setNewItem] = useState("");
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isFindingRecipes, setIsFindingRecipes] = useState(false);
   const [activeSuggestionKey, setActiveSuggestionKey] = useState<string | null>(null);
+  const [showEmptySuggestHint, setShowEmptySuggestHint] = useState(false);
+  const isFirstPantryLoad = useRef(true);
 
-  useEffect(() => {
-    loadPantry();
-  }, []);
+  const loadPantry = useCallback(async () => {
+    if (!isAuthenticated) {
+      setItems([]);
+      setInitialLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
-  const loadPantry = async () => {
     try {
       const data = await pantryApi.getAll();
-      setItems(data);
+      const rows = Array.isArray(data) ? data : [];
+      setItems(rows.map((row) => normalizePantryRow(row as Record<string, unknown>)));
     } catch (error) {
       console.error("Failed to load pantry:", error);
+      Alert.alert("Could not load pantry", getErrorMessage(error, "Check your connection and try again."));
+    } finally {
+      setInitialLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [isAuthenticated]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (authLoading) return;
+      if (isFirstPantryLoad.current) {
+        setInitialLoading(true);
+        isFirstPantryLoad.current = false;
+      }
+      void loadPantry();
+    }, [authLoading, loadPantry])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void loadPantry();
+  }, [loadPantry]);
 
   const handleAddItem = async () => {
     if (!newItem.trim()) return;
 
     setIsLoading(true);
     try {
-      const item = await pantryApi.add({ name: newItem.trim() });
-      setItems((prev) => [...prev, item]);
+      const raw = await pantryApi.add({ name: newItem.trim() });
+      const item = normalizePantryRow(raw as Record<string, unknown>);
+      setItems((prev) => {
+        const withoutDup = prev.filter((p) => p.name.toLowerCase() !== item.name.toLowerCase());
+        return [...withoutDup, item];
+      });
       setNewItem("");
       setSuggestions([]);
+      setShowEmptySuggestHint(false);
     } catch (error) {
       console.error("Failed to add item:", error);
+      Alert.alert("Could not add item", getErrorMessage(error, "Please try again."));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDeleteItem = async (id: string) => {
-    try {
-      await pantryApi.delete(id);
-      setItems((prev) => prev.filter((item) => item.id !== id));
-      setSuggestions([]);
-    } catch (error) {
-      console.error("Failed to delete item:", error);
-    }
+  const handleDeleteItem = (id: string, name: string) => {
+    Alert.alert("Remove ingredient", `Remove "${name}" from your pantry?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await pantryApi.delete(id);
+            setItems((prev) => prev.filter((item) => item.id !== id));
+            setSuggestions([]);
+            setShowEmptySuggestHint(false);
+          } catch (error) {
+            console.error("Failed to delete item:", error);
+            Alert.alert("Could not remove item", getErrorMessage(error, "Please try again."));
+          }
+        },
+      },
+    ]);
   };
 
   const handleFindRecipes = async () => {
@@ -88,10 +157,17 @@ export default function PantryScreen() {
     setIsFindingRecipes(true);
     try {
       const recipes = await pantryApi.findRecipes();
-      setSuggestions(Array.isArray(recipes) ? recipes : []);
+      const list = Array.isArray(recipes) ? recipes : [];
+      setSuggestions(list);
+      setShowEmptySuggestHint(list.length === 0);
     } catch (error) {
       console.error("Failed to find pantry recipes:", error);
       setSuggestions([]);
+      setShowEmptySuggestHint(false);
+      Alert.alert(
+        "Could not suggest recipes",
+        getErrorMessage(error, "Is the backend running with OPENAI_API_KEY set?")
+      );
     } finally {
       setIsFindingRecipes(false);
     }
@@ -115,17 +191,39 @@ export default function PantryScreen() {
       }
     } catch (error) {
       console.error("Failed to open suggested recipe:", error);
-      Alert.alert("Unable to open recipe", "Please try again in a moment.");
+      Alert.alert("Unable to open recipe", getErrorMessage(error, "Please try again."));
     } finally {
       setActiveSuggestionKey(null);
     }
   };
 
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top + spacing.lg }]}>
+        <Ionicons name="lock-closed-outline" size={48} color={colors.textSecondary} />
+        <Text style={styles.gateTitle}>Sign in to use Pantry</Text>
+        <Text style={styles.gateText}>Save ingredients and get AI recipe ideas from what you already have.</Text>
+        <TouchableOpacity style={styles.gateButton} onPress={() => router.push("/login")}>
+          <Text style={styles.gateButtonText}>Go to login</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (initialLoading && items.length === 0) {
+    return (
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingHint}>Loading pantry…</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>My Pantry</Text>
-        <Text style={styles.subtitle}>Manage your ingredients</Text>
+        <Text style={styles.subtitle}>Manage your ingredients — find recipes from what you have</Text>
       </View>
 
       <View style={styles.inputContainer}>
@@ -143,7 +241,11 @@ export default function PantryScreen() {
           onPress={handleAddItem}
           disabled={!newItem.trim() || isLoading}
         >
-          <Ionicons name="add" size={24} color={colors.background} />
+          {isLoading ? (
+            <ActivityIndicator color={colors.background} />
+          ) : (
+            <Ionicons name="add" size={24} color={colors.background} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -151,23 +253,32 @@ export default function PantryScreen() {
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.modeCard}>
             <View style={styles.modeHeader}>
-              <View>
+              <View style={styles.modeHeaderText}>
                 <Text style={styles.modeTitle}>Pantry Mode</Text>
-                <Text style={styles.modeSubtitle}>Find meals from what you already have</Text>
+                <Text style={styles.modeSubtitle}>Ranked ideas from your ingredients (via AI)</Text>
               </View>
               <TouchableOpacity
                 style={[styles.modeButton, (items.length === 0 || isFindingRecipes) && styles.modeButtonDisabled]}
                 onPress={handleFindRecipes}
                 disabled={items.length === 0 || isFindingRecipes}
               >
-                <Text style={styles.modeButtonText}>
-                  {isFindingRecipes ? "Finding..." : "Find Recipes"}
-                </Text>
+                {isFindingRecipes ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <Text style={styles.modeButtonText}>Suggest recipes</Text>
+                )}
               </TouchableOpacity>
             </View>
+
+            {showEmptySuggestHint && suggestions.length === 0 && (
+              <Text style={styles.emptySuggestHint}>
+                No suggestions returned — try a few more ingredients or tap again.
+              </Text>
+            )}
 
             {suggestions.length > 0 && (
               <View style={styles.suggestionsSection}>
@@ -177,42 +288,32 @@ export default function PantryScreen() {
                   const isOpening = activeSuggestionKey === suggestionKey;
 
                   return (
-                  <TouchableOpacity
-                    key={suggestionKey}
-                    style={styles.suggestionCard}
-                    activeOpacity={0.85}
-                    onPress={() => handleOpenSuggestedRecipe(recipe, index)}
-                    disabled={Boolean(activeSuggestionKey)}
-                  >
-                    <View style={styles.suggestionTopRow}>
-                      <Text style={styles.suggestionName}>{recipe.title}</Text>
-                      {typeof recipe.matchPercentage === "number" && (
-                        <View style={styles.matchBadge}>
-                          <Text style={styles.matchBadgeText}>{recipe.matchPercentage}% match</Text>
-                        </View>
+                    <TouchableOpacity
+                      key={suggestionKey}
+                      style={styles.suggestionCard}
+                      activeOpacity={0.85}
+                      onPress={() => handleOpenSuggestedRecipe(recipe, index)}
+                      disabled={Boolean(activeSuggestionKey)}
+                    >
+                      <View style={styles.suggestionTopRow}>
+                        <Text style={styles.suggestionName}>{recipe.title}</Text>
+                        {typeof recipe.matchPercentage === "number" && (
+                          <View style={styles.matchBadge}>
+                            <Text style={styles.matchBadgeText}>{recipe.matchPercentage}% match</Text>
+                          </View>
+                        )}
+                      </View>
+                      {recipe.description ? <Text style={styles.suggestionDescription}>{recipe.description}</Text> : null}
+                      <View style={styles.suggestionMeta}>
+                        {recipe.totalTime ? <Text style={styles.suggestionMetaText}>⏱ {recipe.totalTime} min</Text> : null}
+                        {recipe.servings ? <Text style={styles.suggestionMetaText}>🍽 {recipe.servings} servings</Text> : null}
+                        {recipe.difficulty ? <Text style={styles.suggestionMetaText}>{recipe.difficulty}</Text> : null}
+                      </View>
+                      {Array.isArray(recipe.missingIngredients) && recipe.missingIngredients.length > 0 && (
+                        <Text style={styles.missingText}>Missing: {recipe.missingIngredients.join(", ")}</Text>
                       )}
-                    </View>
-                    {recipe.description ? (
-                      <Text style={styles.suggestionDescription}>{recipe.description}</Text>
-                    ) : null}
-                    <View style={styles.suggestionMeta}>
-                      {recipe.totalTime ? (
-                        <Text style={styles.suggestionMetaText}>⏱ {recipe.totalTime} min</Text>
-                      ) : null}
-                      {recipe.servings ? (
-                        <Text style={styles.suggestionMetaText}>🍽 {recipe.servings} servings</Text>
-                      ) : null}
-                      {recipe.difficulty ? (
-                        <Text style={styles.suggestionMetaText}>{recipe.difficulty}</Text>
-                      ) : null}
-                    </View>
-                    {Array.isArray(recipe.missingIngredients) && recipe.missingIngredients.length > 0 && (
-                      <Text style={styles.missingText}>
-                        Missing: {recipe.missingIngredients.join(", ")}
-                      </Text>
-                    )}
-                    {isOpening && <Text style={styles.openingText}>Opening recipe...</Text>}
-                  </TouchableOpacity>
+                      {isOpening && <Text style={styles.openingText}>Opening recipe…</Text>}
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -223,23 +324,20 @@ export default function PantryScreen() {
           <View style={styles.emptyContainer}>
             <Ionicons name="basket-outline" size={64} color={colors.textDisabled} />
             <Text style={styles.emptyText}>Your pantry is empty</Text>
-            <Text style={styles.emptySubtext}>Add ingredients to get recipe suggestions</Text>
+            <Text style={styles.emptySubtext}>Add ingredients above, then tap Suggest recipes</Text>
           </View>
         }
         renderItem={({ item }) => (
           <View style={styles.itemCard}>
             <View style={styles.itemContent}>
               <Text style={styles.itemName}>{item.name}</Text>
-              {item.quantity && item.unit && (
+              {item.quantity != null && item.unit && (
                 <Text style={styles.itemQuantity}>
                   {item.quantity} {item.unit}
                 </Text>
               )}
             </View>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDeleteItem(item.id)}
-            >
+            <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteItem(item.id, item.name)}>
               <Ionicons name="trash-outline" size={20} color={colors.error} />
             </TouchableOpacity>
           </View>
@@ -253,6 +351,40 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+  },
+  loadingHint: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+  },
+  gateTitle: {
+    ...typography.h2,
+    color: colors.text,
+    marginTop: spacing.md,
+    textAlign: "center",
+  },
+  gateText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginTop: spacing.sm,
+  },
+  gateButton: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  gateButtonText: {
+    ...typography.body,
+    color: colors.background,
+    fontWeight: "600",
   },
   header: {
     paddingHorizontal: spacing.lg,
@@ -298,6 +430,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.lg,
+    flexGrow: 1,
   },
   modeCard: {
     backgroundColor: colors.surface,
@@ -307,9 +440,13 @@ const styles = StyleSheet.create({
   },
   modeHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: spacing.sm,
+  },
+  modeHeaderText: {
+    flex: 1,
+    minWidth: 0,
   },
   modeTitle: {
     ...typography.h2,
@@ -323,10 +460,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs / 2,
   },
   modeButton: {
+    minWidth: 132,
+    minHeight: 40,
     backgroundColor: colors.primary,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modeButtonDisabled: {
     backgroundColor: colors.textDisabled,
@@ -335,6 +476,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.background,
     fontWeight: "600",
+  },
+  emptySuggestHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
   },
   suggestionsSection: {
     marginTop: spacing.md,

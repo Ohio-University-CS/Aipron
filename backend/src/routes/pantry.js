@@ -13,6 +13,7 @@ pantryRouter.get("/", authenticateToken, async (req, res, next) => {
       .order("name");
 
     if (error) {
+      console.error("GET /pantry:", error.message);
       return res.status(500).json({ error: "Failed to fetch pantry items" });
     }
 
@@ -55,6 +56,7 @@ pantryRouter.post(
         .single();
 
       if (error) {
+        console.error("POST /pantry:", error.message, error);
         return res.status(500).json({ error: "Failed to add pantry item" });
       }
 
@@ -75,6 +77,7 @@ pantryRouter.delete("/:id", authenticateToken, async (req, res, next) => {
       .eq("id", id);
 
     if (error) {
+      console.error("DELETE /pantry/:id:", error.message);
       return res.status(500).json({ error: "Failed to delete pantry item" });
     }
 
@@ -100,6 +103,7 @@ pantryRouter.post(
         .select("name");
 
       if (error) {
+        console.error("POST /pantry/recipes (fetch items):", error.message);
         return res.status(500).json({ error: "Failed to fetch pantry" });
       }
 

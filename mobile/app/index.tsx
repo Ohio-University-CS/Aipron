@@ -1,7 +1,5 @@
-import ChatScreen from "./(tabs)/chat";
+import { Redirect } from "expo-router";
 
-// For now, render Chat directly so you can preview the UI
-// without auth / persistence getting in the way.
 export default function Index() {
-  return <ChatScreen />;
+  return <Redirect href="/(tabs)/chat" />;
 }

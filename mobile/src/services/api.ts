@@ -44,7 +44,8 @@ export const authApi = {
         email: data.user?.email,
         name: data.user?.user_metadata?.name,
       },
-      token: data.session?.access_token,
+      token: data.session?.access_token ?? null,
+      session: data.session,
     };
   },
   login: async (email: string, password: string) => {
