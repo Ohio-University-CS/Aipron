@@ -12,31 +12,66 @@ export const spacing = {
   xxl: 32,
 } as const;
 
-export const colors = {
-  // Primary
+export const lightColors = {
   primary: "#FF6B35",
   primaryDark: "#E55A2B",
   primaryLight: "#FF8C5A",
-  
-  // Semantic
+
   success: "#4CAF50",
   warning: "#FF9800",
   error: "#F44336",
   info: "#2196F3",
-  
-  // Neutral
+
   background: "#FFFFFF",
   surface: "#F5F5F5",
   text: "#212121",
   textSecondary: "#757575",
   textDisabled: "#BDBDBD",
   border: "#E0E0E0",
-  
-  // Cooking mode specific
+
+  card: "#FFFFFF",
+  surfaceWarm: "#FFFBEB",
+  surfaceWarmAlt: "#FFF7ED",
+  ingredientBorder: "#FEE2E2",
+  headerAccent: "#FED7AA",
+
   cookingBackground: "#1A1A1A",
   cookingText: "#FFFFFF",
   cookingTextSecondary: "#B0B0B0",
 } as const;
+
+export const darkColors: typeof lightColors = {
+  primary: "#FF8C5A",
+  primaryDark: "#FF6B35",
+  primaryLight: "#FFAB85",
+
+  success: "#66BB6A",
+  warning: "#FFB74D",
+  error: "#EF5350",
+  info: "#42A5F5",
+
+  background: "#121212",
+  surface: "#1E1E1E",
+  text: "#E0E0E0",
+  textSecondary: "#9E9E9E",
+  textDisabled: "#616161",
+  border: "#333333",
+
+  card: "#1E1E1E",
+  surfaceWarm: "#2A2118",
+  surfaceWarmAlt: "#261E15",
+  ingredientBorder: "#3D2020",
+  headerAccent: "#B0855A",
+
+  cookingBackground: "#000000",
+  cookingText: "#FFFFFF",
+  cookingTextSecondary: "#B0B0B0",
+} as const;
+
+export type ThemeColors = typeof lightColors;
+
+/** Default (light) colors export for backward compatibility */
+export const colors = lightColors;
 
 export const typography = {
   // Cooking Mode: max 3 text sizes, minimum 24px for active step

@@ -1,225 +1,270 @@
 import React, { useState } from "react";
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Text,
-  Alert,
-  Platform,
-  ScrollView,
-  KeyboardAvoidingView,
-} from "react-native";
+import { View, TextInput, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { authApi } from "../src/services/api";
 import { useAuthStore } from "../src/store/useAuthStore";
-import { colors, spacing, borderRadius, typography } from "../src/constants/DesignTokens";
-import { supabase } from "../src/services/supabase";
+import { spacing, borderRadius, typography } from "../src/constants/DesignTokens";
+import { useThemeColors } from "../src/hooks/useThemeColors";
 
-function getAuthErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "message" in error) {
-    const msg = (error as { message?: string }).message;
-    if (typeof msg === "string" && msg.trim()) return msg;
-  }
-  if (error && typeof error === "object" && "response" in error) {
-    const data = (error as { response?: { data?: { error?: string } } }).response?.data;
-    if (data?.error && typeof data.error === "string") return data.error;
-  }
-  return "Something went wrong. Please try again.";
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface FieldErrors {
+  email: boolean;
+  password: boolean;
+  name: boolean;
 }
 
-function notify(title: string, message: string) {
-  if (Platform.OS === "web") {
-    window.alert(`${title}\n\n${message}`);
-  } else {
-    Alert.alert(title, message);
-  }
+interface LoginScreenProps {
+  onLoginSuccess?: () => void;
 }
 
-export default function LoginScreen() {
+export default function LoginScreen({ onLoginSuccess }: LoginScreenProps = {}) {
   const router = useRouter();
+  const c = useThemeColors();
   const { setSession } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({ email: false, password: false, name: false });
+
+  const clearErrors = () => {
+    setErrorMessage("");
+    setFieldErrors({ email: false, password: false, name: false });
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (errorMessage) clearErrors();
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    if (errorMessage) clearErrors();
+  };
+
+  const handleNameChange = (text: string) => {
+    setName(text);
+    if (errorMessage) clearErrors();
+  };
+
+  const handleToggleMode = () => {
+    setIsRegister(!isRegister);
+    setName("");
+    clearErrors();
+  };
+
+  const validate = (): boolean => {
+    if (isRegister && !name.trim()) {
+      setErrorMessage("Please enter a username");
+      setFieldErrors({ email: false, password: false, name: true });
+      return false;
+    }
+    if (!email.trim() && !password) {
+      setErrorMessage("Please enter your email and password");
+      setFieldErrors({ email: true, password: true, name: false });
+      return false;
+    }
+    if (!email.trim()) {
+      setErrorMessage("Please enter your email address");
+      setFieldErrors({ email: true, password: false, name: false });
+      return false;
+    }
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setErrorMessage("Please enter a valid email address");
+      setFieldErrors({ email: true, password: false, name: false });
+      return false;
+    }
+    if (!password) {
+      setErrorMessage("Please enter your password");
+      setFieldErrors({ email: false, password: true, name: false });
+      return false;
+    }
+    if (isRegister && password.length < 6) {
+      setErrorMessage("Password must be at least 6 characters");
+      setFieldErrors({ email: false, password: true, name: false });
+      return false;
+    }
+    return true;
+  };
+
+  const getServerErrorMessage = (error: any): string => {
+    const msg: string =
+      error?.message ||
+      error?.response?.data?.error ||
+      error?.response?.data?.message ||
+      "";
+    const lower = msg.toLowerCase();
+
+    if (lower.includes("invalid login") || lower.includes("invalid credentials")) {
+      return "Invalid email or password";
+    }
+    if (lower.includes("already registered") || lower.includes("already exists") || lower.includes("duplicate")) {
+      return "An account with this email already exists";
+    }
+    if (lower.includes("rate limit") || lower.includes("too many")) {
+      return "Too many attempts. Please try again later";
+    }
+    return msg || "Authentication failed. Please try again";
+  };
 
   const handleSubmit = async () => {
-    setFormError(null);
-
-    if (!email.trim() || !password) {
-      const msg = "Please enter email and password.";
-      setFormError(msg);
-      notify("Missing fields", msg);
-      return;
-    }
+    if (!validate()) return;
 
     setIsLoading(true);
+    clearErrors();
     try {
-      if (isRegister) {
-        const result = await authApi.register(email.trim(), password);
+      await (isRegister
+        ? await authApi.register(email, password, name.trim())
+        : await authApi.login(email, password));
 
-        if (!result.session) {
-          setFormError(
-            "Account created. If Supabase requires email confirmation, check your inbox and click the link—then sign in below."
-          );
-          setIsRegister(false);
-          notify(
-            "Check your email",
-            "If your project uses email confirmation, open the link we sent you, then sign in here."
-          );
-          return;
-        }
+      const { data, error } = await authApi.getSession();
+      if (error) throw error;
+      setSession(data.session);
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        setSession(sessionData.session ?? null);
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      } else {
         router.replace("/(tabs)/chat");
-        return;
       }
-
-      await authApi.login(email.trim(), password);
-      const { data: sessionData } = await supabase.auth.getSession();
-      setSession(sessionData.session ?? null);
-
-      if (!sessionData.session) {
-        setFormError("Signed in but no session was stored. Try again or check Supabase settings.");
-        return;
+    } catch (error: any) {
+      const msg = getServerErrorMessage(error);
+      setErrorMessage(msg);
+      if (msg.toLowerCase().includes("email")) {
+        setFieldErrors({ email: true, password: false, name: false });
+      } else if (msg.toLowerCase().includes("password")) {
+        setFieldErrors({ email: false, password: true, name: false });
+      } else {
+        setFieldErrors({ email: true, password: true, name: false });
       }
-
-      router.replace("/(tabs)/chat");
-    } catch (error: unknown) {
-      const msg = getAuthErrorMessage(error);
-      setFormError(msg);
-      notify("Sign in failed", msg);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        <View style={styles.inner}>
-          <Text style={styles.title}>AIpron</Text>
-          <Text style={styles.subtitle}>
-            {isRegister ? "Create an account" : "Sign in to continue"}
-          </Text>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
+      <Text style={[styles.title, { color: c.text }]}>AIpron</Text>
+      <Text style={[styles.subtitle, { color: c.textSecondary }]}>
+        {isRegister ? "Create an account" : "Sign in to continue"}
+      </Text>
 
-          {formError ? (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{formError}</Text>
-            </View>
-          ) : null}
-
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={colors.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isLoading}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={colors.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!isLoading}
-          />
-
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={() => void handleSubmit()}
-            disabled={isLoading}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.buttonText}>
-              {isLoading ? "Please wait…" : isRegister ? "Register" : "Login"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.switchButton}
-            onPress={() => {
-              setFormError(null);
-              setIsRegister(!isRegister);
-            }}
-            disabled={isLoading}
-          >
-            <Text style={styles.switchText}>
-              {isRegister ? "Already have an account? Sign in" : "Don't have an account? Register"}
-            </Text>
-          </TouchableOpacity>
+      {errorMessage !== "" && (
+        <View style={[styles.errorBanner, { backgroundColor: c.error + "15" }]}>
+          <Text style={styles.warningIcon}>{"\u26A0"}</Text>
+          <Text style={[styles.errorText, { color: c.error }]}>{errorMessage}</Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      )}
+
+      {isRegister && (
+        <TextInput
+          style={[
+            styles.input,
+            { backgroundColor: c.surface, color: c.text },
+            fieldErrors.name && { borderColor: c.error, borderWidth: 1 },
+          ]}
+          placeholder="Username"
+          placeholderTextColor={c.textSecondary}
+          value={name}
+          onChangeText={handleNameChange}
+          autoCapitalize="none"
+          editable={!isLoading}
+        />
+      )}
+
+      <TextInput
+        style={[
+          styles.input,
+          { backgroundColor: c.surface, color: c.text },
+          fieldErrors.email && { borderColor: c.error, borderWidth: 1 },
+        ]}
+        placeholder="Email"
+        placeholderTextColor={c.textSecondary}
+        value={email}
+        onChangeText={handleEmailChange}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        editable={!isLoading}
+      />
+
+      <TextInput
+        style={[
+          styles.input,
+          { backgroundColor: c.surface, color: c.text },
+          fieldErrors.password && { borderColor: c.error, borderWidth: 1 },
+        ]}
+        placeholder="Password"
+        placeholderTextColor={c.textSecondary}
+        value={password}
+        onChangeText={handlePasswordChange}
+        secureTextEntry
+        editable={!isLoading}
+      />
+
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: c.primary }, isLoading && styles.buttonDisabled]}
+        onPress={handleSubmit}
+        disabled={isLoading}
+      >
+        <Text style={styles.buttonText}>
+          {isLoading ? "Loading..." : isRegister ? "Register" : "Login"}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.switchButton}
+        onPress={handleToggleMode}
+        disabled={isLoading}
+      >
+        <Text style={[styles.switchText, { color: c.primary }]}>
+          {isRegister ? "Already have an account? Sign in" : "Don't have an account? Register"}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  container: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
     padding: spacing.xl,
-  },
-  inner: {
-    width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
+    justifyContent: "center",
   },
   title: {
     ...typography.h1,
-    color: colors.text,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
   subtitle: {
     ...typography.body,
-    color: colors.textSecondary,
     textAlign: "center",
     marginBottom: spacing.xl,
   },
   errorBanner: {
-    backgroundColor: colors.error + "18",
-    borderRadius: borderRadius.md,
+    flexDirection: "row",
+    alignItems: "center",
     padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.error + "40",
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.lg,
+  },
+  warningIcon: {
+    fontSize: 18,
+    marginRight: spacing.sm,
   },
   errorText: {
     ...typography.caption,
-    color: colors.error,
-    lineHeight: 20,
+    fontWeight: "500",
+    flex: 1,
   },
   input: {
     ...typography.body,
-    backgroundColor: colors.surface,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     marginBottom: spacing.md,
-    color: colors.text,
   },
   button: {
-    backgroundColor: colors.primary,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     alignItems: "center",
@@ -230,16 +275,14 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     ...typography.body,
-    color: colors.background,
+    color: "#FFFFFF",
     fontWeight: "600",
   },
   switchButton: {
     marginTop: spacing.lg,
     alignItems: "center",
-    paddingVertical: spacing.sm,
   },
   switchText: {
     ...typography.caption,
-    color: colors.primary,
   },
 });

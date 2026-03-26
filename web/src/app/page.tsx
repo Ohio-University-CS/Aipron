@@ -1,16 +1,29 @@
-export default function Home() {
+import { cookies } from "next/headers";
+import { createClient } from "@/utils/supabase/server";
+
+export default async function Home() {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: todos, error } = await supabase.from("todos").select("id,name");
+
   return (
     <main className="min-h-screen p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-4">AIpron</h1>
-        <p className="text-lg text-gray-600 mb-8">
-          Your AI-powered cooking assistant
-        </p>
-        <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-700">
-            Web app coming soon. Use the mobile app for the full experience.
-          </p>
-        </div>
+      <div className="mx-auto max-w-4xl">
+        <h1 className="mb-4 text-4xl font-bold">AIpron</h1>
+        <p className="mb-8 text-lg text-gray-600">Supabase connectivity check</p>
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+            Failed to load todos: {error.message}
+          </div>
+        ) : (
+          <ul className="space-y-2 rounded-lg border border-gray-200 bg-white p-6 shadow">
+            {todos?.length ? (
+              todos.map((todo) => <li key={todo.id}>{todo.name}</li>)
+            ) : (
+              <li className="text-gray-500">No todos found.</li>
+            )}
+          </ul>
+        )}
       </div>
     </main>
   );

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { colors, spacing, borderRadius, typography, shadows } from "../constants/DesignTokens";
@@ -7,6 +7,8 @@ import { colors, spacing, borderRadius, typography, shadows } from "../constants
 interface RecipeCardProps {
   recipe: Recipe;
   onPress: () => void;
+  isSaved?: boolean;
+  onToggleSave?: (recipeId: string) => void;
   loading?: boolean;
   error?: boolean;
   disabled?: boolean;
@@ -15,6 +17,8 @@ interface RecipeCardProps {
 export const RecipeCard: React.FC<RecipeCardProps> = ({
   recipe,
   onPress,
+  isSaved = false,
+  onToggleSave,
   loading = false,
   error = false,
   disabled = false,
@@ -38,6 +42,26 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
         <View style={styles.imagePlaceholder}>
           <Ionicons name="restaurant" size={32} color={colors.textSecondary} />
         </View>
+        {onToggleSave && (
+          <TouchableOpacity
+            style={styles.saveBadge}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              if (!recipe.id) {
+                return;
+              }
+              onToggleSave(recipe.id);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={isSaved ? "heart" : "heart-outline"}
+              size={22}
+              color={isSaved ? colors.error : colors.background}
+            />
+          </TouchableOpacity>
+        )}
         <View style={styles.timeBadge}>
           <Ionicons name="time-outline" size={14} color={colors.background} />
           <Text style={styles.timeBadgeText}>{recipe.totalTime}m</Text>
@@ -64,6 +88,21 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
             </View>
           )}
         </View>
+        {(recipe.estimatedCostBand === "low" || recipe.budgetNotes) && (
+          <View style={styles.budgetRow}>
+            {recipe.estimatedCostBand === "low" && (
+              <View style={styles.budgetChip}>
+                <Ionicons name="wallet-outline" size={14} color={colors.primary} />
+                <Text style={styles.budgetChipText}>Budget-friendly</Text>
+              </View>
+            )}
+            {recipe.budgetNotes ? (
+              <Text style={styles.budgetNotes} numberOfLines={2}>
+                {recipe.budgetNotes}
+              </Text>
+            ) : null}
+          </View>
+        )}
         {recipe.dietaryTags.length > 0 && (
           <View style={styles.tags}>
             {recipe.dietaryTags.slice(0, 3).map((tag) => (
@@ -111,6 +150,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surface,
   },
+  saveBadge: {
+    position: "absolute",
+    top: spacing.md,
+    left: spacing.md,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.cookingBackground + "99",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   timeBadge: {
     position: "absolute",
     top: spacing.md,
@@ -157,6 +207,32 @@ const styles = StyleSheet.create({
   metaText: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  budgetRow: {
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  budgetChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: spacing.xs / 2,
+    backgroundColor: colors.primaryLight + "25",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs / 2,
+    borderRadius: borderRadius.sm,
+  },
+  budgetChipText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  budgetNotes: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
   },
   tags: {
     flexDirection: "row",

@@ -22,13 +22,24 @@ function getOpenAIClient() {
 /**
  * Generate a recipe based on user input
  */
+const BUDGET_RECIPE_INSTRUCTIONS = `
+BUDGET MODE (prioritize affordability and accessibility):
+- Prefer common pantry staples and widely available supermarket ingredients; avoid specialty or rare items unless essential.
+- Choose lower-cost proteins when appropriate (e.g. beans, lentils, eggs, canned fish, chicken thighs) instead of premium cuts or exotic seafood.
+- Minimize the number of distinct ingredients when reasonable; avoid one-off purchases.
+- Include optional fields "estimatedCostBand" ("low", "medium", or "high") as a rough relative estimate only, and "budgetNotes" (one short sentence on tradeoffs). These are NOT real prices or guarantees.`;
+
 export async function generateRecipe(prompt, options = {}) {
   const {
     dietaryFilters = [],
     servings = 4,
     skillLevel = "intermediate",
-    availableIngredients = [],
+    budgetMode = false,
   } = options;
+
+  const budgetBlock = budgetMode
+    ? BUDGET_RECIPE_INSTRUCTIONS
+    : "";
 
   const systemPrompt = `You are a professional chef and cooking assistant. Generate detailed, accurate recipes that are:
 - Clear and easy to follow
@@ -37,7 +48,7 @@ export async function generateRecipe(prompt, options = {}) {
 - Consider dietary restrictions: ${dietaryFilters.join(", ") || "none"}
 - Appropriate for ${skillLevel} skill level
 - Serve ${servings} people
-
+${budgetBlock}
 Format your response as JSON with this structure:
 {
   "title": "Recipe Title",
@@ -51,7 +62,7 @@ Format your response as JSON with this structure:
   "nutrition": {"calories": 350, "protein": 20, "carbs": 30, "fat": 15},
   "dietaryTags": ["vegetarian"],
   "cuisine": "Italian",
-  "difficulty": "intermediate"
+  "difficulty": "intermediate"${budgetMode ? ',\n  "estimatedCostBand": "low",\n  "budgetNotes": "optional short explanation"' : ""}
 }`;
 
   try {
@@ -77,10 +88,15 @@ Format your response as JSON with this structure:
 /**
  * Get ingredient substitutions
  */
-export async function getSubstitutions(ingredient, dietaryFilters = []) {
+export async function getSubstitutions(ingredient, dietaryFilters = [], options = {}) {
+  const { budgetMode = false } = options;
+  const budgetLine = budgetMode
+    ? "\nPrioritize cheaper and easier-to-find alternatives where reasonable; still respect dietary restrictions."
+    : "";
   const prompt = `Suggest 2-3 substitutions for "${ingredient}". 
 Consider dietary restrictions: ${dietaryFilters.join(", ") || "none"}.
-Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
+${budgetLine}
+Return JSON object: {"substitutions": [{"name": "substitute", "ratio": "1:1", "notes": "..."}]}`;
 
   try {
     const openai = getOpenAIClient();
@@ -102,10 +118,16 @@ Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
 /**
  * Find recipes matching pantry ingredients
  */
-export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5) {
+export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5, options = {}) {
+  const { budgetMode = false } = options;
+  const budgetLine = budgetMode
+    ? "\nBUDGET MODE: Favor recipes that are affordable and use common ingredients; avoid expensive specialty items."
+    : "";
+
   const prompt = `You are a practical home-cooking assistant.
 Given pantry ingredients: ${ingredients.join(", ")}.
 Dietary restrictions: ${dietaryFilters.join(", ") || "none"}.
+${budgetLine}
 
 Return valid JSON in this exact shape:
 {
@@ -118,7 +140,8 @@ Return valid JSON in this exact shape:
       "difficulty": "beginner",
       "matchPercentage": 80,
       "availableIngredients": ["item from pantry"],
-      "missingIngredients": ["small optional items to buy"]
+      "missingIngredients": ["small optional items to buy"],
+      "ingredientsUsed": ["item from pantry"]
     }
   ]
 }

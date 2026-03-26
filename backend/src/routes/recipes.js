@@ -13,6 +13,7 @@ recipesRouter.post(
     body("dietaryFilters").optional().isArray(),
     body("servings").optional().isInt({ min: 1, max: 12 }),
     body("skillLevel").optional().isIn(["beginner", "intermediate", "advanced"]),
+    body("budgetMode").optional().isBoolean(),
   ],
   async (req, res, next) => {
     try {
@@ -21,12 +22,19 @@ recipesRouter.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { prompt, dietaryFilters = [], servings = 4, skillLevel = "intermediate" } = req.body;
+      const {
+        prompt,
+        dietaryFilters = [],
+        servings = 4,
+        skillLevel = "intermediate",
+        budgetMode = false,
+      } = req.body;
 
       const recipe = await generateRecipe(prompt, {
         dietaryFilters,
         servings,
         skillLevel,
+        budgetMode,
       });
 
       const { data, error } = await req.supabase
@@ -63,6 +71,56 @@ recipesRouter.post(
     }
   }
 );
+
+recipesRouter.get("/saved", authenticateToken, async (req, res, next) => {
+  try {
+    const { data: savedRows, error: savedError } = await req.supabase
+      .from("saved_recipes")
+      .select("recipe_id")
+      .eq("user_id", req.user.id)
+      .order("created_at", { ascending: false });
+
+    if (savedError) {
+      return res.status(500).json({ error: "Failed to fetch saved recipes" });
+    }
+
+    if (savedRows.length === 0) {
+      return res.json([]);
+    }
+
+    const recipeIds = savedRows.map((r) => r.recipe_id);
+    const { data: recipes, error: recipesError } = await req.supabase
+      .from("recipes")
+      .select("*")
+      .in("id", recipeIds)
+      .order("created_at", { ascending: false });
+
+    if (recipesError) {
+      return res.status(500).json({ error: "Failed to fetch saved recipes" });
+    }
+
+    res.json(recipes);
+  } catch (error) {
+    next(error);
+  }
+});
+
+recipesRouter.get("/saved/ids", authenticateToken, async (req, res, next) => {
+  try {
+    const { data, error } = await req.supabase
+      .from("saved_recipes")
+      .select("recipe_id")
+      .eq("user_id", req.user.id);
+
+    if (error) {
+      return res.status(500).json({ error: "Failed to fetch saved recipe IDs" });
+    }
+
+    res.json(data.map((r) => r.recipe_id));
+  } catch (error) {
+    next(error);
+  }
+});
 
 recipesRouter.get("/:id", authenticateToken, async (req, res, next) => {
   try {
@@ -157,7 +215,10 @@ recipesRouter.post(
 recipesRouter.post(
   "/substitutions",
   authenticateToken,
-  [body("ingredient").notEmpty()],
+  [
+    body("ingredient").notEmpty(),
+    body("budgetMode").optional().isBoolean(),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -165,8 +226,10 @@ recipesRouter.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { ingredient, dietaryFilters = [] } = req.body;
-      const substitutions = await getSubstitutions(ingredient, dietaryFilters);
+      const { ingredient, dietaryFilters = [], budgetMode = false } = req.body;
+      const substitutions = await getSubstitutions(ingredient, dietaryFilters, {
+        budgetMode,
+      });
 
       res.json({ ingredient, substitutions });
     } catch (error) {
@@ -174,3 +237,54 @@ recipesRouter.post(
     }
   }
 );
+
+recipesRouter.post("/:id/save", authenticateToken, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { data: recipe, error: recipeError } = await req.supabase
+      .from("recipes")
+      .select("id")
+      .eq("id", id)
+      .single();
+
+    if (recipeError || !recipe) {
+      return res.status(404).json({ error: "Recipe not found" });
+    }
+
+    const { error } = await req.supabase
+      .from("saved_recipes")
+      .upsert(
+        { user_id: req.user.id, recipe_id: id },
+        { onConflict: "user_id,recipe_id" }
+      );
+
+    if (error) {
+      return res.status(500).json({ error: "Failed to save recipe" });
+    }
+
+    res.status(201).json({ saved: true, recipeId: id });
+  } catch (error) {
+    next(error);
+  }
+});
+
+recipesRouter.delete("/:id/save", authenticateToken, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await req.supabase
+      .from("saved_recipes")
+      .delete()
+      .eq("recipe_id", id)
+      .eq("user_id", req.user.id);
+
+    if (error) {
+      return res.status(500).json({ error: "Failed to unsave recipe" });
+    }
+
+    res.json({ saved: false, recipeId: id });
+  } catch (error) {
+    next(error);
+  }
+});
