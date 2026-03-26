@@ -100,6 +100,23 @@ export const recipeApi = {
     const { data } = await api.post("/recipes/generate", { prompt, ...options });
     return data;
   },
+  search: async (q: string, options?: {
+    dietaryTag?: string;
+    cuisine?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const { data } = await api.get("/recipes/search", {
+      params: {
+        q,
+        dietaryTag: options?.dietaryTag,
+        cuisine: options?.cuisine,
+        limit: options?.limit,
+        offset: options?.offset,
+      },
+    });
+    return Array.isArray(data) ? data.map(normalizeRecipe) : [];
+  },
   getById: async (id: string) => {
     const { data } = await api.get(`/recipes/${id}`);
     return normalizeRecipe(data);

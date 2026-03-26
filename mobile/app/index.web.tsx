@@ -7,6 +7,7 @@ import {
   Image,
   TouchableOpacity,
   FlatList,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
@@ -84,6 +85,9 @@ export default function WebPreviewScreen() {
   );
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Recipe[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
@@ -102,6 +106,28 @@ export default function WebPreviewScreen() {
       loadSavedRecipes();
     }
   }, [activeTab, loadSavedRecipes]);
+
+  useEffect(() => {
+    if (activeTab !== "search") return;
+
+    const q = searchQuery.trim();
+    setSearchLoading(true);
+
+    const handle = setTimeout(() => {
+      (async () => {
+        try {
+          const list = await recipeApi.search(q, { limit: 30, offset: 0 });
+          setSearchResults(list);
+        } catch {
+          setSearchResults([]);
+        } finally {
+          setSearchLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => clearTimeout(handle);
+  }, [activeTab, searchQuery]);
 
   const handleUnsave = useCallback(
     async (recipeId: string) => {
@@ -337,13 +363,54 @@ export default function WebPreviewScreen() {
             style={styles.scroll}
             contentContainerStyle={styles.placeholderScroll}
           >
-            <View style={styles.placeholderInner}>
-              <Text style={styles.placeholderEmoji}>🔍</Text>
-              <Text style={styles.placeholderTitle}>Search recipes</Text>
-              <Text style={styles.placeholderBody}>
-                Browse and filter in the full app; this preview stays on one
-                screen.
+            <View style={styles.searchWrap}>
+              <View style={styles.searchInputRow}>
+                <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search recipes (salmon, lemon dill, greek yogurt, sour cream)"
+                  placeholderTextColor={colors.textDisabled}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.searchInput}
+                />
+                {!!searchQuery && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery("")}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Text style={styles.searchMetaText}>
+                {searchQuery.trim()
+                  ? (searchLoading ? "Searching…" : `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`)
+                  : "Type to search the public recipe catalog"}
               </Text>
+
+              {searchResults.length === 0 && !searchQuery.trim() && (
+                <View style={styles.placeholderInner}>
+                  <Text style={styles.placeholderEmoji}>🔍</Text>
+                  <Text style={styles.placeholderTitle}>Search recipes</Text>
+                  <Text style={styles.placeholderBody}>
+                    Try: salmon, lemon dill, green beans, sour cream, trout
+                  </Text>
+                </View>
+              )}
+
+              {searchResults.map((r, idx) => (
+                <RecipeCard
+                  key={r.id || `search-${idx}`}
+                  recipe={r}
+                  onPress={() => {}}
+                  disabled
+                  loading={searchLoading}
+                />
+              ))}
             </View>
           </ScrollView>
         )}
@@ -663,6 +730,31 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.sm,
     textAlign: "center",
+  },
+  searchWrap: {
+    flexGrow: 1,
+    gap: spacing.md,
+  },
+  searchInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    color: colors.text,
+    paddingVertical: 0,
+  },
+  searchMetaText: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,

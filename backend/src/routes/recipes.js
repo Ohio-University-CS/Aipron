@@ -2,8 +2,77 @@ import express from "express";
 import { body, validationResult } from "express-validator";
 import { authenticateToken } from "../middleware/auth.js";
 import { generateRecipe, getSubstitutions } from "../services/openai.js";
+import { supabaseAdmin } from "../db/supabase.js";
 
 export const recipesRouter = express.Router();
+
+function buildPrefixTsQuery(input) {
+  return input
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => token.replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean)
+    .map((token) => `${token}:*`)
+    .join(" & ");
+}
+
+// Public search endpoint (public catalog only).
+// Note: favorites/saved endpoints remain authenticated.
+recipesRouter.get("/search", async (req, res, next) => {
+  try {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const dietaryTag = typeof req.query.dietaryTag === "string" ? req.query.dietaryTag.trim() : "";
+    const cuisine = typeof req.query.cuisine === "string" ? req.query.cuisine.trim() : "";
+
+    const limitRaw = typeof req.query.limit === "string" ? Number(req.query.limit) : 20;
+    const offsetRaw = typeof req.query.offset === "string" ? Number(req.query.offset) : 0;
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 50) : 20;
+    const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0;
+
+    let query = supabaseAdmin
+      .from("recipes")
+      .select("*")
+      .eq("is_public", true);
+
+    if (dietaryTag) {
+      query = query.contains("dietary_tags", [dietaryTag]);
+    }
+
+    if (cuisine) {
+      query = query.ilike("cuisine", `%${cuisine}%`);
+    }
+
+    if (q) {
+      const tsPrefixQuery = buildPrefixTsQuery(q);
+
+      // Predictive search:
+      // 1) Prefix full-text search (e.g., "salm" -> matches "salmon")
+      // 2) Fallback ILIKE matching for short/incomplete tokens
+      if (tsPrefixQuery) {
+        query = query.textSearch("search_vector", tsPrefixQuery, { type: "raw" });
+      } else {
+        const escaped = q.replace(/[%_]/g, "");
+        query = query.or(
+          `title.ilike.%${escaped}%,description.ilike.%${escaped}%,cuisine.ilike.%${escaped}%`
+        );
+      }
+    }
+
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      return res.status(500).json({ error: "Failed to search recipes" });
+    }
+
+    res.json(Array.isArray(data) ? data : []);
+  } catch (error) {
+    next(error);
+  }
+});
 
 recipesRouter.post(
   "/generate",
