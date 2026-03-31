@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, typography } from "../constants/DesignTokens";
 
 interface ChatMessageProps {
@@ -17,12 +18,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   return (
     <View style={[styles.container, isUser && styles.userContainer]}>
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-        <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
-          {content}
-        </Text>
+      {!isUser && (
+        <View style={styles.avatar}>
+          <Ionicons name="sparkles" size={14} color={colors.primary} />
+        </View>
+      )}
+      <View style={styles.bubbleWrap}>
+        <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+          <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
+            {content}
+          </Text>
+        </View>
         {timestamp && (
-          <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.assistantTimestamp]}>
+          <Text style={[styles.timestamp, isUser && styles.userTimestamp]}>
             {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </Text>
         )}
@@ -33,29 +41,44 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: spacing.md,
-    alignItems: "flex-start",
+    marginBottom: spacing.lg,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.sm,
   },
   userContainer: {
-    alignItems: "flex-end",
+    flexDirection: "row-reverse",
+  },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FFF7ED",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  bubbleWrap: {
+    maxWidth: "78%",
+    flexShrink: 1,
   },
   bubble: {
-    maxWidth: "80%",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: 18,
   },
   userBubble: {
     backgroundColor: colors.primary,
-    borderBottomRightRadius: borderRadius.sm,
+    borderBottomRightRadius: 4,
   },
   assistantBubble: {
-    backgroundColor: colors.surface,
-    borderBottomLeftRadius: borderRadius.sm,
+    backgroundColor: "#FFF7ED",
+    borderBottomLeftRadius: 4,
   },
   text: {
     ...typography.body,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
   },
   userText: {
     color: colors.background,
@@ -66,12 +89,13 @@ const styles = StyleSheet.create({
   timestamp: {
     ...typography.caption,
     fontSize: 11,
-    marginTop: spacing.xs / 2,
+    color: colors.textSecondary,
+    marginTop: 4,
+    marginLeft: 4,
   },
   userTimestamp: {
-    color: colors.background + "CC",
-  },
-  assistantTimestamp: {
-    color: colors.textSecondary,
+    textAlign: "right",
+    marginRight: 4,
+    marginLeft: 0,
   },
 });
