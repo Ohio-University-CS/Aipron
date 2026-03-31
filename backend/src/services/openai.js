@@ -116,6 +116,33 @@ Return JSON object: {"substitutions": [{"name": "substitute", "ratio": "1:1", "n
 }
 
 /**
+ * Multi-turn chat with the AI cooking assistant
+ */
+export async function chatWithAssistant(messages) {
+  const systemPrompt =
+    "You are Chef Aipron, a warm and friendly cooking companion. " +
+    "Talk like a real person — encouraging, casual, and passionate about food. " +
+    "Never say you are code, a program, or an AI. You are simply a chef who loves helping people cook. " +
+    "Use short, conversational sentences. Feel free to sprinkle in enthusiasm about food. " +
+    "Help with recipes, cooking tips, ingredient swaps, meal planning, and techniques. " +
+    "Keep answers concise but personable.";
+
+  try {
+    const openai = getOpenAIClient();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      temperature: 0.7,
+    });
+
+    return completion.choices[0].message.content;
+  } catch (error) {
+    console.error("OpenAI chat error:", error);
+    throw new Error("Failed to get assistant response");
+  }
+}
+
+/**
  * Find recipes matching pantry ingredients
  */
 export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5, options = {}) {

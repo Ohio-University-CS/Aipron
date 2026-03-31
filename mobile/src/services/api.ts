@@ -195,9 +195,56 @@ export const cookingApi = {
   },
 };
 
+export interface RealtimeSession {
+  sessionId: string;
+  clientSecret: string;
+  expiresAt: string;
+  model: string;
+}
+
 export const realtimeApi = {
-  createSession: async () => {
-    const { data } = await api.post("/realtime/session");
+  createSession: async (instructions?: string): Promise<RealtimeSession> => {
+    const { data } = await api.post("/realtime/session", instructions ? { instructions } : {});
+    return data as RealtimeSession;
+  },
+};
+
+export interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export const chatApi = {
+  send: async (messages: { role: "user" | "assistant"; content: string }[]) => {
+    const { data } = await api.post("/chat", { messages });
+    return data.content as string;
+  },
+  getConversations: async (): Promise<Conversation[]> => {
+    const { data } = await api.get("/chat/conversations");
     return data;
+  },
+  createConversation: async (): Promise<Conversation> => {
+    const { data } = await api.post("/chat/conversations");
+    return data;
+  },
+  getMessages: async (id: string): Promise<ConversationMessage[]> => {
+    const { data } = await api.get(`/chat/conversations/${id}/messages`);
+    return data;
+  },
+  sendMessage: async (id: string, content: string): Promise<ConversationMessage> => {
+    const { data } = await api.post(`/chat/conversations/${id}/messages`, { content });
+    return data;
+  },
+  deleteConversation: async (id: string): Promise<void> => {
+    await api.delete(`/chat/conversations/${id}`);
   },
 };

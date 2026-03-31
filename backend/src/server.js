@@ -8,6 +8,7 @@ import { recipesRouter } from "./routes/recipes.js";
 import { pantryRouter } from "./routes/pantry.js";
 import { realtimeRouter } from "./routes/realtime.js";
 import { cookingRouter } from "./routes/cooking.js";
+import { chatRouter } from "./routes/chat.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -18,7 +19,7 @@ const PORT = process.env.PORT || 3001;
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000", "http://localhost:8081"],
+  origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000", "http://localhost:8081", "http://localhost:8082"],
   credentials: true,
 }));
 
@@ -44,6 +45,7 @@ app.use("/api/recipes", recipesRouter);
 app.use("/api/pantry", pantryRouter);
 app.use("/api/realtime", realtimeRouter);
 app.use("/api/cooking", cookingRouter);
+app.use("/api/chat", chatRouter);
 
 // Error handling
 app.use(errorHandler);
@@ -54,6 +56,6 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
 });
