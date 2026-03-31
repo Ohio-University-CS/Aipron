@@ -1,5 +1,8 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
-import { Bot, Loader2, Send, User, X } from "lucide-react";
+import { Bot, Loader2, Mic, MicOff, Send, User, X } from "lucide-react";
+import { useWebSpeechToText } from "../hooks/useWebSpeechToText";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -25,10 +28,37 @@ export function AIAssistant({ onClose }: AIAssistantProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const voiceBaseRef = useRef("");
+
+  const { supported: voiceSupported, listening, startListening, stopListening } =
+    useWebSpeechToText();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handleVoiceClick = () => {
+    if (listening) {
+      stopListening();
+      return;
+    }
+    voiceBaseRef.current = input.trim();
+    startListening((text, isFinal) => {
+      if (isFinal) {
+        const next = voiceBaseRef.current
+          ? `${voiceBaseRef.current} ${text}`.trim()
+          : text.trim();
+        voiceBaseRef.current = next;
+        setInput(next);
+      } else {
+        setInput(
+          voiceBaseRef.current
+            ? `${voiceBaseRef.current} ${text}`.trim()
+            : text
+        );
+      }
+    });
+  };
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -153,6 +183,30 @@ export function AIAssistant({ onClose }: AIAssistantProps) {
 
       <div className="border-t border-orange-400/30 bg-orange-600/30 p-3">
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleVoiceClick}
+            disabled={loading || !voiceSupported}
+            title={
+              voiceSupported
+                ? listening
+                  ? "Stop listening"
+                  : "Speak your question"
+                : "Voice input needs a supported browser (e.g. Chrome)"
+            }
+            className={[
+              "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-40",
+              listening
+                ? "bg-red-500/90 text-white hover:bg-red-500"
+                : "bg-white/20 text-white hover:bg-white/30",
+            ].join(" ")}
+          >
+            {listening ? (
+              <MicOff className="h-4 w-4" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </button>
           <input
             type="text"
             value={input}
@@ -165,13 +219,13 @@ export function AIAssistant({ onClose }: AIAssistantProps) {
             }}
             placeholder="Ask about this recipe..."
             disabled={loading}
-            className="flex-1 rounded-lg bg-white/20 px-3 py-2 text-sm text-white placeholder:text-white/60 outline-none ring-0 focus:ring-2 focus:ring-white/40 disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-lg bg-white/20 px-3 py-2 text-sm text-white placeholder:text-white/60 outline-none ring-0 focus:ring-2 focus:ring-white/40 disabled:opacity-50"
           />
           <button
             type="button"
             onClick={handleSend}
             disabled={loading}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-orange-500 transition-colors hover:bg-orange-50 disabled:opacity-50"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white text-orange-500 transition-colors hover:bg-orange-50 disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
           </button>

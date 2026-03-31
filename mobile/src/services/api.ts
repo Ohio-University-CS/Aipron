@@ -195,10 +195,17 @@ export const cookingApi = {
   },
 };
 
+export interface RealtimeSession {
+  sessionId: string;
+  clientSecret: string;
+  expiresAt: string;
+  model: string;
+}
+
 export const realtimeApi = {
-  createSession: async () => {
-    const { data } = await api.post("/realtime/session");
-    return data;
+  createSession: async (instructions?: string): Promise<RealtimeSession> => {
+    const { data } = await api.post("/realtime/session", instructions ? { instructions } : {});
+    return data as RealtimeSession;
   },
 };
 

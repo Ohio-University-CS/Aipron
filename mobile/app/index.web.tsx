@@ -17,6 +17,7 @@ import { ChatMessage } from "../src/components/ChatMessage";
 import { recipeApi, chatApi, Conversation, ConversationMessage } from "../src/services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
+import { useWebSpeechToText } from "../src/hooks/useWebSpeechToText";
 import ProfileScreen from "./(tabs)/profile";
 import LoginScreen from "./login";
 import SettingsScreen from "./settings";
@@ -98,6 +99,13 @@ export default function WebPreviewScreen() {
   const [chefInput, setChefInput] = useState("");
   const [chefLoading, setChefLoading] = useState(false);
   const chefScrollRef = useRef<ScrollView>(null);
+  const chefVoiceBaseRef = useRef("");
+  const {
+    supported: chefVoiceSupported,
+    listening: chefVoiceListening,
+    startListening: startChefVoiceListening,
+    stopListening: stopChefVoiceListening,
+  } = useWebSpeechToText();
 
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
@@ -198,6 +206,29 @@ export default function WebPreviewScreen() {
     setChefMessages([]);
     setChefInput("");
   }, []);
+
+  const handleChefVoicePress = () => {
+    if (chefVoiceListening) {
+      stopChefVoiceListening();
+      return;
+    }
+    chefVoiceBaseRef.current = chefInput.trim();
+    startChefVoiceListening((text, isFinal) => {
+      if (isFinal) {
+        const next = chefVoiceBaseRef.current
+          ? `${chefVoiceBaseRef.current} ${text}`.trim()
+          : text.trim();
+        chefVoiceBaseRef.current = next;
+        setChefInput(next);
+      } else {
+        setChefInput(
+          chefVoiceBaseRef.current
+            ? `${chefVoiceBaseRef.current} ${text}`.trim()
+            : text
+        );
+      }
+    });
+  };
 
   const handleChefSend = async (text?: string) => {
     const msg = (text ?? chefInput).trim();
@@ -664,6 +695,26 @@ export default function WebPreviewScreen() {
               )}
             </ScrollView>
             <View style={styles.chefComposer}>
+              <TouchableOpacity
+                style={[
+                  styles.chefMicBtn,
+                  chefVoiceListening && styles.chefMicBtnActive,
+                  (!chefVoiceSupported || chefLoading) && styles.chefMicBtnDisabled,
+                ]}
+                onPress={handleChefVoicePress}
+                disabled={!chefVoiceSupported || chefLoading}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  chefVoiceListening ? "Stop voice input" : "Voice input"
+                }
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={chefVoiceListening ? "mic-off" : "mic"}
+                  size={20}
+                  color={chefVoiceListening ? colors.error : colors.primary}
+                />
+              </TouchableOpacity>
               <TextInput
                 style={styles.chefInput}
                 value={chefInput}
@@ -1401,6 +1452,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: spacing.sm,
+  },
+  chefMicBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDE8D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chefMicBtnActive: {
+    backgroundColor: "#FEE2E2",
+    borderColor: colors.error,
+  },
+  chefMicBtnDisabled: {
+    opacity: 0.4,
   },
   chefInput: {
     flex: 1,
