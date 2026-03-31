@@ -12,17 +12,17 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
-import { RecipeCard } from "../src/components/RecipeCard";
-import { ChatMessage } from "../src/components/ChatMessage";
-import { recipeApi, chatApi, Conversation, ConversationMessage } from "../src/services/api";
-import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
-import { useThemeColors } from "../src/hooks/useThemeColors";
-import { useWebSpeechToText } from "../src/hooks/useWebSpeechToText";
-import ProfileScreen from "./(tabs)/profile";
-import LoginScreen from "./login";
-import SettingsScreen from "./settings";
-import HelpScreen from "./help";
-import AboutScreen from "./about";
+import { RecipeCard } from "./components/RecipeCard";
+import { ChatMessage } from "./components/ChatMessage";
+import { recipeApi, chatApi, Conversation, ConversationMessage } from "./services/api";
+import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
+import { useThemeColors } from "./hooks/useThemeColors";
+import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
+import ProfileScreen from "../app/(tabs)/profile";
+import LoginScreen from "../app/login";
+import SettingsScreen from "../app/settings";
+import HelpScreen from "../app/help";
+import AboutScreen from "../app/about";
 
 type MockTab = "home" | "search" | "saved" | "profile" | "settings" | "help" | "about" | "login" | "chef";
 

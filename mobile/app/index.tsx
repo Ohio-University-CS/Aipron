@@ -1,6 +1,5 @@
-import { Redirect } from "expo-router";
+import WebPreviewScreen from "../src/WebPreviewScreen";
 
-// Redirect to tabs so Chat, Pantry, Recipes, Profile are all accessible.
 export default function Index() {
-  return <Redirect href="/(tabs)/chat" />;
+  return <WebPreviewScreen />;
 }
