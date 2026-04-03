@@ -29,11 +29,11 @@ app.use(
         }
         return callback(null, false);
       }
-      // Development: allow any localhost / 127.0.0.1 (any port) and typical LAN Expo URLs.
+      // Development: allow localhost, IPv4/IPv6 loopback (any port), and typical LAN Expo URLs.
       if (!origin) {
         return callback(null, true);
       }
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+      if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin)) {
         return callback(null, true);
       }
       if (/^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {

@@ -27,6 +27,7 @@ export default function SearchScreen() {
   const [searchError, setSearchError] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeqRef = useRef(0);
 
   const loadSavedIds = useCallback(async () => {
     try {
@@ -42,12 +43,15 @@ export default function SearchScreen() {
   }, [loadSavedIds]);
 
   const runSearch = useCallback(async (q: string) => {
+    const seq = ++searchSeqRef.current;
     setIsLoading(true);
     setSearchError(null);
     try {
       const data = await recipeApi.search(q, { limit: 30, offset: 0 });
+      if (seq !== searchSeqRef.current) return;
       setResults(data);
     } catch (error: unknown) {
+      if (seq !== searchSeqRef.current) return;
       console.error("Search failed:", error);
       setResults([]);
       let msg = "Could not reach the recipe API.";
@@ -61,7 +65,9 @@ export default function SearchScreen() {
         `${msg} Is the backend running? On a phone, set EXPO_PUBLIC_API_URL to your computer’s LAN IP (not localhost).`
       );
     } finally {
-      setIsLoading(false);
+      if (seq === searchSeqRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 

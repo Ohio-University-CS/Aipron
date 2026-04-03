@@ -10,11 +10,22 @@ import { Recipe } from "@aipron/shared";
  */
 function resolveApiBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
-  let base = fromEnv || "http://localhost:3001";
-  if (Platform.OS === "android" && /localhost|127\.0\.0\.1/i.test(base)) {
-    base = base.replace(/127\.0\.0\.1|localhost/i, "10.0.2.2");
+  const base = fromEnv || "http://localhost:3001";
+
+  try {
+    const url = new URL(base);
+
+    if (
+      Platform.OS === "android" &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+    ) {
+      url.hostname = "10.0.2.2";
+    }
+
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return base.replace(/\/$/, "");
   }
-  return base.replace(/\/$/, "");
 }
 
 const API_BASE_URL = resolveApiBaseUrl();

@@ -1,5 +1,5 @@
 import axios from "axios";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -90,6 +90,7 @@ export default function WebPreviewScreen() {
   const [searchResults, setSearchResults] = useState<Recipe[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const searchSeqRef = useRef(0);
 
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
@@ -113,6 +114,7 @@ export default function WebPreviewScreen() {
     if (activeTab !== "search") return;
 
     const q = searchQuery.trim();
+    const seq = ++searchSeqRef.current;
     setSearchLoading(true);
     setSearchError(null);
 
@@ -120,8 +122,10 @@ export default function WebPreviewScreen() {
       (async () => {
         try {
           const list = await recipeApi.search(q, { limit: 30, offset: 0 });
+          if (seq !== searchSeqRef.current) return;
           setSearchResults(list);
         } catch (error: unknown) {
+          if (seq !== searchSeqRef.current) return;
           setSearchResults([]);
           let msg = "Could not reach the recipe API.";
           if (axios.isAxiosError(error)) {
@@ -134,7 +138,9 @@ export default function WebPreviewScreen() {
             `${msg} Start the backend (npm run dev in /backend). If the browser blocks requests, CORS is relaxed for localhost in development.`
           );
         } finally {
-          setSearchLoading(false);
+          if (seq === searchSeqRef.current) {
+            setSearchLoading(false);
+          }
         }
       })();
     }, 250);

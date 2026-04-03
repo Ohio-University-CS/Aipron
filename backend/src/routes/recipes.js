@@ -53,7 +53,7 @@ recipesRouter.get("/search", async (req, res, next) => {
       if (tsPrefixQuery) {
         query = query.filter("search_vector", "fts", tsPrefixQuery);
       } else {
-        const escaped = q.replace(/[%_]/g, "");
+        const escaped = q.replace(/[^a-z0-9 '-]/gi, "").trim();
         query = query.or(
           `title.ilike.%${escaped}%,description.ilike.%${escaped}%,cuisine.ilike.%${escaped}%`
         );
