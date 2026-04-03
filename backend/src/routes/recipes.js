@@ -33,7 +33,7 @@ recipesRouter.get("/search", async (req, res, next) => {
 
     let query = supabaseAdmin
       .from("recipes")
-      .select("*")
+      .select("id, title, description, ingredients, steps, prep_time, cook_time, total_time, servings, nutrition, dietary_tags, cuisine, difficulty, is_public, created_at")
       .eq("is_public", true);
 
     if (dietaryTag) {
@@ -51,7 +51,7 @@ recipesRouter.get("/search", async (req, res, next) => {
       // 1) Prefix full-text search (e.g., "salm" -> matches "salmon")
       // 2) Fallback ILIKE matching for short/incomplete tokens
       if (tsPrefixQuery) {
-        query = query.textSearch("search_vector", tsPrefixQuery, { type: "raw" });
+        query = query.filter("search_vector", "fts", tsPrefixQuery);
       } else {
         const escaped = q.replace(/[%_]/g, "");
         query = query.or(

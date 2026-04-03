@@ -42,6 +42,9 @@ app.use(
       if (/^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {
         return callback(null, true);
       }
+      if (/^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {
+        return callback(null, true);
+      }
       if (allowed?.length && allowed.includes(origin)) {
         return callback(null, true);
       }

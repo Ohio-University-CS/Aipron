@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "seed": "node src/db/seed.js",
     "seed:catalog": "node src/db/seed.js",
-    "seed:public-recipe": "node src/db/seedPublicRecipe.js",
+    "seed:public-catalog": "node src/db/seedPublicRecipe.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },

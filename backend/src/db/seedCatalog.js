@@ -1,7 +1,7 @@
 /**
  * Idempotent public catalog seed for Supabase `recipes`.
  *
- * Verification (backend running, optional Bearer for GET /recipes/:id):
+ * Verification (backend running, Bearer token required for GET /recipes/:id):
  *   curl "http://localhost:3001/api/recipes/search?q=chick"
  *   curl -H "Authorization: Bearer <token>" "http://localhost:3001/api/recipes/<id>"
  */
