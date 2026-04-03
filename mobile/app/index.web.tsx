@@ -1,3 +1,4 @@
+import axios from "axios";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -88,6 +89,7 @@ export default function WebPreviewScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Recipe[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
@@ -112,14 +114,25 @@ export default function WebPreviewScreen() {
 
     const q = searchQuery.trim();
     setSearchLoading(true);
+    setSearchError(null);
 
     const handle = setTimeout(() => {
       (async () => {
         try {
           const list = await recipeApi.search(q, { limit: 30, offset: 0 });
           setSearchResults(list);
-        } catch {
+        } catch (error: unknown) {
           setSearchResults([]);
+          let msg = "Could not reach the recipe API.";
+          if (axios.isAxiosError(error)) {
+            const data = error.response?.data as { error?: string } | undefined;
+            msg = data?.error || error.message || msg;
+          } else if (error instanceof Error) {
+            msg = error.message;
+          }
+          setSearchError(
+            `${msg} Start the backend (npm run dev in /backend). If the browser blocks requests, CORS is relaxed for localhost in development.`
+          );
         } finally {
           setSearchLoading(false);
         }
@@ -387,12 +400,18 @@ export default function WebPreviewScreen() {
               </View>
 
               <Text style={styles.searchMetaText}>
-                {searchQuery.trim()
-                  ? (searchLoading ? "Searching…" : `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`)
-                  : "Type to search the public recipe catalog"}
+                {searchError
+                  ? "Could not load catalog"
+                  : searchQuery.trim()
+                    ? (searchLoading ? "Searching…" : `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`)
+                    : (searchLoading ? "Loading catalog…" : `${searchResults.length} recipe${searchResults.length === 1 ? "" : "s"} — type to filter`)}
               </Text>
 
-              {searchResults.length === 0 && !searchQuery.trim() && (
+              {searchError ? (
+                <Text style={styles.placeholderBody}>{searchError}</Text>
+              ) : null}
+
+              {searchResults.length === 0 && !searchQuery.trim() && !searchLoading && !searchError && (
                 <View style={styles.placeholderInner}>
                   <Text style={styles.placeholderEmoji}>🔍</Text>
                   <Text style={styles.placeholderTitle}>Search recipes</Text>

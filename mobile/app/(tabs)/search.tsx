@@ -1,3 +1,4 @@
+import axios from "axios";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
@@ -23,6 +24,7 @@ export default function SearchScreen() {
   const [results, setResults] = useState<Recipe[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -41,12 +43,23 @@ export default function SearchScreen() {
 
   const runSearch = useCallback(async (q: string) => {
     setIsLoading(true);
+    setSearchError(null);
     try {
       const data = await recipeApi.search(q, { limit: 30, offset: 0 });
       setResults(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Search failed:", error);
       setResults([]);
+      let msg = "Could not reach the recipe API.";
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as { error?: string } | undefined;
+        msg = data?.error || error.message || msg;
+      } else if (error instanceof Error) {
+        msg = error.message;
+      }
+      setSearchError(
+        `${msg} Is the backend running? On a phone, set EXPO_PUBLIC_API_URL to your computer’s LAN IP (not localhost).`
+      );
     } finally {
       setIsLoading(false);
     }
@@ -107,10 +120,11 @@ export default function SearchScreen() {
   }, []);
 
   const subtitle = useMemo(() => {
+    if (searchError) return "Connection issue";
     const q = query.trim();
-    if (!q) return "Search all recipes";
+    if (!q) return "Browse or search public recipes";
     return `${results.length} result${results.length === 1 ? "" : "s"}`;
-  }, [query, results.length]);
+  }, [query, results.length, searchError]);
 
   return (
     <View style={styles.container}>
@@ -148,21 +162,33 @@ export default function SearchScreen() {
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons
-              name={query.trim() ? "search-outline" : "compass-outline"}
-              size={64}
-              color={colors.textDisabled}
-            />
-            <Text style={styles.emptyText}>
-              {query.trim() ? "No results" : "Start typing to search"}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {query.trim()
-                ? "Try different keywords like ingredients, cuisine, or substitutions."
-                : "Try: salmon, lemon dill, green beans, sour cream, trout"}
-            </Text>
-          </View>
+          isLoading && results.length === 0 && !searchError ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Loading recipes…</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name={searchError ? "cloud-offline-outline" : query.trim() ? "search-outline" : "compass-outline"}
+                size={64}
+                color={colors.textDisabled}
+              />
+              <Text style={styles.emptyText}>
+                {searchError
+                  ? "Can’t load recipes"
+                  : query.trim()
+                    ? "No results"
+                    : "Browse public catalog"}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {searchError
+                  ? searchError
+                  : query.trim()
+                    ? "Try different keywords like ingredients, cuisine, or substitutions."
+                    : "Pull to refresh. If this stays empty, run npm run seed in the backend folder. Try typing: salmon, chicken, dal, curry."}
+              </Text>
+            </View>
+          )
         }
         renderItem={({ item }) => (
           <RecipeCard

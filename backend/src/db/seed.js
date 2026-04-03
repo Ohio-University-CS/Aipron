@@ -1,4 +1,6 @@
-// Convenience seed entrypoint.
-// Currently seeds the public recipe catalog starter recipe.
-import "./seedPublicRecipe.js";
+import { runSeedCatalog } from "./seedCatalog.js";
 
+runSeedCatalog().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

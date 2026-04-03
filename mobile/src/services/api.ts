@@ -1,9 +1,23 @@
 import axios from "axios";
+import { Platform } from "react-native";
 import { supabase } from "./supabase";
 import { useAuthStore } from "../store/useAuthStore";
 import { Recipe } from "@aipron/shared";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+/**
+ * Expo Web: localhost is fine. Android emulator: localhost is the emulator itself — use 10.0.2.2.
+ * Physical device: set EXPO_PUBLIC_API_URL to http://<your-lan-ip>:3001 (not localhost).
+ */
+function resolveApiBaseUrl(): string {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
+  let base = fromEnv || "http://localhost:3001";
+  if (Platform.OS === "android" && /localhost|127\.0\.0\.1/i.test(base)) {
+    base = base.replace(/127\.0\.0\.1|localhost/i, "10.0.2.2");
+  }
+  return base.replace(/\/$/, "");
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -25,7 +39,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
+      const reqUrl = String(error.config?.url ?? "");
+      // Public catalog search does not require auth; avoid logging the user out if something else failed.
+      if (!reqUrl.includes("recipes/search")) {
+        useAuthStore.getState().logout();
+      }
     }
     return Promise.reject(error);
   }

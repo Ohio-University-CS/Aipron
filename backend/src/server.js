@@ -17,10 +17,39 @@ const PORT = process.env.PORT || 3001;
 
 // Security middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000", "http://localhost:8081"],
-  credentials: true,
-}));
+const defaultProdOrigins = ["http://localhost:3000", "http://localhost:8081"];
+app.use(
+  cors({
+    origin(origin, callback) {
+      const allowed = process.env.ALLOWED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean);
+      if (process.env.NODE_ENV === "production") {
+        const list = allowed?.length ? allowed : defaultProdOrigins;
+        if (!origin || list.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      }
+      // Development: allow any localhost / 127.0.0.1 (any port) and typical LAN Expo URLs.
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+        return callback(null, true);
+      }
+      if (/^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {
+        return callback(null, true);
+      }
+      if (/^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {
+        return callback(null, true);
+      }
+      if (allowed?.length && allowed.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    credentials: true,
+  })
+);
 
 // Rate limiting
 const limiter = rateLimit({
