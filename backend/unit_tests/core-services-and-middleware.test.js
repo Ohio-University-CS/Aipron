@@ -186,20 +186,6 @@ describe("generateRecipe service", () => {
     expect(openaiCreateMock).toHaveBeenCalledTimes(1);
   });
 
-  it("budget mode: system prompt includes budget instructions", async () => {
-    const recipe = { title: "Beans", servings: 4, ingredients: [], steps: [] };
-    openaiCreateMock.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify(recipe) } }],
-    });
-
-    await generateRecipe("Cheap dinner", { budgetMode: true });
-
-    const call = openaiCreateMock.mock.calls[0][0];
-    const systemContent = call.messages.find((m) => m.role === "system").content;
-    expect(systemContent).toContain("BUDGET MODE");
-    expect(systemContent).toContain("estimatedCostBand");
-  });
-
   it("error case: throws standardized error when model request fails", async () => {
     openaiCreateMock.mockRejectedValue(new Error("OpenAI unavailable"));
 
@@ -226,20 +212,6 @@ describe("getSubstitutions service", () => {
     const result = await getSubstitutions("sour cream", ["vegetarian"]);
 
     expect(result).toEqual(substitutions);
-  });
-
-  it("budget mode: prompt asks for cheaper alternatives", async () => {
-    const substitutions = [{ name: "milk", ratio: "1:1" }];
-    openaiCreateMock.mockResolvedValue({
-      choices: [
-        { message: { content: JSON.stringify({ substitutions }) } },
-      ],
-    });
-
-    await getSubstitutions("cream", [], { budgetMode: true });
-
-    const userMessage = openaiCreateMock.mock.calls[0][0].messages[0].content;
-    expect(userMessage).toContain("cheaper");
   });
 
   it("edge case: returns empty array when substitutions field is missing", async () => {
@@ -270,7 +242,7 @@ describe("findPantryRecipes service", () => {
   });
 
   it("normal case: returns recipe suggestions array", async () => {
-    const recipes = [{ title: "Veggie Stir Fry", matchPercentage: 80 }];
+    const recipes = [{ name: "Veggie Stir Fry", matchPercentage: 80 }];
     openaiCreateMock.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify({ recipes }) } }],
     });
@@ -278,18 +250,6 @@ describe("findPantryRecipes service", () => {
     const result = await findPantryRecipes(["broccoli", "soy sauce"]);
 
     expect(result).toEqual(recipes);
-  });
-
-  it("budget mode: prompt includes pantry budget instructions", async () => {
-    const recipes = [{ title: "Rice Bowl", matchPercentage: 90 }];
-    openaiCreateMock.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ recipes }) } }],
-    });
-
-    await findPantryRecipes(["rice", "eggs"], [], 5, { budgetMode: true });
-
-    const userMessage = openaiCreateMock.mock.calls[0][0].messages[0].content;
-    expect(userMessage).toContain("BUDGET MODE");
   });
 
   it("edge case: returns empty array when model omits recipes", async () => {

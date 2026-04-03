@@ -1,10 +1,5 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
-import { Bot, Loader2, Mic, MicOff, Send, User, X } from "lucide-react";
-import { useWebSpeechToText } from "../hooks/useWebSpeechToText";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+import { Bot, Send, User, X } from "lucide-react";
 
 interface Message {
   id: string;
@@ -16,6 +11,14 @@ interface AIAssistantProps {
   onClose: () => void;
 }
 
+const SAMPLE_RESPONSES = [
+  "Great question! Make sure your pan is properly heated before adding the ingredients.",
+  "I'd recommend using medium-high heat for this step. You want to hear a nice sizzle!",
+  "You can substitute with olive oil if you prefer, though it will slightly change the flavor.",
+  "This step usually takes about 5-7 minutes. You'll know it's ready when it turns golden brown.",
+  "Yes, you can prepare this ahead of time. Store it covered in the refrigerator for up to 24 hours.",
+];
+
 export function AIAssistant({ onClose }: AIAssistantProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -26,91 +29,33 @@ export function AIAssistant({ onClose }: AIAssistantProps) {
     },
   ]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const voiceBaseRef = useRef("");
-
-  const { supported: voiceSupported, listening, startListening, stopListening } =
-    useWebSpeechToText();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleVoiceClick = () => {
-    if (listening) {
-      stopListening();
-      return;
-    }
-    voiceBaseRef.current = input.trim();
-    startListening((text, isFinal) => {
-      if (isFinal) {
-        const next = voiceBaseRef.current
-          ? `${voiceBaseRef.current} ${text}`.trim()
-          : text.trim();
-        voiceBaseRef.current = next;
-        setInput(next);
-      } else {
-        setInput(
-          voiceBaseRef.current
-            ? `${voiceBaseRef.current} ${text}`.trim()
-            : text
-        );
-      }
-    });
-  };
-
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
-
+  const handleSend = () => {
+    if (!input.trim()) return;
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
       content: input,
     };
-
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    setMessages((previous) => [...previous, userMessage]);
     setInput("");
-    setLoading(true);
 
-    try {
-      const res = await fetch(`${API_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: updatedMessages.map(({ role, content }) => ({
-            role,
-            content,
-          })),
-        }),
-      });
-
-      if (!res.ok) throw new Error("Request failed");
-
-      const data = await res.json();
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: data.content,
-        },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content:
-            "Sorry, I'm having trouble connecting right now. Please try again in a moment!",
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+    setTimeout(() => {
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content:
+          SAMPLE_RESPONSES[
+            Math.floor(Math.random() * SAMPLE_RESPONSES.length)
+          ],
+      };
+      setMessages((previous) => [...previous, aiMessage]);
+    }, 800);
   };
 
   return (
@@ -167,46 +112,11 @@ export function AIAssistant({ onClose }: AIAssistantProps) {
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex gap-2">
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white">
-              <Bot className="h-3.5 w-3.5 text-orange-500" />
-            </div>
-            <div className="flex items-center gap-1.5 rounded-xl rounded-tl-none bg-white/90 p-2.5 text-sm text-gray-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Thinking...
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
 
       <div className="border-t border-orange-400/30 bg-orange-600/30 p-3">
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleVoiceClick}
-            disabled={loading || !voiceSupported}
-            title={
-              voiceSupported
-                ? listening
-                  ? "Stop listening"
-                  : "Speak your question"
-                : "Voice input needs a supported browser (e.g. Chrome)"
-            }
-            className={[
-              "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-40",
-              listening
-                ? "bg-red-500/90 text-white hover:bg-red-500"
-                : "bg-white/20 text-white hover:bg-white/30",
-            ].join(" ")}
-          >
-            {listening ? (
-              <MicOff className="h-4 w-4" />
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
-          </button>
           <input
             type="text"
             value={input}
@@ -218,14 +128,12 @@ export function AIAssistant({ onClose }: AIAssistantProps) {
               }
             }}
             placeholder="Ask about this recipe..."
-            disabled={loading}
-            className="min-w-0 flex-1 rounded-lg bg-white/20 px-3 py-2 text-sm text-white placeholder:text-white/60 outline-none ring-0 focus:ring-2 focus:ring-white/40 disabled:opacity-50"
+            className="flex-1 rounded-lg bg-white/20 px-3 py-2 text-sm text-white placeholder:text-white/60 outline-none ring-0 focus:ring-2 focus:ring-white/40"
           />
           <button
             type="button"
             onClick={handleSend}
-            disabled={loading}
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white text-orange-500 transition-colors hover:bg-orange-50 disabled:opacity-50"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-orange-500 transition-colors hover:bg-orange-50"
           >
             <Send className="h-4 w-4" />
           </button>
@@ -234,3 +142,4 @@ export function AIAssistant({ onClose }: AIAssistantProps) {
     </div>
   );
 }
+

@@ -1,21 +1,10 @@
-import { Platform, StyleSheet } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-const rootStyle = StyleSheet.create({
-  flex: { flex: 1 },
-  webRoot: {
-    flex: 1,
-    minHeight: "100vh" as unknown as number,
-  },
-});
-
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView
-      style={Platform.OS === "web" ? rootStyle.webRoot : rootStyle.flex}
-    >
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <Stack
           screenOptions={{

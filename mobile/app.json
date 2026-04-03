@@ -16,8 +16,7 @@
       "bundleIdentifier": "com.aipron.app",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "AIpron needs microphone access for voice-guided cooking.",
-        "NSSpeechRecognitionUsageDescription": "AIpron uses speech recognition for hands-free cooking guidance.",
-        "ITSAppUsesNonExemptEncryption": false
+        "NSSpeechRecognitionUsageDescription": "AIpron uses speech recognition for hands-free cooking guidance."
       }
     },
     "android": {
@@ -27,13 +26,7 @@
       "package": "com.aipron.app",
       "permissions": [
         "RECORD_AUDIO",
-        "INTERNET",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "RECORD_AUDIO",
-        "INTERNET",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "INTERNET"
       ]
     },
     "web": {},
@@ -44,21 +37,8 @@
           "microphonePermission": "AIpron needs microphone access for voice-guided cooking."
         }
       ],
-      "expo-font",
-      "expo-router"
+      "expo-font"
     ],
-    "scheme": "aipron",
-    "extra": {
-      "eas": {
-        "projectId": "e8685c6f-0405-499a-952e-d75acad7c1e9"
-      }
-    },
-    "owner": "devin8899",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/e8685c6f-0405-499a-952e-d75acad7c1e9"
-    }
+    "scheme": "aipron"
   }
 }

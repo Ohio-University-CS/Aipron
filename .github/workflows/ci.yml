@@ -24,4 +24,4 @@ jobs:
         run: npm ci
 
       - name: Run backend unit tests
-        run: npm run test --workspace backend -- unit_tests
+        run: npm run test --workspace backend

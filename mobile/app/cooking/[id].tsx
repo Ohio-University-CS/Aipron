@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet, TouchableOpacity, Text, StatusBar } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { CookingStep } from "../../src/components/CookingStep";
 import { VoiceIndicator } from "../../src/components/VoiceIndicator";
 import { cookingApi, recipeApi } from "../../src/services/api";
-import { useRealtimeVoice, RealtimeToolCall } from "../../src/hooks/useRealtimeVoice";
 import { colors, spacing, typography, borderRadius } from "../../src/constants/DesignTokens";
-import { Recipe } from "@aipron/shared";
+import { Recipe, RecipeStep } from "@aipron/shared";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Constants, { ExecutionEnvironment } from "expo-constants";
 
 export default function CookingModeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -17,79 +15,14 @@ export default function CookingModeScreen() {
   const insets = useSafeAreaInsets();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [timerActive, setTimerActive] = useState(false);
-
-  const currentStepRef = useRef(currentStep);
-  currentStepRef.current = currentStep;
-
-  const sendToolResultRef = useRef<(callId: string, result: unknown) => void>(() => {});
-
-  const voiceInstructions = useMemo(() => {
-    if (!recipe) return undefined;
-    const stepsText = recipe.steps
-      .map((s) => `Step ${s.stepNumber}: ${s.instruction}`)
-      .join("\n");
-    return (
-      `You are Chef Aipron guiding the user through "${recipe.title}" hands-free.\n` +
-      `The recipe has ${recipe.steps.length} steps. Here they are:\n${stepsText}\n\n` +
-      `The user is currently on step ${currentStepRef.current}. ` +
-      `Be concise, encouraging, and use the provided tools (next_step, repeat_step, start_timer, ingredient_substitution) when appropriate.`
-    );
-  }, [recipe]);
-
-  const handleToolCall = useCallback(
-    (toolCall: RealtimeToolCall) => {
-      const send = sendToolResultRef.current;
-      switch (toolCall.name) {
-        case "next_step": {
-          const step = (toolCall.args.stepNumber as number) ?? currentStepRef.current + 1;
-          setCurrentStep(step);
-          cookingApi.updateStep(id, step);
-          send(toolCall.callId, { success: true, currentStep: step });
-          break;
-        }
-        case "repeat_step":
-          send(toolCall.callId, { success: true, currentStep: currentStepRef.current });
-          break;
-        case "start_timer": {
-          setTimerActive(true);
-          send(toolCall.callId, {
-            success: true,
-            duration: toolCall.args.duration,
-            label: toolCall.args.label,
-          });
-          break;
-        }
-        case "ingredient_substitution":
-          send(toolCall.callId, { success: true });
-          break;
-      }
-    },
-    [id]
-  );
-
-  const voice = useRealtimeVoice({
-    instructions: voiceInstructions,
-    onToolCall: handleToolCall,
-    onError: useCallback((err: Error) => console.warn("Cooking voice error:", err.message), []),
-  });
-
-  sendToolResultRef.current = voice.sendToolResult;
 
   useEffect(() => {
     loadRecipe();
     startSession();
   }, [id]);
-
-  useEffect(() => {
-    const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-    if (recipe && !isExpoGo && !voice.isConnected && !voice.isConnecting) {
-      voice.connect();
-    }
-    return () => {
-      voice.disconnect();
-    };
-  }, [recipe]);
 
   const loadRecipe = async () => {
     try {
@@ -124,7 +57,6 @@ export default function CookingModeScreen() {
 
   const handleComplete = async () => {
     try {
-      voice.disconnect();
       await cookingApi.completeSession(id);
       router.back();
     } catch (error) {
@@ -193,10 +125,8 @@ export default function CookingModeScreen() {
         </TouchableOpacity>
 
         <VoiceIndicator
-          isListening={voice.isListening}
-          isSpeaking={voice.isSpeaking}
-          loading={voice.isConnecting}
-          error={!!voice.error}
+          isListening={isListening}
+          isSpeaking={isSpeaking}
         />
         <View style={styles.controls}>
           <TouchableOpacity

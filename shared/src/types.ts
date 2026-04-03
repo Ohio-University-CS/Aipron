@@ -66,10 +66,6 @@ export interface Recipe {
   dietaryTags: DietaryFilter[];
   cuisine?: string;
   difficulty?: "beginner" | "intermediate" | "advanced";
-  /** Rough relative cost hint from the model when budget mode is on; not a real price. */
-  estimatedCostBand?: "low" | "medium" | "high";
-  /** Short explanation of budget-oriented choices; not financial advice. */
-  budgetNotes?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
