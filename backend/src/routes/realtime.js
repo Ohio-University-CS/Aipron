@@ -1,6 +1,10 @@
 import express from "express";
 import { authenticateToken } from "../middleware/auth.js";
-import { createRealtimeSession, cleanupExpiredSessions } from "../services/realtime.js";
+import {
+  createRealtimeSession,
+  cleanupExpiredSessions,
+  negotiateRealtimeSdp,
+} from "../services/realtime.js";
 
 export const realtimeRouter = express.Router();
 
@@ -10,6 +14,17 @@ realtimeRouter.post("/session", authenticateToken, async (req, res, next) => {
     const { instructions } = req.body || {};
     const session = await createRealtimeSession(req.user.id, { instructions });
     res.json(session);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Browser WebRTC: forward SDP to OpenAI (authenticated user only)
+realtimeRouter.post("/negotiate", authenticateToken, async (req, res, next) => {
+  try {
+    const { sdp, clientSecret, model } = req.body || {};
+    const answerSdp = await negotiateRealtimeSdp({ sdp, clientSecret, model });
+    res.json({ sdp: answerSdp });
   } catch (error) {
     next(error);
   }

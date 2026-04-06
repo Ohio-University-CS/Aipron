@@ -207,6 +207,15 @@ export const realtimeApi = {
     const { data } = await api.post("/realtime/session", instructions ? { instructions } : {});
     return data as RealtimeSession;
   },
+  /** Web browser WebRTC: exchange SDP via backend (CORS-safe). */
+  negotiateSdp: async (sdp: string, clientSecret: string, model: string): Promise<string> => {
+    const { data } = await api.post<{ sdp: string }>("/realtime/negotiate", {
+      sdp,
+      clientSecret,
+      model,
+    });
+    return data.sdp;
+  },
 };
 
 export interface Conversation {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,10 +14,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "../src/components/RecipeCard";
 import { ChatMessage } from "../src/components/ChatMessage";
+import { VoiceIndicator } from "../src/components/VoiceIndicator";
 import { recipeApi, chatApi, Conversation, ConversationMessage } from "../src/services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 import { useWebSpeechToText } from "../src/hooks/useWebSpeechToText";
+import { useRealtimeVoice } from "../src/hooks/useRealtimeVoice";
 import ProfileScreen from "./(tabs)/profile";
 import LoginScreen from "./login";
 import SettingsScreen from "./settings";
@@ -106,6 +108,38 @@ export default function WebPreviewScreen() {
     startListening: startChefVoiceListening,
     stopListening: stopChefVoiceListening,
   } = useWebSpeechToText();
+
+  const chefLiveInstructions = useMemo(
+    () =>
+      "You are Chef Aipron on the AIpron web app. Help with cooking, recipes, substitutions, and techniques. Be concise and warm.",
+    []
+  );
+
+  const chefLiveVoice = useRealtimeVoice({
+    instructions: chefLiveInstructions,
+    onTranscript: useCallback((text: string, role: "user" | "assistant") => {
+      setChefMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-${role}-${Math.random().toString(36).slice(2, 8)}`,
+          role,
+          content: text,
+          timestamp: new Date(),
+        },
+      ]);
+      setTimeout(() => chefScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }, []),
+    onError: useCallback((e: Error) => console.warn("Chef live voice:", e.message), []),
+  });
+
+  const disconnectChefLiveRef = useRef(chefLiveVoice.disconnect);
+  disconnectChefLiveRef.current = chefLiveVoice.disconnect;
+
+  useEffect(() => {
+    if (chefView !== "chat" || activeTab !== "chef") {
+      disconnectChefLiveRef.current();
+    }
+  }, [chefView, activeTab]);
 
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
@@ -206,6 +240,14 @@ export default function WebPreviewScreen() {
     setChefMessages([]);
     setChefInput("");
   }, []);
+
+  const handleChefLiveVoicePress = () => {
+    if (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) {
+      chefLiveVoice.disconnect();
+    } else {
+      chefLiveVoice.connect();
+    }
+  };
 
   const handleChefVoicePress = () => {
     if (chefVoiceListening) {
@@ -653,6 +695,7 @@ export default function WebPreviewScreen() {
                     <Text style={styles.chefWelcomeBody}>
                       Ask me anything about cooking — ingredient substitutions,
                       techniques, meal planning, or let me generate a recipe for you.
+                      Use the headset button for live voice-to-voice (sign in required).
                     </Text>
                   </View>
                   {[
@@ -694,15 +737,65 @@ export default function WebPreviewScreen() {
                 </View>
               )}
             </ScrollView>
+            {(chefLiveVoice.isConnected || chefLiveVoice.isConnecting) && (
+              <View style={styles.chefLiveIndicatorWrap}>
+                <VoiceIndicator
+                  isListening={chefLiveVoice.isListening}
+                  isSpeaking={chefLiveVoice.isSpeaking}
+                  loading={chefLiveVoice.isConnecting}
+                  error={!!chefLiveVoice.error}
+                />
+              </View>
+            )}
             <View style={styles.chefComposer}>
+              <TouchableOpacity
+                style={[
+                  styles.chefLiveBtn,
+                  (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) &&
+                    styles.chefLiveBtnActive,
+                  chefLoading && styles.chefLiveBtnDisabled,
+                ]}
+                onPress={handleChefLiveVoicePress}
+                disabled={chefLoading}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  chefLiveVoice.isConnected || chefLiveVoice.isConnecting
+                    ? "Stop live voice"
+                    : "Start live voice"
+                }
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={
+                    chefLiveVoice.isConnected || chefLiveVoice.isConnecting
+                      ? "stop-circle"
+                      : "headset-outline"
+                  }
+                  size={22}
+                  color={
+                    chefLiveVoice.isConnected || chefLiveVoice.isConnecting
+                      ? colors.background
+                      : colors.primary
+                  }
+                />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.chefMicBtn,
                   chefVoiceListening && styles.chefMicBtnActive,
-                  (!chefVoiceSupported || chefLoading) && styles.chefMicBtnDisabled,
+                  (!chefVoiceSupported ||
+                    chefLoading ||
+                    chefLiveVoice.isConnected ||
+                    chefLiveVoice.isConnecting) &&
+                    styles.chefMicBtnDisabled,
                 ]}
                 onPress={handleChefVoicePress}
-                disabled={!chefVoiceSupported || chefLoading}
+                disabled={
+                  !chefVoiceSupported ||
+                  chefLoading ||
+                  chefLiveVoice.isConnected ||
+                  chefLiveVoice.isConnecting
+                }
                 accessibilityRole="button"
                 accessibilityLabel={
                   chefVoiceListening ? "Stop voice input" : "Voice input"
@@ -1452,6 +1545,29 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: spacing.sm,
+  },
+  chefLiveIndicatorWrap: {
+    paddingVertical: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chefLiveBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDE8D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chefLiveBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chefLiveBtnDisabled: {
+    opacity: 0.4,
   },
   chefMicBtn: {
     width: 42,

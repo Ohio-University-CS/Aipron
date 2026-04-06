@@ -110,6 +110,40 @@ export async function createRealtimeSession(userId, options = {}) {
 }
 
 /**
+ * Proxy WebRTC SDP exchange for browser clients (avoids CORS calling OpenAI directly).
+ * The ephemeral clientSecret must come from createRealtimeSession for the same user.
+ */
+export async function negotiateRealtimeSdp({ sdp, clientSecret, model }) {
+  if (typeof sdp !== "string" || !sdp.trim()) {
+    throw new Error("Invalid SDP");
+  }
+  if (model !== REALTIME_MODEL) {
+    throw new Error("Invalid realtime model");
+  }
+  if (typeof clientSecret !== "string" || !clientSecret.trim()) {
+    throw new Error("Invalid client secret");
+  }
+
+  const url = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${clientSecret}`,
+      "Content-Type": "application/sdp",
+    },
+    body: sdp,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error("OpenAI Realtime negotiate error:", response.status, body);
+    throw new Error("Realtime WebRTC negotiation failed");
+  }
+
+  return response.text();
+}
+
+/**
  * Clean up expired sessions
  */
 export async function cleanupExpiredSessions() {
