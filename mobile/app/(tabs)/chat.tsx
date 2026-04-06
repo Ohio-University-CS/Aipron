@@ -1,12 +1,9 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef } from "react";
 import { View, StyleSheet, ScrollView, Text, KeyboardAvoidingView, Platform } from "react-native";
 import { ChatComposer } from "../../src/components/ChatComposer";
 import { ChatMessage } from "../../src/components/ChatMessage";
 import { RecipeCard } from "../../src/components/RecipeCard";
-import { VoiceIndicator } from "../../src/components/VoiceIndicator";
 import { recipeApi } from "../../src/services/api";
-import { useBudgetModeStore } from "../../src/store/useBudgetModeStore";
-import { useRealtimeVoice } from "../../src/hooks/useRealtimeVoice";
 import { colors, spacing, typography, borderRadius } from "../../src/constants/DesignTokens";
 import { Recipe } from "@aipron/shared";
 import { useRouter } from "expo-router";
@@ -21,40 +18,13 @@ interface ChatEntry {
 }
 
 export default function ChatScreen() {
-  const budgetMode = useBudgetModeStore((s) => s.budgetMode);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const [chatHistory, setChatHistory] = useState<ChatEntry[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  const appendChatEntry = useCallback(
-    (role: "user" | "assistant", content: string) => {
-      setChatHistory((prev) => [
-        ...prev,
-        { id: Date.now().toString() + role, role, content, timestamp: new Date() },
-      ]);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-    },
-    []
-  );
-
-  const voice = useRealtimeVoice({
-    onTranscript: useCallback(
-      (text: string, role: "user" | "assistant") => appendChatEntry(role, text),
-      [appendChatEntry]
-    ),
-    onError: useCallback((err: Error) => console.warn("Voice error:", err.message), []),
-  });
-
-  const handleVoicePress = () => {
-    if (voice.isConnected || voice.isConnecting) {
-      voice.disconnect();
-    } else {
-      voice.connect();
-    }
-  };
+  const [isRecording, setIsRecording] = useState(false);
 
   const handleSend = async (message: string) => {
     const userMessage: ChatEntry = {
@@ -68,7 +38,7 @@ export default function ChatScreen() {
     setIsLoading(true);
 
     try {
-      const recipe = await recipeApi.generate(message, { budgetMode });
+      const recipe = await recipeApi.generate(message);
       setRecipes((prev) => [recipe, ...prev]);
 
       const assistantMessage: ChatEntry = {
@@ -97,6 +67,11 @@ export default function ChatScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleVoicePress = () => {
+    setIsRecording(!isRecording);
+    // TODO: Implement voice recording
   };
 
   return (
@@ -153,18 +128,10 @@ export default function ChatScreen() {
           </View>
         )}
       </ScrollView>
-      {(voice.isConnected || voice.isConnecting) && (
-        <VoiceIndicator
-          isListening={voice.isListening}
-          isSpeaking={voice.isSpeaking}
-          loading={voice.isConnecting}
-          error={!!voice.error}
-        />
-      )}
       <ChatComposer
         onSend={handleSend}
         onVoicePress={handleVoicePress}
-        isRecording={voice.isConnected || voice.isConnecting}
+        isRecording={isRecording}
         isLoading={isLoading}
       />
     </KeyboardAvoidingView>

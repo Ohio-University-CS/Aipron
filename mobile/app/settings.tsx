@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 import { useThemeStore } from "../src/store/useThemeStore";
-import { useBudgetModeStore } from "../src/store/useBudgetModeStore";
 
 type SubView =
   | null
@@ -24,8 +23,6 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   const c = useThemeColors();
   const { mode, toggleMode } = useThemeStore();
-  const budgetMode = useBudgetModeStore((s) => s.budgetMode);
-  const setBudgetMode = useBudgetModeStore((s) => s.setBudgetMode);
   const isDark = mode === "dark";
 
   const [subView, setSubView] = useState<SubView>(null);
@@ -56,25 +53,18 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
     value,
     onToggle,
     iconColor,
-    hint,
   }: {
     icon: keyof typeof Ionicons.glyphMap;
     label: string;
     value: boolean;
     onToggle: () => void;
     iconColor?: string;
-    hint?: string;
   }) => (
     <View style={[styles.row, { backgroundColor: c.surface, borderBottomColor: c.border }]}>
       <View style={[styles.rowIconWrap, { backgroundColor: (iconColor ?? c.primary) + "18" }]}>
         <Ionicons name={icon} size={18} color={iconColor ?? c.primary} />
       </View>
-      <View style={styles.rowLabelColumn}>
-        <Text style={[styles.rowLabel, { color: c.text }]}>{label}</Text>
-        {hint ? (
-          <Text style={[styles.rowHint, { color: c.textSecondary }]}>{hint}</Text>
-        ) : null}
-      </View>
+      <Text style={[styles.rowLabel, { color: c.text }]}>{label}</Text>
       <Switch
         value={value}
         onValueChange={onToggle}
@@ -428,14 +418,6 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
             onToggle={() => setMetricUnits((v) => !v)}
             iconColor="#10B981"
           />
-          <ToggleRow
-            icon="wallet-outline"
-            label="Budget mode"
-            hint="Favors affordable ingredients. Cost hints are not actual prices."
-            value={budgetMode}
-            onToggle={() => setBudgetMode(!budgetMode)}
-            iconColor="#0D9488"
-          />
           <NavRow icon="language-outline" label="Language" iconColor="#3B82F6" detail={selectedLanguage} onPress={() => setSubView("language")} />
           <NavRow icon="nutrition-outline" label="Dietary Preferences" iconColor="#F59E0B" onPress={() => setSubView("dietary")} />
         </View>
@@ -521,17 +503,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rowLabelColumn: {
-    flex: 1,
-  },
   rowLabel: {
     ...typography.body,
-  },
-  rowHint: {
-    ...typography.caption,
-    fontSize: 12,
-    marginTop: 2,
-    lineHeight: 16,
+    flex: 1,
   },
   rowDetail: {
     ...typography.caption,

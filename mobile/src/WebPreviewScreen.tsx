@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -12,30 +12,19 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
-import { RecipeCard } from "../src/components/RecipeCard";
-import { ChatMessage } from "../src/components/ChatMessage";
-import { VoiceIndicator } from "../src/components/VoiceIndicator";
-import { recipeApi, chatApi, Conversation, ConversationMessage } from "../src/services/api";
-import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
-import { useThemeColors } from "../src/hooks/useThemeColors";
-import { useWebSpeechToText } from "../src/hooks/useWebSpeechToText";
-import { useRealtimeVoice } from "../src/hooks/useRealtimeVoice";
-import ProfileScreen from "./(tabs)/profile";
-import LoginScreen from "./login";
-import SettingsScreen from "./settings";
-import HelpScreen from "./help";
-import AboutScreen from "./about";
+import { RecipeCard } from "./components/RecipeCard";
+import { ChatMessage } from "./components/ChatMessage";
+import { recipeApi, chatApi, Conversation, ConversationMessage } from "./services/api";
+import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
+import { useThemeColors } from "./hooks/useThemeColors";
+import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
+import ProfileScreen from "../app/(tabs)/profile";
+import LoginScreen from "../app/login";
+import SettingsScreen from "../app/settings";
+import HelpScreen from "../app/help";
+import AboutScreen from "../app/about";
 
-type MockTab =
-  | "home"
-  | "search"
-  | "saved"
-  | "profile"
-  | "settings"
-  | "help"
-  | "about"
-  | "login"
-  | "chef";
+type MockTab = "home" | "search" | "saved" | "profile" | "settings" | "help" | "about" | "login" | "chef";
 
 const recipe = {
   title: "Classic Spaghetti Carbonara",
@@ -99,11 +88,6 @@ export default function WebPreviewScreen() {
   );
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Recipe[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const searchSeqRef = useRef(0);
 
   const [chefView, setChefView] = useState<"history" | "chat">("history");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -123,38 +107,6 @@ export default function WebPreviewScreen() {
     stopListening: stopChefVoiceListening,
   } = useWebSpeechToText();
 
-  const chefLiveInstructions = useMemo(
-    () =>
-      "You are Chef Aipron on the AIpron web app. Help with cooking, recipes, substitutions, and techniques. Be concise and warm.",
-    []
-  );
-
-  const chefLiveVoice = useRealtimeVoice({
-    instructions: chefLiveInstructions,
-    onTranscript: useCallback((text: string, role: "user" | "assistant") => {
-      setChefMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-${role}-${Math.random().toString(36).slice(2, 8)}`,
-          role,
-          content: text,
-          timestamp: new Date(),
-        },
-      ]);
-      setTimeout(() => chefScrollRef.current?.scrollToEnd({ animated: true }), 100);
-    }, []),
-    onError: useCallback((e: Error) => console.warn("Chef live voice:", e.message), []),
-  });
-
-  const disconnectChefLiveRef = useRef(chefLiveVoice.disconnect);
-  disconnectChefLiveRef.current = chefLiveVoice.disconnect;
-
-  useEffect(() => {
-    if (chefView !== "chat" || activeTab !== "chef") {
-      disconnectChefLiveRef.current();
-    }
-  }, [chefView, activeTab]);
-
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
     try {
@@ -173,43 +125,28 @@ export default function WebPreviewScreen() {
     }
   }, [activeTab, loadSavedRecipes]);
 
-  useEffect(() => {
-    if (activeTab !== "search") return;
+  const handleUnsave = useCallback(
+    async (recipeId: string) => {
+      const previous = savedRecipes;
+      setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+      try {
+        await recipeApi.unsave(recipeId);
+      } catch {
+        setSavedRecipes(previous);
+      }
+    },
+    [savedRecipes]
+  );
 
-    const q = searchQuery.trim();
-    const seq = ++searchSeqRef.current;
-    setSearchLoading(true);
-    setSearchError(null);
-
-    const handle = setTimeout(() => {
-      (async () => {
-        try {
-          const list = await recipeApi.search(q, { limit: 30, offset: 0 });
-          if (seq !== searchSeqRef.current) return;
-          setSearchResults(list);
-        } catch (error: unknown) {
-          if (seq !== searchSeqRef.current) return;
-          setSearchResults([]);
-          let msg = "Could not reach the recipe API.";
-          if (axios.isAxiosError(error)) {
-            const data = error.response?.data as { error?: string } | undefined;
-            msg = data?.error || error.message || msg;
-          } else if (error instanceof Error) {
-            msg = error.message;
-          }
-          setSearchError(
-            `${msg} Start the backend (npm run dev in /backend). If the browser blocks requests, CORS is relaxed for localhost in development.`
-          );
-        } finally {
-          if (seq === searchSeqRef.current) {
-            setSearchLoading(false);
-          }
-        }
-      })();
-    }, 250);
-
-    return () => clearTimeout(handle);
-  }, [activeTab, searchQuery]);
+  const toggleIngredient = (id: string) => {
+    const next = new Set(checkedIngredients);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setCheckedIngredients(next);
+  };
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
@@ -256,6 +193,7 @@ export default function WebPreviewScreen() {
       setChefMessages([]);
       setChefView("chat");
     } catch {
+      // Fallback: open chat without persistence
       setActiveConvoId(null);
       setChefMessages([]);
       setChefView("chat");
@@ -268,14 +206,6 @@ export default function WebPreviewScreen() {
     setChefMessages([]);
     setChefInput("");
   }, []);
-
-  const handleChefLiveVoicePress = () => {
-    if (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) {
-      chefLiveVoice.disconnect();
-    } else {
-      chefLiveVoice.connect();
-    }
-  };
 
   const handleChefVoicePress = () => {
     if (chefVoiceListening) {
@@ -361,29 +291,6 @@ export default function WebPreviewScreen() {
     if (hrs < 24) return `${hrs}h ago`;
     const days = Math.floor(hrs / 24);
     return `${days}d ago`;
-  };
-
-  const handleUnsave = useCallback(
-    async (recipeId: string) => {
-      const previous = savedRecipes;
-      setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
-      try {
-        await recipeApi.unsave(recipeId);
-      } catch {
-        setSavedRecipes(previous);
-      }
-    },
-    [savedRecipes]
-  );
-
-  const toggleIngredient = (id: string) => {
-    const next = new Set(checkedIngredients);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setCheckedIngredients(next);
   };
 
   return (
@@ -601,60 +508,13 @@ export default function WebPreviewScreen() {
             style={styles.scroll}
             contentContainerStyle={styles.placeholderScroll}
           >
-            <View style={styles.searchWrap}>
-              <View style={styles.searchInputRow}>
-                <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Search recipes (salmon, lemon dill, greek yogurt, sour cream)"
-                  placeholderTextColor={colors.textDisabled}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={styles.searchInput}
-                />
-                {!!searchQuery && (
-                  <TouchableOpacity
-                    onPress={() => setSearchQuery("")}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <Text style={styles.searchMetaText}>
-                {searchError
-                  ? "Could not load catalog"
-                  : searchQuery.trim()
-                    ? (searchLoading ? "Searching…" : `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`)
-                    : (searchLoading ? "Loading catalog…" : `${searchResults.length} recipe${searchResults.length === 1 ? "" : "s"} — type to filter`)}
+            <View style={styles.placeholderInner}>
+              <Text style={styles.placeholderEmoji}>🔍</Text>
+              <Text style={styles.placeholderTitle}>Search recipes</Text>
+              <Text style={styles.placeholderBody}>
+                Browse and filter in the full app; this preview stays on one
+                screen.
               </Text>
-
-              {searchError ? (
-                <Text style={styles.placeholderBody}>{searchError}</Text>
-              ) : null}
-
-              {searchResults.length === 0 && !searchQuery.trim() && !searchLoading && !searchError && (
-                <View style={styles.placeholderInner}>
-                  <Text style={styles.placeholderEmoji}>🔍</Text>
-                  <Text style={styles.placeholderTitle}>Search recipes</Text>
-                  <Text style={styles.placeholderBody}>
-                    Try: salmon, lemon dill, green beans, sour cream, trout
-                  </Text>
-                </View>
-              )}
-
-              {searchResults.map((r, idx) => (
-                <RecipeCard
-                  key={r.id || `search-${idx}`}
-                  recipe={r}
-                  onPress={() => {}}
-                  disabled
-                  loading={searchLoading}
-                />
-              ))}
             </View>
           </ScrollView>
         )}
@@ -744,7 +604,7 @@ export default function WebPreviewScreen() {
                   <Ionicons name="chatbubbles-outline" size={48} color={colors.textDisabled} />
                   <Text style={styles.historyEmptyTitle}>No chats yet</Text>
                   <Text style={styles.historyEmptyBody}>
-                    Tap &quot;New Chat&quot; to start a conversation with Chef.
+                    Tap "New Chat" to start a conversation with Chef.
                   </Text>
                 </View>
               )}
@@ -776,7 +636,7 @@ export default function WebPreviewScreen() {
                 <Ionicons name="arrow-back" size={20} color={colors.primary} />
               </TouchableOpacity>
               <Text style={styles.chatHeaderTitle} numberOfLines={1}>
-                {conversations.find((x) => x.id === activeConvoId)?.title || "New Chat"}
+                {conversations.find((c) => c.id === activeConvoId)?.title || "New Chat"}
               </Text>
             </View>
             <ScrollView
@@ -793,7 +653,6 @@ export default function WebPreviewScreen() {
                     <Text style={styles.chefWelcomeBody}>
                       Ask me anything about cooking — ingredient substitutions,
                       techniques, meal planning, or let me generate a recipe for you.
-                      Use the headset button for live voice-to-voice (sign in required).
                     </Text>
                   </View>
                   {[
@@ -835,65 +694,15 @@ export default function WebPreviewScreen() {
                 </View>
               )}
             </ScrollView>
-            {(chefLiveVoice.isConnected || chefLiveVoice.isConnecting) && (
-              <View style={styles.chefLiveIndicatorWrap}>
-                <VoiceIndicator
-                  isListening={chefLiveVoice.isListening}
-                  isSpeaking={chefLiveVoice.isSpeaking}
-                  loading={chefLiveVoice.isConnecting}
-                  error={!!chefLiveVoice.error}
-                />
-              </View>
-            )}
             <View style={styles.chefComposer}>
-              <TouchableOpacity
-                style={[
-                  styles.chefLiveBtn,
-                  (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) &&
-                    styles.chefLiveBtnActive,
-                  chefLoading && styles.chefLiveBtnDisabled,
-                ]}
-                onPress={handleChefLiveVoicePress}
-                disabled={chefLoading}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  chefLiveVoice.isConnected || chefLiveVoice.isConnecting
-                    ? "Stop live voice"
-                    : "Start live voice"
-                }
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={
-                    chefLiveVoice.isConnected || chefLiveVoice.isConnecting
-                      ? "stop-circle"
-                      : "headset-outline"
-                  }
-                  size={22}
-                  color={
-                    chefLiveVoice.isConnected || chefLiveVoice.isConnecting
-                      ? colors.background
-                      : colors.primary
-                  }
-                />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.chefMicBtn,
                   chefVoiceListening && styles.chefMicBtnActive,
-                  (!chefVoiceSupported ||
-                    chefLoading ||
-                    chefLiveVoice.isConnected ||
-                    chefLiveVoice.isConnecting) &&
-                    styles.chefMicBtnDisabled,
+                  (!chefVoiceSupported || chefLoading) && styles.chefMicBtnDisabled,
                 ]}
                 onPress={handleChefVoicePress}
-                disabled={
-                  !chefVoiceSupported ||
-                  chefLoading ||
-                  chefLiveVoice.isConnected ||
-                  chefLiveVoice.isConnecting
-                }
+                disabled={!chefVoiceSupported || chefLoading}
                 accessibilityRole="button"
                 accessibilityLabel={
                   chefVoiceListening ? "Stop voice input" : "Voice input"
@@ -999,7 +808,7 @@ export default function WebPreviewScreen() {
             style={styles.bottomItem}
             onPress={() => setActiveTab("chef")}
             accessibilityRole="button"
-            accessibilityLabel="Chef AI chat"
+            accessibilityLabel="Chef"
           >
             <Ionicons
               name={activeTab === "chef" ? "sparkles" : "sparkles-outline"}
@@ -1196,31 +1005,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.sm,
     textAlign: "center",
-  },
-  searchWrap: {
-    flexGrow: 1,
-    gap: spacing.md,
-  },
-  searchInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    ...typography.body,
-    color: colors.text,
-    paddingVertical: 0,
-  },
-  searchMetaText: {
-    ...typography.caption,
-    color: colors.textSecondary,
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
@@ -1668,29 +1452,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: spacing.sm,
-  },
-  chefLiveIndicatorWrap: {
-    paddingVertical: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  chefLiveBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FDE8D0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chefLiveBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chefLiveBtnDisabled: {
-    opacity: 0.4,
   },
   chefMicBtn: {
     width: 42,

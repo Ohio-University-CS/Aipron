@@ -1,9 +1,34 @@
 import axios from "axios";
+import { Platform } from "react-native";
 import { supabase } from "./supabase";
 import { useAuthStore } from "../store/useAuthStore";
 import { Recipe } from "@aipron/shared";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+/**
+ * Expo Web: localhost is fine. Android emulator: localhost is the emulator itself — use 10.0.2.2.
+ * Physical device: set EXPO_PUBLIC_API_URL to http://<your-lan-ip>:3001 (not localhost).
+ */
+function resolveApiBaseUrl(): string {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
+  const base = fromEnv || "http://localhost:3001";
+
+  try {
+    const url = new URL(base);
+
+    if (
+      Platform.OS === "android" &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+    ) {
+      url.hostname = "10.0.2.2";
+    }
+
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return base.replace(/\/$/, "");
+  }
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -25,7 +50,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
+      const reqUrl = String(error.config?.url ?? "");
+      // Public catalog search does not require auth; avoid logging the user out if something else failed.
+      if (!reqUrl.includes("recipes/search")) {
+        useAuthStore.getState().logout();
+      }
     }
     return Promise.reject(error);
   }
@@ -38,8 +67,6 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
   const dietaryTags = recipe.dietaryTags ?? recipe.dietary_tags;
   const createdAt = recipe.createdAt ?? recipe.created_at;
   const updatedAt = recipe.updatedAt ?? recipe.updated_at;
-  const estimatedCostBand = recipe.estimatedCostBand ?? recipe.estimated_cost_band;
-  const budgetNotes = recipe.budgetNotes ?? recipe.budget_notes;
 
   return {
     ...recipe,
@@ -47,11 +74,6 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
     cookTime: typeof cookTime === "number" ? cookTime : 0,
     totalTime: typeof totalTime === "number" ? totalTime : 0,
     dietaryTags: Array.isArray(dietaryTags) ? dietaryTags : [],
-    estimatedCostBand:
-      estimatedCostBand === "low" || estimatedCostBand === "medium" || estimatedCostBand === "high"
-        ? estimatedCostBand
-        : undefined,
-    budgetNotes: typeof budgetNotes === "string" ? budgetNotes : undefined,
     createdAt: createdAt ? new Date(String(createdAt)) : undefined,
     updatedAt: updatedAt ? new Date(String(updatedAt)) : undefined,
   } as Recipe;
@@ -103,10 +125,26 @@ export const recipeApi = {
     dietaryFilters?: string[];
     servings?: number;
     skillLevel?: "beginner" | "intermediate" | "advanced";
-    budgetMode?: boolean;
   }) => {
     const { data } = await api.post("/recipes/generate", { prompt, ...options });
-    return normalizeRecipe(data as Record<string, unknown>);
+    return data;
+  },
+  search: async (q: string, options?: {
+    dietaryTag?: string;
+    cuisine?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const { data } = await api.get("/recipes/search", {
+      params: {
+        q,
+        dietaryTag: options?.dietaryTag,
+        cuisine: options?.cuisine,
+        limit: options?.limit,
+        offset: options?.offset,
+      },
+    });
+    return Array.isArray(data) ? data.map(normalizeRecipe) : [];
   },
   getById: async (id: string) => {
     const { data } = await api.get(`/recipes/${id}`);
@@ -120,15 +158,10 @@ export const recipeApi = {
     const { data } = await api.post(`/recipes/${id}/scale`, { servings });
     return data;
   },
-  getSubstitutions: async (
-    ingredient: string,
-    dietaryFilters?: string[],
-    options?: { budgetMode?: boolean }
-  ) => {
+  getSubstitutions: async (ingredient: string, dietaryFilters?: string[]) => {
     const { data } = await api.post("/recipes/substitutions", {
       ingredient,
       dietaryFilters,
-      ...options,
     });
     return data;
   },
@@ -170,8 +203,8 @@ export const pantryApi = {
     const { data } = await api.delete(`/pantry/${id}`);
     return data;
   },
-  findRecipes: async (dietaryFilters?: string[], options?: { budgetMode?: boolean }) => {
-    const { data } = await api.post("/pantry/recipes", { dietaryFilters, ...options });
+  findRecipes: async (dietaryFilters?: string[]) => {
+    const { data } = await api.post("/pantry/recipes", { dietaryFilters });
     return data;
   },
 };
@@ -195,17 +228,10 @@ export const cookingApi = {
   },
 };
 
-export interface RealtimeSession {
-  sessionId: string;
-  clientSecret: string;
-  expiresAt: string;
-  model: string;
-}
-
 export const realtimeApi = {
-  createSession: async (instructions?: string): Promise<RealtimeSession> => {
-    const { data } = await api.post("/realtime/session", instructions ? { instructions } : {});
-    return data as RealtimeSession;
+  createSession: async () => {
+    const { data } = await api.post("/realtime/session");
+    return data;
   },
   /** Web browser WebRTC: exchange SDP via backend (CORS-safe). */
   negotiateSdp: async (sdp: string, clientSecret: string, model: string): Promise<string> => {

@@ -7,6 +7,8 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "seed": "node src/db/seed.js",
+    "seed:catalog": "node src/db/seed.js",
+    "seed:public-catalog": "node src/db/seedPublicRecipe.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.0",
+    "supertest": "^7.2.2",
     "vitest": "^4.1.1"
   }
 }

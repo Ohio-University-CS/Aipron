@@ -30,6 +30,7 @@ CREATE TRIGGER on_auth_user_created
 -- Recipes table
 CREATE TABLE IF NOT EXISTS recipes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- user_id is nullable to support public/catalog recipes.
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
   description TEXT,
@@ -43,6 +44,15 @@ CREATE TABLE IF NOT EXISTS recipes (
   dietary_tags TEXT[] DEFAULT '{}',
   cuisine VARCHAR(100),
   difficulty VARCHAR(20) CHECK (difficulty IN ('beginner', 'intermediate', 'advanced')),
+  -- Public catalog support
+  is_public BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Full-text search across key recipe fields (Postgres)
+  search_vector tsvector GENERATED ALWAYS AS (
+    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(description, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(cuisine, '')), 'C') ||
+    setweight(to_tsvector('english', coalesce(ingredients::text, '')), 'D')
+  ) STORED,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -91,36 +101,16 @@ CREATE TABLE IF NOT EXISTS realtime_sessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Conversations table (chat sessions)
-CREATE TABLE IF NOT EXISTS conversations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  title VARCHAR(255) DEFAULT 'New Chat',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Conversation messages
-CREATE TABLE IF NOT EXISTS conversation_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant')),
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_dietary_tags ON recipes USING GIN(dietary_tags);
+CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
+CREATE INDEX IF NOT EXISTS idx_recipes_search_vector ON recipes USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_pantry_user_id ON pantry_items(user_id);
 CREATE INDEX IF NOT EXISTS idx_cooking_sessions_user_id ON cooking_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_cooking_sessions_recipe_id ON cooking_sessions(recipe_id);
 CREATE INDEX IF NOT EXISTS idx_realtime_sessions_user_id ON realtime_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_realtime_sessions_expires_at ON realtime_sessions(expires_at);
-CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_conversation_messages_conversation_id ON conversation_messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_conversation_messages_created_at ON conversation_messages(created_at);
 
 -- Auto-update updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -143,16 +133,14 @@ CREATE TRIGGER update_pantry_items_updated_at BEFORE UPDATE ON pantry_items
 CREATE TRIGGER update_cooking_sessions_updated_at BEFORE UPDATE ON cooking_sessions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_conversations_updated_at BEFORE UPDATE ON conversations
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 -- Row Level Security (RLS)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view own recipes" ON recipes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can view public or own recipes" ON recipes
+  FOR SELECT USING (is_public = TRUE OR auth.uid() = user_id);
 CREATE POLICY "Users can create recipes" ON recipes FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own recipes" ON recipes FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own recipes" ON recipes FOR DELETE USING (auth.uid() = user_id);
@@ -172,26 +160,6 @@ ALTER TABLE saved_recipes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own saved recipes" ON saved_recipes FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can save recipes" ON saved_recipes FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can unsave recipes" ON saved_recipes FOR DELETE USING (auth.uid() = user_id);
-
-ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view own conversations" ON conversations FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can create conversations" ON conversations FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update own conversations" ON conversations FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete own conversations" ON conversations FOR DELETE USING (auth.uid() = user_id);
-
-ALTER TABLE conversation_messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view own conversation messages" ON conversation_messages
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM conversations WHERE conversations.id = conversation_messages.conversation_id AND conversations.user_id = auth.uid())
-  );
-CREATE POLICY "Users can create conversation messages" ON conversation_messages
-  FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM conversations WHERE conversations.id = conversation_messages.conversation_id AND conversations.user_id = auth.uid())
-  );
-CREATE POLICY "Users can delete own conversation messages" ON conversation_messages
-  FOR DELETE USING (
-    EXISTS (SELECT 1 FROM conversations WHERE conversations.id = conversation_messages.conversation_id AND conversations.user_id = auth.uid())
-  );
 
 ALTER TABLE realtime_sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own realtime sessions" ON realtime_sessions FOR SELECT USING (auth.uid() = user_id);

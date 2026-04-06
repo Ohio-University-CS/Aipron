@@ -11,8 +11,7 @@ export const realtimeRouter = express.Router();
 // Create Realtime session
 realtimeRouter.post("/session", authenticateToken, async (req, res, next) => {
   try {
-    const { instructions } = req.body || {};
-    const session = await createRealtimeSession(req.user.id, { instructions });
+    const session = await createRealtimeSession(req.user.id);
     res.json(session);
   } catch (error) {
     next(error);
