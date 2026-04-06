@@ -9,20 +9,32 @@ import {
   TouchableOpacity,
   FlatList,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "../src/components/RecipeCard";
-import { recipeApi } from "../src/services/api";
+import { ChatMessage } from "../src/components/ChatMessage";
+import { recipeApi, chatApi, Conversation } from "../src/services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
+import { useWebSpeechToText } from "../src/hooks/useWebSpeechToText";
 import ProfileScreen from "./(tabs)/profile";
 import LoginScreen from "./login";
 import SettingsScreen from "./settings";
 import HelpScreen from "./help";
 import AboutScreen from "./about";
 
-type MockTab = "home" | "search" | "saved" | "profile" | "settings" | "help" | "about" | "login";
+type MockTab =
+  | "home"
+  | "search"
+  | "saved"
+  | "profile"
+  | "settings"
+  | "help"
+  | "about"
+  | "login"
+  | "chef";
 
 const recipe = {
   title: "Classic Spaghetti Carbonara",
@@ -92,6 +104,24 @@ export default function WebPreviewScreen() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const searchSeqRef = useRef(0);
 
+  const [chefView, setChefView] = useState<"history" | "chat">("history");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
+  const [chefMessages, setChefMessages] = useState<
+    { id: string; role: "user" | "assistant"; content: string; timestamp: Date }[]
+  >([]);
+  const [chefInput, setChefInput] = useState("");
+  const [chefLoading, setChefLoading] = useState(false);
+  const chefScrollRef = useRef<ScrollView>(null);
+  const chefVoiceBaseRef = useRef("");
+  const {
+    supported: chefVoiceSupported,
+    listening: chefVoiceListening,
+    startListening: startChefVoiceListening,
+    stopListening: stopChefVoiceListening,
+  } = useWebSpeechToText();
+
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
     try {
@@ -148,6 +178,150 @@ export default function WebPreviewScreen() {
     return () => clearTimeout(handle);
   }, [activeTab, searchQuery]);
 
+  const loadConversations = useCallback(async () => {
+    setConversationsLoading(true);
+    try {
+      const list = await chatApi.getConversations();
+      setConversations(list);
+    } catch {
+      setConversations([]);
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "chef" && chefView === "history") {
+      loadConversations();
+    }
+  }, [activeTab, chefView, loadConversations]);
+
+  const openConversation = useCallback(async (convoId: string) => {
+    setActiveConvoId(convoId);
+    setChefMessages([]);
+    setChefView("chat");
+    try {
+      const msgs = await chatApi.getMessages(convoId);
+      setChefMessages(
+        msgs.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.created_at),
+        }))
+      );
+      setTimeout(() => chefScrollRef.current?.scrollToEnd({ animated: false }), 150);
+    } catch {
+      setChefMessages([]);
+    }
+  }, []);
+
+  const startNewChat = useCallback(async () => {
+    try {
+      const convo = await chatApi.createConversation();
+      setActiveConvoId(convo.id);
+      setChefMessages([]);
+      setChefView("chat");
+    } catch {
+      setActiveConvoId(null);
+      setChefMessages([]);
+      setChefView("chat");
+    }
+  }, []);
+
+  const goBackToHistory = useCallback(() => {
+    setChefView("history");
+    setActiveConvoId(null);
+    setChefMessages([]);
+    setChefInput("");
+  }, []);
+
+  const handleChefVoicePress = () => {
+    if (chefVoiceListening) {
+      stopChefVoiceListening();
+      return;
+    }
+    chefVoiceBaseRef.current = chefInput.trim();
+    startChefVoiceListening((text, isFinal) => {
+      if (isFinal) {
+        const next = chefVoiceBaseRef.current
+          ? `${chefVoiceBaseRef.current} ${text}`.trim()
+          : text.trim();
+        chefVoiceBaseRef.current = next;
+        setChefInput(next);
+      } else {
+        setChefInput(
+          chefVoiceBaseRef.current
+            ? `${chefVoiceBaseRef.current} ${text}`.trim()
+            : text
+        );
+      }
+    });
+  };
+
+  const handleChefSend = async (text?: string) => {
+    const msg = (text ?? chefInput).trim();
+    if (!msg || chefLoading) return;
+
+    const userEntry = {
+      id: Date.now().toString(),
+      role: "user" as const,
+      content: msg,
+      timestamp: new Date(),
+    };
+    setChefMessages((prev) => [...prev, userEntry]);
+    setChefInput("");
+    setChefLoading(true);
+
+    try {
+      if (activeConvoId) {
+        const reply = await chatApi.sendMessage(activeConvoId, msg);
+        const assistantEntry = {
+          id: reply.id,
+          role: "assistant" as const,
+          content: reply.content,
+          timestamp: new Date(reply.created_at),
+        };
+        setChefMessages((prev) => [...prev, assistantEntry]);
+      } else {
+        const history = [...chefMessages, userEntry].map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+        const replyContent = await chatApi.send(history);
+        const assistantEntry = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant" as const,
+          content: replyContent,
+          timestamp: new Date(),
+        };
+        setChefMessages((prev) => [...prev, assistantEntry]);
+      }
+    } catch {
+      const errorEntry = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant" as const,
+        content: "Sorry, something went wrong. Please try again.",
+        timestamp: new Date(),
+      };
+      setChefMessages((prev) => [...prev, errorEntry]);
+    } finally {
+      setChefLoading(false);
+      setTimeout(() => chefScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  };
+
+  const formatRelativeTime = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+
   const handleUnsave = useCallback(
     async (recipeId: string) => {
       const previous = savedRecipes;
@@ -196,7 +370,9 @@ export default function WebPreviewScreen() {
                           ? "About"
                           : activeTab === "login"
                             ? "Login"
-                            : "Today's Recipe"}
+                            : activeTab === "chef"
+                              ? "Chef"
+                              : "Today's Recipe"}
             </Text>
             {activeTab === "saved" && (
               <Text style={styles.headerSubtitle}>
@@ -221,7 +397,9 @@ export default function WebPreviewScreen() {
                           ? "ℹ️"
                           : activeTab === "login"
                             ? "🔐"
-                            : "🍳"}
+                            : activeTab === "chef"
+                              ? "👨‍🍳"
+                              : "🍳"}
             </Text>
           </View>
         </View>
@@ -505,6 +683,161 @@ export default function WebPreviewScreen() {
           </View>
         )}
 
+        {activeTab === "chef" && chefView === "history" && (
+          <View style={styles.chefContainer}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>Your Chats</Text>
+              <TouchableOpacity style={styles.newChatBtn} onPress={startNewChat} activeOpacity={0.7}>
+                <Ionicons name="add" size={18} color={colors.background} />
+                <Text style={styles.newChatBtnText}>New Chat</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.historyScroll}>
+              {conversationsLoading && conversations.length === 0 && (
+                <View style={styles.historyEmpty}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
+              {!conversationsLoading && conversations.length === 0 && (
+                <View style={styles.historyEmpty}>
+                  <Ionicons name="chatbubbles-outline" size={48} color={colors.textDisabled} />
+                  <Text style={styles.historyEmptyTitle}>No chats yet</Text>
+                  <Text style={styles.historyEmptyBody}>
+                    Tap &quot;New Chat&quot; to start a conversation with Chef.
+                  </Text>
+                </View>
+              )}
+              {conversations.map((convo) => (
+                <TouchableOpacity
+                  key={convo.id}
+                  style={styles.historyItem}
+                  activeOpacity={0.7}
+                  onPress={() => openConversation(convo.id)}
+                >
+                  <View style={styles.historyItemIcon}>
+                    <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.historyItemContent}>
+                    <Text style={styles.historyItemTitle} numberOfLines={1}>{convo.title}</Text>
+                    <Text style={styles.historyItemTime}>{formatRelativeTime(convo.updated_at)}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {activeTab === "chef" && chefView === "chat" && (
+          <View style={styles.chefContainer}>
+            <View style={styles.chatHeader}>
+              <TouchableOpacity style={styles.backBtn} onPress={goBackToHistory} activeOpacity={0.7}>
+                <Ionicons name="arrow-back" size={20} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.chatHeaderTitle} numberOfLines={1}>
+                {conversations.find((x) => x.id === activeConvoId)?.title || "New Chat"}
+              </Text>
+            </View>
+            <ScrollView
+              ref={chefScrollRef}
+              style={styles.scroll}
+              contentContainerStyle={styles.chefScroll}
+              keyboardShouldPersistTaps="handled"
+            >
+              {chefMessages.length === 0 && !chefLoading && (
+                <>
+                  <View style={styles.chefWelcomeCard}>
+                    <Ionicons name="sparkles" size={36} color={colors.primary} />
+                    <Text style={styles.chefWelcomeTitle}>How can I help?</Text>
+                    <Text style={styles.chefWelcomeBody}>
+                      Ask me anything about cooking — ingredient substitutions,
+                      techniques, meal planning, or let me generate a recipe for you.
+                    </Text>
+                  </View>
+                  {[
+                    { icon: "restaurant-outline" as const, label: "Generate a recipe from ingredients" },
+                    { icon: "swap-horizontal-outline" as const, label: "Suggest ingredient substitutions" },
+                    { icon: "nutrition-outline" as const, label: "Get nutritional info" },
+                    { icon: "calendar-outline" as const, label: "Plan meals for the week" },
+                  ].map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      style={styles.chefSuggestion}
+                      activeOpacity={0.7}
+                      onPress={() => handleChefSend(item.label)}
+                    >
+                      <Ionicons name={item.icon} size={18} color={colors.primary} />
+                      <Text style={styles.chefSuggestionText}>{item.label}</Text>
+                      <Ionicons name="arrow-forward-circle-outline" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+              {chefMessages.map((entry) => (
+                <ChatMessage
+                  key={entry.id}
+                  role={entry.role}
+                  content={entry.content}
+                  timestamp={entry.timestamp}
+                />
+              ))}
+              {chefLoading && (
+                <View style={styles.chefTyping}>
+                  <View style={styles.chefTypingAvatar}>
+                    <Ionicons name="sparkles" size={12} color={colors.primary} />
+                  </View>
+                  <View style={styles.chefTypingBubble}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={styles.chefTypingText}>Cooking up a reply...</Text>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+            <View style={styles.chefComposer}>
+              <TouchableOpacity
+                style={[
+                  styles.chefMicBtn,
+                  chefVoiceListening && styles.chefMicBtnActive,
+                  (!chefVoiceSupported || chefLoading) && styles.chefMicBtnDisabled,
+                ]}
+                onPress={handleChefVoicePress}
+                disabled={!chefVoiceSupported || chefLoading}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  chefVoiceListening ? "Stop voice input" : "Voice input"
+                }
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={chefVoiceListening ? "mic-off" : "mic"}
+                  size={20}
+                  color={chefVoiceListening ? colors.error : colors.primary}
+                />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.chefInput}
+                value={chefInput}
+                onChangeText={setChefInput}
+                placeholder="What are you cooking today?"
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                editable={!chefLoading}
+                onSubmitEditing={() => handleChefSend()}
+                returnKeyType="send"
+              />
+              {chefInput.trim() ? (
+                <TouchableOpacity
+                  style={[styles.chefSendBtn, chefLoading && styles.chefSendBtnDisabled]}
+                  onPress={() => handleChefSend()}
+                  disabled={chefLoading}
+                >
+                  <Ionicons name="send" size={18} color={colors.background} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        )}
+
         {activeTab === "login" && (
           <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
             <TouchableOpacity
@@ -570,11 +903,27 @@ export default function WebPreviewScreen() {
               Search
             </Text>
           </TouchableOpacity>
-          <View style={styles.bottomCenterFabWrapper}>
-            <View style={styles.bottomFab} accessibilityRole="image">
-              <Ionicons name="sparkles" size={20} color={colors.background} />
-            </View>
-          </View>
+          <TouchableOpacity
+            style={styles.bottomItem}
+            onPress={() => setActiveTab("chef")}
+            accessibilityRole="button"
+            accessibilityLabel="Chef AI chat"
+          >
+            <Ionicons
+              name={activeTab === "chef" ? "sparkles" : "sparkles-outline"}
+              size={20}
+              color={activeTab === "chef" ? colors.primary : colors.textSecondary}
+            />
+            <Text
+              style={
+                activeTab === "chef"
+                  ? styles.bottomLabelActive
+                  : styles.bottomLabel
+              }
+            >
+              Chef
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.bottomItem}
             onPress={() => setActiveTab("saved")}
@@ -1031,17 +1380,244 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
   },
-  bottomCenterFabWrapper: {
-    marginTop: -24,
+  chefContainer: {
+    flex: 1,
+    paddingBottom: 64,
   },
-  bottomFab: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  historyTitle: {
+    ...typography.body,
+    fontWeight: "600",
+    color: colors.text,
+    fontSize: 16,
+  },
+  newChatBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
+  },
+  newChatBtnText: {
+    ...typography.caption,
+    color: colors.background,
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  historyScroll: {
+    flexGrow: 1,
+    paddingVertical: spacing.sm,
+  },
+  historyEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xxl * 2,
+    paddingHorizontal: spacing.lg,
+  },
+  historyEmptyTitle: {
+    ...typography.body,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: spacing.md,
+  },
+  historyEmptyBody: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    textAlign: "center",
+  },
+  historyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    gap: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  historyItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF7ED",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  historyItemContent: {
+    flex: 1,
+  },
+  historyItemTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontSize: 15,
+  },
+  historyItemTime: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  chatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF7ED",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatHeaderTitle: {
+    ...typography.body,
+    fontWeight: "600",
+    color: colors.text,
+    flex: 1,
+    fontSize: 15,
+  },
+  chefScroll: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: 80,
+    gap: spacing.sm,
+  },
+  chefWelcomeCard: {
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  chefWelcomeTitle: {
+    ...typography.h2,
+    color: colors.text,
+    marginTop: spacing.md,
+    textAlign: "center",
+  },
+  chefWelcomeBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  chefSuggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chefSuggestionText: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+  },
+  chefTyping: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  chefTypingAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FFF7ED",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  chefTypingBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: "#FFF7ED",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+  },
+  chefTypingText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+  },
+  chefComposer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 64,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.sm,
+  },
+  chefMicBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDE8D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chefMicBtnActive: {
+    backgroundColor: "#FEE2E2",
+    borderColor: colors.error,
+  },
+  chefMicBtnDisabled: {
+    opacity: 0.4,
+  },
+  chefInput: {
+    flex: 1,
+    minHeight: 42,
+    maxHeight: 80,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 10,
+    backgroundColor: "#FFF7ED",
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: "#FDE8D0",
+    ...typography.body,
+    fontSize: 15,
+    color: colors.text,
+  },
+  chefSendBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    ...shadows.md,
+  },
+  chefSendBtnDisabled: {
+    backgroundColor: colors.textDisabled,
   },
   profileContainer: {
     flex: 1,

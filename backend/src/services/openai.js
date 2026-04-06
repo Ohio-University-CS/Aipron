@@ -102,6 +102,32 @@ Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
 /**
  * Find recipes matching pantry ingredients
  */
+/**
+ * Stateless cooking Q&A for web/mobile chat UIs (messages: { role, content }[]).
+ */
+export async function chatWithAssistant(messages) {
+  const systemPrompt = `You are a helpful professional cooking assistant for AIpron. Answer clearly about recipes, techniques, substitutions, timing, and food safety. Be concise unless the user asks for more detail.`;
+
+  const openai = getOpenAIClient();
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m) => ({
+        role: m.role,
+        content: String(m.content ?? ""),
+      })),
+    ],
+    temperature: 0.7,
+  });
+
+  const text = completion.choices[0]?.message?.content?.trim();
+  if (!text) {
+    throw new Error("Empty model response");
+  }
+  return text;
+}
+
 export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5) {
   const prompt = `Given these ingredients: ${ingredients.join(", ")}, suggest ${limit} recipes that use most of them.
 Dietary restrictions: ${dietaryFilters.join(", ") || "none"}.

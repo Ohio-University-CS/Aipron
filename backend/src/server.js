@@ -8,6 +8,7 @@ import { recipesRouter } from "./routes/recipes.js";
 import { pantryRouter } from "./routes/pantry.js";
 import { realtimeRouter } from "./routes/realtime.js";
 import { cookingRouter } from "./routes/cooking.js";
+import { chatRouter } from "./routes/chat.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -76,6 +77,7 @@ app.use("/api/recipes", recipesRouter);
 app.use("/api/pantry", pantryRouter);
 app.use("/api/realtime", realtimeRouter);
 app.use("/api/cooking", cookingRouter);
+app.use("/api/chat", chatRouter);
 
 // Error handling
 app.use(errorHandler);
