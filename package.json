@@ -25,6 +25,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "es-abstract": "^1.24.1",
     "lucide-react": "^0.575.0"
   },
   "devDependencies": {
