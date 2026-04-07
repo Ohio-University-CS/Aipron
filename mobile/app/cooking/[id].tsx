@@ -5,8 +5,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { CookingStep } from "../../src/components/CookingStep";
 import { VoiceIndicator } from "../../src/components/VoiceIndicator";
 import { cookingApi, recipeApi } from "../../src/services/api";
+import { findLocalCatalogRecipeById } from "../../src/data/localCatalog";
 import { colors, spacing, typography, borderRadius } from "../../src/constants/DesignTokens";
-import { Recipe, RecipeStep } from "@aipron/shared";
+import { Recipe } from "@aipron/shared";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CookingModeScreen() {
@@ -20,11 +21,21 @@ export default function CookingModeScreen() {
   const [timerActive, setTimerActive] = useState(false);
 
   useEffect(() => {
+    setCurrentStep(1);
     loadRecipe();
     startSession();
   }, [id]);
 
+  const isLocalCatalogRecipe = id ? !!findLocalCatalogRecipeById(id) : false;
+
   const loadRecipe = async () => {
+    if (id) {
+      const local = findLocalCatalogRecipeById(id);
+      if (local) {
+        setRecipe(local);
+        return;
+      }
+    }
     try {
       const data = await recipeApi.getById(id);
       setRecipe(data);
@@ -34,6 +45,9 @@ export default function CookingModeScreen() {
   };
 
   const startSession = async () => {
+    if (isLocalCatalogRecipe) {
+      return;
+    }
     try {
       await cookingApi.startSession(id);
     } catch (error) {
@@ -43,19 +57,29 @@ export default function CookingModeScreen() {
 
   const handleNextStep = () => {
     if (recipe && currentStep < recipe.steps.length) {
-      setCurrentStep(currentStep + 1);
-      cookingApi.updateStep(id, currentStep + 1);
+      const next = currentStep + 1;
+      setCurrentStep(next);
+      if (!isLocalCatalogRecipe) {
+        cookingApi.updateStep(id, next);
+      }
     }
   };
 
   const handlePreviousStep = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-      cookingApi.updateStep(id, currentStep - 1);
+      const prev = currentStep - 1;
+      setCurrentStep(prev);
+      if (!isLocalCatalogRecipe) {
+        cookingApi.updateStep(id, prev);
+      }
     }
   };
 
   const handleComplete = async () => {
+    if (isLocalCatalogRecipe) {
+      router.back();
+      return;
+    }
     try {
       await cookingApi.completeSession(id);
       router.back();

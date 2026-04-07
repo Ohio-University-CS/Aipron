@@ -1,4 +1,3 @@
-import axios from "axios";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -17,6 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "./components/RecipeCard";
 import { ChatMessage } from "./components/ChatMessage";
+import { filterLocalCatalogRecipes, LOCAL_CATALOG_RECIPES } from "./data/localCatalog";
+import { useLocalCatalogSavedIds } from "./hooks/useLocalCatalogSavedIds";
 import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
 import { useThemeColors } from "./hooks/useThemeColors";
@@ -103,10 +104,10 @@ export default function WebPreviewScreen() {
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Recipe[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<Recipe[]>(LOCAL_CATALOG_RECIPES);
   const searchSeqRef = useRef(0);
+  const { savedIds: localCatalogSavedIds, toggleSave: toggleLocalCatalogSave, reloadSavedIds: reloadLocalCatalogSaved } =
+    useLocalCatalogSavedIds();
 
   const [chefView, setChefView] = useState<"history" | "chat">("history");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -149,34 +150,11 @@ export default function WebPreviewScreen() {
 
     const q = searchQuery.trim();
     const seq = ++searchSeqRef.current;
-    setSearchLoading(true);
-    setSearchError(null);
 
     const handle = setTimeout(() => {
-      (async () => {
-        try {
-          const list = await recipeApi.search(q, { limit: 30, offset: 0 });
-          if (seq !== searchSeqRef.current) return;
-          setSearchResults(list);
-        } catch (error: unknown) {
-          if (seq !== searchSeqRef.current) return;
-          setSearchResults([]);
-          let msg = "Could not reach the recipe API.";
-          if (axios.isAxiosError(error)) {
-            const data = error.response?.data as { error?: string } | undefined;
-            msg = data?.error || error.message || msg;
-          } else if (error instanceof Error) {
-            msg = error.message;
-          }
-          setSearchError(
-            `${msg} Start the backend (npm run dev in /backend). If the browser blocks requests, CORS is relaxed for localhost in development.`
-          );
-        } finally {
-          if (seq === searchSeqRef.current) {
-            setSearchLoading(false);
-          }
-        }
-      })();
+      const list = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
+      if (seq !== searchSeqRef.current) return;
+      setSearchResults(list);
     }, 250);
 
     return () => clearTimeout(handle);
@@ -592,23 +570,17 @@ export default function WebPreviewScreen() {
               </View>
 
               <Text style={styles.searchMetaText}>
-                {searchError
-                  ? "Could not load catalog"
-                  : searchQuery.trim()
-                    ? (searchLoading ? "Searching…" : `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`)
-                    : (searchLoading ? "Loading catalog…" : `${searchResults.length} recipe${searchResults.length === 1 ? "" : "s"} — type to filter`)}
+                {searchQuery.trim()
+                  ? `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`
+                  : `${LOCAL_CATALOG_RECIPES.length} built-in recipes — type to filter`}
               </Text>
 
-              {searchError ? (
-                <Text style={styles.placeholderBody}>{searchError}</Text>
-              ) : null}
-
-              {searchResults.length === 0 && !searchQuery.trim() && !searchLoading && !searchError && (
+              {searchResults.length === 0 && !!searchQuery.trim() && (
                 <View style={styles.placeholderInner}>
                   <Text style={styles.placeholderEmoji}>🔍</Text>
-                  <Text style={styles.placeholderTitle}>Search recipes</Text>
+                  <Text style={styles.placeholderTitle}>No matches</Text>
                   <Text style={styles.placeholderBody}>
-                    Try: salmon, lemon dill, green beans, sour cream, trout
+                    Try: salmon, lemon dill, green beans, sour cream, trout, curry, dal
                   </Text>
                 </View>
               )}
@@ -617,9 +589,11 @@ export default function WebPreviewScreen() {
                 <RecipeCard
                   key={r.id || `search-${idx}`}
                   recipe={r}
+                  isSaved={!!r.id && localCatalogSavedIds.has(r.id)}
+                  onToggleSave={toggleLocalCatalogSave}
                   onPress={() => {}}
                   disabled
-                  loading={searchLoading}
+                  loading={false}
                 />
               ))}
             </View>

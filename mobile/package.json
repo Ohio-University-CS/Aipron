@@ -3,6 +3,7 @@
   "version": "1.1.0",
   "main": "expo-router/entry",
   "scripts": {
+    "generate:local-catalog": "node scripts/generate-local-catalog.mjs",
     "dev": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",

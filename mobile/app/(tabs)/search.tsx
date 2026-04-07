@@ -1,4 +1,3 @@
-import axios from "axios";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
@@ -13,7 +12,8 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "../../src/components/RecipeCard";
-import { recipeApi } from "../../src/services/api";
+import { filterLocalCatalogRecipes, LOCAL_CATALOG_RECIPES } from "../../src/data/localCatalog";
+import { useLocalCatalogSavedIds } from "../../src/hooks/useLocalCatalogSavedIds";
 import { borderRadius, colors, spacing, typography } from "../../src/constants/DesignTokens";
 
 export default function SearchScreen() {
@@ -21,54 +21,17 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Recipe[]>([]);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const [results, setResults] = useState<Recipe[]>(LOCAL_CATALOG_RECIPES);
+  const { savedIds, toggleSave, reloadSavedIds } = useLocalCatalogSavedIds();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
 
-  const loadSavedIds = useCallback(async () => {
-    try {
-      const savedIdsList = await recipeApi.getSavedIds();
-      setSavedIds(new Set(savedIdsList));
-    } catch {
-      setSavedIds(new Set());
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSavedIds();
-  }, [loadSavedIds]);
-
-  const runSearch = useCallback(async (q: string) => {
+  const runFilter = useCallback((q: string) => {
     const seq = ++searchSeqRef.current;
-    setIsLoading(true);
-    setSearchError(null);
-    try {
-      const data = await recipeApi.search(q, { limit: 30, offset: 0 });
-      if (seq !== searchSeqRef.current) return;
-      setResults(data);
-    } catch (error: unknown) {
-      if (seq !== searchSeqRef.current) return;
-      console.error("Search failed:", error);
-      setResults([]);
-      let msg = "Could not reach the recipe API.";
-      if (axios.isAxiosError(error)) {
-        const data = error.response?.data as { error?: string } | undefined;
-        msg = data?.error || error.message || msg;
-      } else if (error instanceof Error) {
-        msg = error.message;
-      }
-      setSearchError(
-        `${msg} Is the backend running? On a phone, set EXPO_PUBLIC_API_URL to your computer’s LAN IP (not localhost).`
-      );
-    } finally {
-      if (seq === searchSeqRef.current) {
-        setIsLoading(false);
-      }
-    }
+    const filtered = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
+    if (seq !== searchSeqRef.current) return;
+    setResults(filtered);
   }, []);
 
   useEffect(() => {
@@ -79,7 +42,7 @@ export default function SearchScreen() {
     }
 
     debounceRef.current = setTimeout(() => {
-      runSearch(q);
+      runFilter(q);
     }, 250);
 
     return () => {
@@ -87,50 +50,13 @@ export default function SearchScreen() {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [query, runSearch]);
-
-  const handleToggleSave = useCallback((recipeId: string) => {
-    setSavedIds((prev) => {
-      const wasSaved = prev.has(recipeId);
-      const next = new Set(prev);
-
-      if (wasSaved) {
-        next.delete(recipeId);
-      } else {
-        next.add(recipeId);
-      }
-
-      (async () => {
-        try {
-          if (wasSaved) {
-            await recipeApi.unsave(recipeId);
-          } else {
-            await recipeApi.save(recipeId);
-          }
-        } catch (error) {
-          console.error("Failed to toggle save:", error);
-          setSavedIds((current) => {
-            const reverted = new Set(current);
-            if (wasSaved) {
-              reverted.add(recipeId);
-            } else {
-              reverted.delete(recipeId);
-            }
-            return reverted;
-          });
-        }
-      })();
-
-      return next;
-    });
-  }, []);
+  }, [query, runFilter]);
 
   const subtitle = useMemo(() => {
-    if (searchError) return "Connection issue";
     const q = query.trim();
-    if (!q) return "Browse or search public recipes";
+    if (!q) return `Built-in catalog — ${LOCAL_CATALOG_RECIPES.length} recipes`;
     return `${results.length} result${results.length === 1 ? "" : "s"}`;
-  }, [query, results.length, searchError]);
+  }, [query, results.length]);
 
   return (
     <View style={styles.container}>
@@ -168,52 +94,32 @@ export default function SearchScreen() {
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          isLoading && results.length === 0 && !searchError ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Loading recipes…</Text>
-            </View>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name={searchError ? "cloud-offline-outline" : query.trim() ? "search-outline" : "compass-outline"}
-                size={64}
-                color={colors.textDisabled}
-              />
-              <Text style={styles.emptyText}>
-                {searchError
-                  ? "Can’t load recipes"
-                  : query.trim()
-                    ? "No results"
-                    : "Browse public catalog"}
-              </Text>
-              <Text style={styles.emptySubtext}>
-                {searchError
-                  ? searchError
-                  : query.trim()
-                    ? "Try different keywords like ingredients, cuisine, or substitutions."
-                    : "Pull to refresh. If this stays empty, run npm run seed in the backend folder. Try typing: salmon, chicken, dal, curry."}
-              </Text>
-            </View>
-          )
+          <View style={styles.emptyContainer}>
+            <Ionicons name="search-outline" size={64} color={colors.textDisabled} />
+            <Text style={styles.emptyText}>No matches</Text>
+            <Text style={styles.emptySubtext}>
+              Try different keywords like ingredients, cuisine, or dietary tags.
+            </Text>
+          </View>
         }
         renderItem={({ item }) => (
           <RecipeCard
             recipe={item}
             isSaved={!!item.id && savedIds.has(item.id)}
-            onToggleSave={handleToggleSave}
+            onToggleSave={toggleSave}
             onPress={() => {
               if (item.id) {
                 router.push(`/cooking/${item.id}`);
               }
             }}
             disabled={!item.id}
-            loading={isLoading}
+            loading={false}
           />
         )}
-        refreshing={isLoading}
+        refreshing={false}
         onRefresh={async () => {
-          await loadSavedIds();
-          await runSearch(query.trim());
+          await reloadSavedIds();
+          runFilter(query.trim());
         }}
       />
     </View>
@@ -281,4 +187,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-
