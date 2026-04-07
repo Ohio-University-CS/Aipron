@@ -16,10 +16,11 @@ import { RecipeCard } from "../src/components/RecipeCard";
 import { ChatMessage } from "../src/components/ChatMessage";
 import { VoiceIndicator } from "../src/components/VoiceIndicator";
 import { recipeApi, chatApi, Conversation, ConversationMessage } from "../src/services/api";
-import { colors, spacing, typography, borderRadius, shadows } from "../src/constants/DesignTokens";
+import { spacing, typography, borderRadius, shadows, type ThemeColors } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 import { useWebSpeechToText } from "../src/hooks/useWebSpeechToText";
 import { useRealtimeVoice } from "../src/hooks/useRealtimeVoice";
+import { useSettingsStore } from "../src/store/useSettingsStore";
 import ProfileScreen from "./(tabs)/profile";
 import LoginScreen from "./login";
 import SettingsScreen from "./settings";
@@ -91,8 +92,15 @@ const recipe = {
   ],
 };
 
+const HIDE_SCROLLBAR_CSS = `
+[data-hide-scrollbar] *::-webkit-scrollbar { display: none !important; }
+[data-hide-scrollbar] * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+`;
+
 export default function WebPreviewScreen() {
   const c = useThemeColors();
+  const styles = useMemo(() => getStyles(c), [c]);
+  const language = useSettingsStore((s) => s.language);
   const [activeTab, setActiveTab] = useState<MockTab>("home");
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
@@ -148,6 +156,14 @@ export default function WebPreviewScreen() {
 
   const disconnectChefLiveRef = useRef(chefLiveVoice.disconnect);
   disconnectChefLiveRef.current = chefLiveVoice.disconnect;
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const style = document.createElement("style");
+    style.textContent = HIDE_SCROLLBAR_CSS;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
 
   useEffect(() => {
     if (chefView !== "chat" || activeTab !== "chef") {
@@ -316,7 +332,7 @@ export default function WebPreviewScreen() {
 
     try {
       if (activeConvoId) {
-        const reply = await chatApi.sendMessage(activeConvoId, msg);
+        const reply = await chatApi.sendMessage(activeConvoId, msg, language);
         const assistantEntry = {
           id: reply.id,
           role: "assistant" as const,
@@ -329,7 +345,7 @@ export default function WebPreviewScreen() {
           role: m.role,
           content: m.content,
         }));
-        const replyContent = await chatApi.send(history);
+        const replyContent = await chatApi.send(history, language);
         const assistantEntry = {
           id: (Date.now() + 1).toString(),
           role: "assistant" as const,
@@ -388,7 +404,8 @@ export default function WebPreviewScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.deviceFrame}>
+      {/* @ts-ignore web-only prop */}
+      <View style={styles.deviceFrame} dataSet={{ hideScrollbar: "" }}>
         {/* Status bar notch */}
         <View style={styles.notch} />
 
@@ -474,7 +491,7 @@ export default function WebPreviewScreen() {
                   <Ionicons
                     name="time-outline"
                     size={16}
-                    color={colors.primary}
+                    color={c.primary}
                   />
                 </View>
                 <Text style={styles.metaLabel}>Prep</Text>
@@ -485,7 +502,7 @@ export default function WebPreviewScreen() {
                   <Ionicons
                     name="flame-outline"
                     size={16}
-                    color={colors.primary}
+                    color={c.primary}
                   />
                 </View>
                 <Text style={styles.metaLabel}>Cook</Text>
@@ -496,7 +513,7 @@ export default function WebPreviewScreen() {
                   <Ionicons
                     name="people-outline"
                     size={16}
-                    color={colors.primary}
+                    color={c.primary}
                   />
                 </View>
                 <Text style={styles.metaLabel}>Serves</Text>
@@ -528,13 +545,13 @@ export default function WebPreviewScreen() {
                         <Ionicons
                           name="checkmark-circle"
                           size={20}
-                          color={colors.primary}
+                          color={c.primary}
                         />
                       ) : (
                         <Ionicons
                           name="ellipse-outline"
                           size={20}
-                          color={colors.textSecondary}
+                          color={c.textSecondary}
                         />
                       )}
                     </View>
@@ -566,7 +583,7 @@ export default function WebPreviewScreen() {
               <Ionicons
                 name="restaurant-outline"
                 size={18}
-                color={colors.primary}
+                color={c.primary}
               />
               <Text style={styles.stepsTitle}>Cooking steps</Text>
             </View>
@@ -582,7 +599,7 @@ export default function WebPreviewScreen() {
                       <Ionicons
                         name="time-outline"
                         size={12}
-                        color={colors.primary}
+                        color={c.primary}
                       />
                       <Text style={styles.stepDurationText}>
                         {step.duration}
@@ -603,12 +620,12 @@ export default function WebPreviewScreen() {
           >
             <View style={styles.searchWrap}>
               <View style={styles.searchInputRow}>
-                <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+                <Ionicons name="search-outline" size={18} color={c.textSecondary} />
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="Search recipes (salmon, lemon dill, greek yogurt, sour cream)"
-                  placeholderTextColor={colors.textDisabled}
+                  placeholderTextColor={c.textDisabled}
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={styles.searchInput}
@@ -619,7 +636,7 @@ export default function WebPreviewScreen() {
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+                    <Ionicons name="close-circle" size={18} color={c.textSecondary} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -672,7 +689,7 @@ export default function WebPreviewScreen() {
                   <Ionicons
                     name="heart-outline"
                     size={64}
-                    color={colors.textDisabled}
+                    color={c.textDisabled}
                   />
                   <Text style={styles.savedEmptyTitle}>
                     you have no recipes saved
@@ -729,19 +746,19 @@ export default function WebPreviewScreen() {
             <View style={styles.historyHeader}>
               <Text style={styles.historyTitle}>Your Chats</Text>
               <TouchableOpacity style={styles.newChatBtn} onPress={startNewChat} activeOpacity={0.7}>
-                <Ionicons name="add" size={18} color={colors.background} />
+                <Ionicons name="add" size={18} color={c.background} />
                 <Text style={styles.newChatBtnText}>New Chat</Text>
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.historyScroll}>
               {conversationsLoading && conversations.length === 0 && (
                 <View style={styles.historyEmpty}>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <ActivityIndicator size="small" color={c.primary} />
                 </View>
               )}
               {!conversationsLoading && conversations.length === 0 && (
                 <View style={styles.historyEmpty}>
-                  <Ionicons name="chatbubbles-outline" size={48} color={colors.textDisabled} />
+                  <Ionicons name="chatbubbles-outline" size={48} color={c.textDisabled} />
                   <Text style={styles.historyEmptyTitle}>No chats yet</Text>
                   <Text style={styles.historyEmptyBody}>
                     Tap &quot;New Chat&quot; to start a conversation with Chef.
@@ -756,13 +773,13 @@ export default function WebPreviewScreen() {
                   onPress={() => openConversation(convo.id)}
                 >
                   <View style={styles.historyItemIcon}>
-                    <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+                    <Ionicons name="chatbubble-outline" size={18} color={c.primary} />
                   </View>
                   <View style={styles.historyItemContent}>
                     <Text style={styles.historyItemTitle} numberOfLines={1}>{convo.title}</Text>
                     <Text style={styles.historyItemTime}>{formatRelativeTime(convo.updated_at)}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                  <Ionicons name="chevron-forward" size={16} color={c.textSecondary} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -773,7 +790,7 @@ export default function WebPreviewScreen() {
           <View style={styles.chefContainer}>
             <View style={styles.chatHeader}>
               <TouchableOpacity style={styles.backBtn} onPress={goBackToHistory} activeOpacity={0.7}>
-                <Ionicons name="arrow-back" size={20} color={colors.primary} />
+                <Ionicons name="arrow-back" size={20} color={c.primary} />
               </TouchableOpacity>
               <Text style={styles.chatHeaderTitle} numberOfLines={1}>
                 {conversations.find((x) => x.id === activeConvoId)?.title || "New Chat"}
@@ -784,11 +801,12 @@ export default function WebPreviewScreen() {
               style={styles.scroll}
               contentContainerStyle={styles.chefScroll}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
               {chefMessages.length === 0 && !chefLoading && (
                 <>
                   <View style={styles.chefWelcomeCard}>
-                    <Ionicons name="sparkles" size={36} color={colors.primary} />
+                    <Ionicons name="sparkles" size={36} color={c.primary} />
                     <Text style={styles.chefWelcomeTitle}>How can I help?</Text>
                     <Text style={styles.chefWelcomeBody}>
                       Ask me anything about cooking — ingredient substitutions,
@@ -808,9 +826,9 @@ export default function WebPreviewScreen() {
                       activeOpacity={0.7}
                       onPress={() => handleChefSend(item.label)}
                     >
-                      <Ionicons name={item.icon} size={18} color={colors.primary} />
+                      <Ionicons name={item.icon} size={18} color={c.primary} />
                       <Text style={styles.chefSuggestionText}>{item.label}</Text>
-                      <Ionicons name="arrow-forward-circle-outline" size={18} color={colors.primary} />
+                      <Ionicons name="arrow-forward-circle-outline" size={18} color={c.primary} />
                     </TouchableOpacity>
                   ))}
                 </>
@@ -826,10 +844,10 @@ export default function WebPreviewScreen() {
               {chefLoading && (
                 <View style={styles.chefTyping}>
                   <View style={styles.chefTypingAvatar}>
-                    <Ionicons name="sparkles" size={12} color={colors.primary} />
+                    <Ionicons name="sparkles" size={12} color={c.primary} />
                   </View>
                   <View style={styles.chefTypingBubble}>
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color={c.primary} />
                     <Text style={styles.chefTypingText}>Cooking up a reply...</Text>
                   </View>
                 </View>
@@ -872,8 +890,8 @@ export default function WebPreviewScreen() {
                   size={22}
                   color={
                     chefLiveVoice.isConnected || chefLiveVoice.isConnecting
-                      ? colors.background
-                      : colors.primary
+                      ? c.background
+                      : c.primary
                   }
                 />
               </TouchableOpacity>
@@ -903,7 +921,7 @@ export default function WebPreviewScreen() {
                 <Ionicons
                   name={chefVoiceListening ? "mic-off" : "mic"}
                   size={20}
-                  color={chefVoiceListening ? colors.error : colors.primary}
+                  color={chefVoiceListening ? c.error : c.primary}
                 />
               </TouchableOpacity>
               <TextInput
@@ -911,7 +929,7 @@ export default function WebPreviewScreen() {
                 value={chefInput}
                 onChangeText={setChefInput}
                 placeholder="What are you cooking today?"
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={c.textSecondary}
                 multiline
                 editable={!chefLoading}
                 onSubmitEditing={() => handleChefSend()}
@@ -923,7 +941,7 @@ export default function WebPreviewScreen() {
                   onPress={() => handleChefSend()}
                   disabled={chefLoading}
                 >
-                  <Ionicons name="send" size={18} color={colors.background} />
+                  <Ionicons name="send" size={18} color={c.background} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -1004,7 +1022,7 @@ export default function WebPreviewScreen() {
             <Ionicons
               name={activeTab === "chef" ? "sparkles" : "sparkles-outline"}
               size={20}
-              color={activeTab === "chef" ? colors.primary : colors.textSecondary}
+              color={activeTab === "chef" ? c.primary : c.textSecondary}
             />
             <Text
               style={
@@ -1072,7 +1090,7 @@ export default function WebPreviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (c: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#020617",
@@ -1086,7 +1104,7 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     borderWidth: 8,
     borderColor: "#020617",
-    backgroundColor: "#FEF3C7",
+    backgroundColor: c.surfaceWarm,
     ...shadows.lg,
     overflow: "hidden",
   },
@@ -1106,7 +1124,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1117,16 +1135,16 @@ const styles = StyleSheet.create({
   },
   headerEyebrow: {
     ...typography.caption,
-    color: "#FED7AA",
+    color: c.headerAccent,
   },
   headerTitle: {
     ...typography.h2,
-    color: colors.background,
+    color: c.background,
     marginTop: 2,
   },
   headerSubtitle: {
     ...typography.caption,
-    color: "#FED7AA",
+    color: c.headerAccent,
     marginTop: 4,
   },
   headerIcon: {
@@ -1160,14 +1178,14 @@ const styles = StyleSheet.create({
   },
   savedEmptyTitle: {
     ...typography.h2,
-    color: colors.text,
+    color: c.text,
     marginTop: spacing.md,
     marginBottom: spacing.xs,
     textAlign: "center",
   },
   savedEmptySub: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     textAlign: "center",
   },
   placeholderScroll: {
@@ -1187,13 +1205,13 @@ const styles = StyleSheet.create({
   },
   placeholderTitle: {
     ...typography.h2,
-    color: colors.text,
+    color: c.text,
     marginTop: spacing.md,
     textAlign: "center",
   },
   placeholderBody: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     marginTop: spacing.sm,
     textAlign: "center",
   },
@@ -1205,22 +1223,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
   searchInput: {
     flex: 1,
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     paddingVertical: 0,
   },
   searchMetaText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
@@ -1229,7 +1247,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   recipeCard: {
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderRadius: borderRadius.xl,
     overflow: "hidden",
     ...shadows.md,
@@ -1244,7 +1262,10 @@ const styles = StyleSheet.create({
   },
   recipeImageOverlay: {
     position: "absolute",
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0,0,0,0.35)",
   },
   recipeImageContent: {
@@ -1260,21 +1281,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
   },
   recipeChipDot: {
-    color: colors.background,
+    color: c.background,
     marginRight: 4,
   },
   recipeChipText: {
     ...typography.caption,
-    color: colors.background,
+    color: c.background,
     fontSize: 11,
     textTransform: "uppercase",
   },
   recipeName: {
     ...typography.h2,
-    color: colors.background,
+    color: c.background,
     marginTop: spacing.sm,
   },
   recipeMetaRow: {
@@ -1282,7 +1303,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: c.surfaceWarm,
   },
   recipeMetaItem: {
     flex: 1,
@@ -1292,24 +1313,24 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
   },
   metaLabel: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     fontSize: 11,
   },
   metaValue: {
     ...typography.caption,
-    color: colors.text,
+    color: c.text,
     fontWeight: "600",
     fontSize: 11,
   },
   ingredientsCard: {
-    backgroundColor: "#FFFBEB",
+    backgroundColor: c.surfaceWarm,
     borderRadius: borderRadius.xl,
     paddingVertical: spacing.sm,
   },
@@ -1323,17 +1344,17 @@ const styles = StyleSheet.create({
     width: 3,
     height: 24,
     borderRadius: 999,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     marginRight: spacing.sm,
   },
   ingredientsTitle: {
     ...typography.body,
     fontWeight: "600",
-    color: colors.text,
+    color: c.text,
   },
   ingredientsAdjust: {
     ...typography.caption,
-    color: colors.primary,
+    color: c.primary,
     textDecorationLine: "underline",
     fontSize: 12,
   },
@@ -1343,9 +1364,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderTopWidth: 1,
-    borderTopColor: "#FEE2E2",
+    borderTopColor: c.ingredientBorder,
   },
   ingredientLeft: {
     flexDirection: "row",
@@ -1361,24 +1382,24 @@ const styles = StyleSheet.create({
   },
   ingredientName: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     flexShrink: 1,
   },
   ingredientNameChecked: {
-    color: colors.textSecondary,
+    color: c.textSecondary,
     textDecorationLine: "line-through",
   },
   ingredientAmount: {
     ...typography.caption,
-    color: colors.primary,
+    color: c.primary,
     fontWeight: "600",
   },
   ingredientAmountChecked: {
-    color: colors.textSecondary,
+    color: c.textSecondary,
     fontWeight: "400",
   },
   stepsCard: {
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     ...shadows.md,
@@ -1392,7 +1413,7 @@ const styles = StyleSheet.create({
   stepsTitle: {
     ...typography.body,
     fontWeight: "600",
-    color: colors.text,
+    color: c.text,
   },
   stepRow: {
     flexDirection: "row",
@@ -1404,13 +1425,13 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: c.surfaceWarm,
     alignItems: "center",
     justifyContent: "center",
   },
   stepNumberText: {
     ...typography.caption,
-    color: colors.primary,
+    color: c.primary,
     fontWeight: "600",
   },
   stepContent: {
@@ -1418,7 +1439,7 @@ const styles = StyleSheet.create({
   },
   stepInstruction: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
   },
   stepDurationChip: {
     alignSelf: "flex-start",
@@ -1429,11 +1450,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: c.surfaceWarm,
   },
   stepDurationText: {
     ...typography.caption,
-    color: colors.primary,
+    color: c.primary,
     fontSize: 11,
   },
   bottomBar: {
@@ -1442,9 +1463,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 64,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
@@ -1465,12 +1486,12 @@ const styles = StyleSheet.create({
   bottomLabelActive: {
     ...typography.caption,
     fontSize: 11,
-    color: colors.primary,
+    color: c.primary,
   },
   bottomLabel: {
     ...typography.caption,
     fontSize: 11,
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
   chefContainer: {
     flex: 1,
@@ -1483,26 +1504,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   historyTitle: {
     ...typography.body,
     fontWeight: "600",
-    color: colors.text,
+    color: c.text,
     fontSize: 16,
   },
   newChatBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: 20,
   },
   newChatBtnText: {
     ...typography.caption,
-    color: colors.background,
+    color: c.background,
     fontWeight: "600",
     fontSize: 13,
   },
@@ -1519,12 +1540,12 @@ const styles = StyleSheet.create({
   historyEmptyTitle: {
     ...typography.body,
     fontWeight: "600",
-    color: colors.text,
+    color: c.text,
     marginTop: spacing.md,
   },
   historyEmptyBody: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     marginTop: spacing.xs,
     textAlign: "center",
   },
@@ -1535,13 +1556,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   historyItemIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1550,12 +1571,12 @@ const styles = StyleSheet.create({
   },
   historyItemTitle: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     fontSize: 15,
   },
   historyItemTime: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
@@ -1566,20 +1587,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.border,
   },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     alignItems: "center",
     justifyContent: "center",
   },
   chatHeaderTitle: {
     ...typography.body,
     fontWeight: "600",
-    color: colors.text,
+    color: c.text,
     flex: 1,
     fontSize: 15,
   },
@@ -1587,25 +1608,25 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 80,
+    paddingBottom: spacing.md,
     gap: spacing.sm,
   },
   chefWelcomeCard: {
     alignItems: "center",
-    backgroundColor: "#FFFBEB",
+    backgroundColor: c.surfaceWarm,
     borderRadius: borderRadius.xl,
     padding: spacing.xl,
     marginBottom: spacing.sm,
   },
   chefWelcomeTitle: {
     ...typography.h2,
-    color: colors.text,
+    color: c.text,
     marginTop: spacing.md,
     textAlign: "center",
   },
   chefWelcomeBody: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     marginTop: spacing.sm,
     textAlign: "center",
     lineHeight: 22,
@@ -1613,16 +1634,16 @@ const styles = StyleSheet.create({
   chefSuggestion: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
   },
   chefSuggestionText: {
     ...typography.body,
-    color: colors.text,
+    color: c.text,
     flex: 1,
   },
   chefTyping: {
@@ -1635,7 +1656,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
@@ -1644,7 +1665,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: 18,
@@ -1652,42 +1673,38 @@ const styles = StyleSheet.create({
   },
   chefTypingText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: c.textSecondary,
     fontStyle: "italic",
   },
   chefComposer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 64,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: c.border,
     gap: spacing.sm,
   },
   chefLiveIndicatorWrap: {
     paddingVertical: spacing.xs,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    borderTopColor: c.border,
+    backgroundColor: c.background,
   },
   chefLiveBtn: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     borderWidth: 1,
-    borderColor: "#FDE8D0",
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
   chefLiveBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
   chefLiveBtnDisabled: {
     opacity: 0.4,
@@ -1696,15 +1713,15 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     borderWidth: 1,
-    borderColor: "#FDE8D0",
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
   chefMicBtnActive: {
-    backgroundColor: "#FEE2E2",
-    borderColor: colors.error,
+    backgroundColor: c.ingredientBorder,
+    borderColor: c.error,
   },
   chefMicBtnDisabled: {
     opacity: 0.4,
@@ -1715,24 +1732,24 @@ const styles = StyleSheet.create({
     maxHeight: 80,
     paddingHorizontal: spacing.lg,
     paddingVertical: 10,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: c.surfaceWarmAlt,
     borderRadius: 21,
     borderWidth: 1,
-    borderColor: "#FDE8D0",
+    borderColor: c.border,
     ...typography.body,
     fontSize: 15,
-    color: colors.text,
+    color: c.text,
   },
   chefSendBtn: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     alignItems: "center",
     justifyContent: "center",
   },
   chefSendBtnDisabled: {
-    backgroundColor: colors.textDisabled,
+    backgroundColor: c.textDisabled,
   },
   profileContainer: {
     flex: 1,

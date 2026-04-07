@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 import { useThemeStore } from "../src/store/useThemeStore";
+import { useSettingsStore, type AppLanguage } from "../src/store/useSettingsStore";
 
 type SubView =
   | null
@@ -24,12 +25,12 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   const c = useThemeColors();
   const { mode, toggleMode } = useThemeStore();
   const isDark = mode === "dark";
+  const { language: selectedLanguage, setLanguage: setSelectedLanguage } = useSettingsStore();
 
   const [subView, setSubView] = useState<SubView>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [cookingTimerSound, setCookingTimerSound] = useState(true);
   const [metricUnits, setMetricUnits] = useState(true);
-  const [selectedLanguage, setSelectedLanguage] = useState("English");
   const [dietaryPrefs, setDietaryPrefs] = useState({
     vegetarian: false,
     vegan: false,
@@ -118,7 +119,7 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   // --- Sub-views ---
 
   if (subView === "language") {
-    const languages = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Japanese", "Korean", "Chinese"];
+    const languages: AppLanguage[] = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Japanese", "Korean", "Chinese"];
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <SubViewHeader title="Language" />
@@ -129,7 +130,10 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
                 key={lang}
                 style={[styles.row, { backgroundColor: c.surface, borderBottomColor: c.border }]}
                 activeOpacity={0.7}
-                onPress={() => setSelectedLanguage(lang)}
+                onPress={() => {
+                  setSelectedLanguage(lang);
+                  setSubView(null);
+                }}
               >
                 <Text style={[styles.rowLabel, { color: c.text }]}>{lang}</Text>
                 {selectedLanguage === lang && (

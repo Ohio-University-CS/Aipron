@@ -9,7 +9,7 @@ export const chatRouter = express.Router();
 // Legacy stateless chat (no persistence, auth optional for user context)
 chatRouter.post("/", async (req, res, next) => {
   try {
-    const { messages } = req.body;
+    const { messages, language } = req.body;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res
@@ -26,7 +26,7 @@ chatRouter.post("/", async (req, res, next) => {
       } catch { /* proceed without context */ }
     }
 
-    const content = await chatWithAssistant(messages, userContext);
+    const content = await chatWithAssistant(messages, userContext, language);
     res.json({ content });
   } catch (error) {
     next(error);
@@ -98,7 +98,7 @@ chatRouter.get("/conversations/:id/messages", authenticateToken, async (req, res
 chatRouter.post("/conversations/:id/messages", authenticateToken, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { content } = req.body;
+    const { content, language } = req.body;
 
     if (!content || typeof content !== "string") {
       return res.status(400).json({ error: "content is required" });
@@ -130,7 +130,7 @@ chatRouter.post("/conversations/:id/messages", authenticateToken, async (req, re
       fetchUserContext(req.user.id),
     ]);
 
-    const reply = await chatWithAssistant(history || [], userContext);
+    const reply = await chatWithAssistant(history || [], userContext, language);
 
     // Save assistant reply
     const { data: assistantMsg, error: insertErr } = await supabaseAdmin

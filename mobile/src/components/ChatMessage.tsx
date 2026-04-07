@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { colors, spacing, borderRadius, typography } from "../constants/DesignTokens";
+import { spacing, borderRadius, typography, type ThemeColors } from "../constants/DesignTokens";
+import { useThemeColors } from "../hooks/useThemeColors";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -13,6 +14,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   content,
   timestamp,
 }) => {
+  const c = useThemeColors();
+  const styles = useMemo(() => getStyles(c), [c]);
   const isUser = role === "user";
 
   return (
@@ -31,7 +34,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (c: ThemeColors) => StyleSheet.create({
   container: {
     marginBottom: spacing.md,
     alignItems: "flex-start",
@@ -46,11 +49,11 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
   },
   userBubble: {
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     borderBottomRightRadius: borderRadius.sm,
   },
   assistantBubble: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderBottomLeftRadius: borderRadius.sm,
   },
   text: {
@@ -58,10 +61,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   userText: {
-    color: colors.background,
+    color: c.background,
   },
   assistantText: {
-    color: colors.text,
+    color: c.text,
   },
   timestamp: {
     ...typography.caption,
@@ -69,9 +72,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs / 2,
   },
   userTimestamp: {
-    color: colors.background + "CC",
+    color: c.background + "CC",
   },
   assistantTimestamp: {
-    color: colors.textSecondary,
+    color: c.textSecondary,
   },
 });
