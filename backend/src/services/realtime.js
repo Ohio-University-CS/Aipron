@@ -1,23 +1,110 @@
-import OpenAI from "openai";
 import { v4 as uuidv4 } from "uuid";
 import { supabaseAdmin } from "../db/supabase.js";
+import { fetchUserContext } from "./userContext.js";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const REALTIME_MODEL = "gpt-4o-realtime-preview-2024-12-17";
+
+const BASE_INSTRUCTIONS = `You are a helpful cooking assistant for AIpron. Guide users through recipes step-by-step.
+You can:
+- Answer cooking questions
+- Explain techniques
+- Provide timing guidance
+- Suggest substitutions
+- Repeat steps when asked
+
+Be concise, clear, and encouraging.`;
+
+const SESSION_TOOLS = [
+  {
+    type: "function",
+    name: "next_step",
+    description: "Move to the next cooking step",
+    parameters: {
+      type: "object",
+      properties: {
+        stepNumber: { type: "number" },
+      },
+      required: ["stepNumber"],
+    },
+  },
+  {
+    type: "function",
+    name: "repeat_step",
+    description: "Repeat the current step instructions",
+    parameters: {
+      type: "object",
+      properties: {
+        stepNumber: { type: "number" },
+      },
+      required: ["stepNumber"],
+    },
+  },
+  {
+    type: "function",
+    name: "start_timer",
+    description: "Start a timer for a cooking step",
+    parameters: {
+      type: "object",
+      properties: {
+        duration: { type: "number", description: "Duration in seconds" },
+        label: { type: "string" },
+      },
+      required: ["duration"],
+    },
+  },
+  {
+    type: "function",
+    name: "ingredient_substitution",
+    description: "Get substitution suggestions for an ingredient",
+    parameters: {
+      type: "object",
+      properties: {
+        ingredient: { type: "string" },
+      },
+      required: ["ingredient"],
+    },
+  },
+];
+
+function buildSessionConfig(instructions) {
+  return {
+    model: REALTIME_MODEL,
+    voice: "shimmer",
+    instructions,
+    input_audio_transcription: { model: "whisper-1" },
+    tools: SESSION_TOOLS,
+  };
+}
 
 /**
- * Create a Realtime API session
- * Returns ephemeral token and connection details for client WebRTC connection
- *
- * Note: OpenAI Realtime API uses WebRTC for bidirectional audio streaming.
- * The client connects directly to OpenAI's servers using the session token.
+ * Create a Realtime API session by requesting an ephemeral key from OpenAI.
+ * Returns the client_secret + model so the client can authenticate its WebRTC connection.
  */
 export async function createRealtimeSession(userId) {
   try {
+    const userContext = await fetchUserContext(userId);
+    const config = buildSessionConfig(BASE_INSTRUCTIONS + userContext);
+
+    const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(config),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error("OpenAI Realtime session error:", response.status, body);
+      throw new Error("OpenAI refused to create realtime session");
+    }
+
+    const session = await response.json();
+
     const sessionId = uuidv4();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
@@ -26,78 +113,14 @@ export async function createRealtimeSession(userId) {
       .insert({ user_id: userId, session_id: sessionId, expires_at: expiresAt });
 
     if (error) {
-      throw new Error("Failed to store session metadata");
+      console.error("Failed to store session metadata:", error);
     }
-
-    const clientConfig = {
-      model: "gpt-4o-realtime-preview-2024-12-17",
-      voice: "alloy",
-      instructions: `You are a helpful cooking assistant for AIpron. Guide users through recipes step-by-step.
-You can:
-- Answer cooking questions
-- Explain techniques
-- Provide timing guidance
-- Suggest substitutions
-- Repeat steps when asked
-
-Be concise, clear, and encouraging.`,
-      tools: [
-        {
-          type: "function",
-          name: "next_step",
-          description: "Move to the next cooking step",
-          parameters: {
-            type: "object",
-            properties: {
-              stepNumber: { type: "number" },
-            },
-            required: ["stepNumber"],
-          },
-        },
-        {
-          type: "function",
-          name: "repeat_step",
-          description: "Repeat the current step instructions",
-          parameters: {
-            type: "object",
-            properties: {
-              stepNumber: { type: "number" },
-            },
-            required: ["stepNumber"],
-          },
-        },
-        {
-          type: "function",
-          name: "start_timer",
-          description: "Start a timer for a cooking step",
-          parameters: {
-            type: "object",
-            properties: {
-              duration: { type: "number", description: "Duration in seconds" },
-              label: { type: "string" },
-            },
-            required: ["duration"],
-          },
-        },
-        {
-          type: "function",
-          name: "ingredient_substitution",
-          description: "Get substitution suggestions for an ingredient",
-          parameters: {
-            type: "object",
-            properties: {
-              ingredient: { type: "string" },
-            },
-            required: ["ingredient"],
-          },
-        },
-      ],
-    };
 
     return {
       sessionId,
       expiresAt,
-      clientConfig,
+      model: REALTIME_MODEL,
+      clientSecret: session.client_secret?.value ?? session.client_secret,
     };
   } catch (error) {
     console.error("Realtime session creation error:", error);

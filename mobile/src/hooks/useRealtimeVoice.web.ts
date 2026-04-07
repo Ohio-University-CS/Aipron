@@ -15,8 +15,6 @@ export type {
 export function useRealtimeVoice(
   options: UseRealtimeVoiceOptions = {}
 ): UseRealtimeVoiceReturn {
-  const { instructions } = options;
-
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -167,7 +165,7 @@ export function useRealtimeVoice(
     setError(null);
 
     try {
-      const session = await realtimeApi.createSession(instructions);
+      const session = await realtimeApi.createSession();
 
       const pc = new RTC({ iceServers: [] });
       pcRef.current = pc;
@@ -241,7 +239,7 @@ export function useRealtimeVoice(
       callbacksRef.current.onError?.(err instanceof Error ? err : new Error(msg));
       cleanup();
     }
-  }, [instructions, cleanup, handleServerEvent]);
+  }, [cleanup, handleServerEvent]);
 
   const disconnect = useCallback(() => {
     cleanup();

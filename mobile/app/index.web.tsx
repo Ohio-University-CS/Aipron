@@ -793,7 +793,7 @@ export default function WebPreviewScreen() {
                     <Text style={styles.chefWelcomeBody}>
                       Ask me anything about cooking — ingredient substitutions,
                       techniques, meal planning, or let me generate a recipe for you.
-                      Use the headset button for live voice-to-voice (sign in required).
+                      Use the voice button for live voice-to-voice (sign in required).
                     </Text>
                   </View>
                   {[
@@ -867,7 +867,7 @@ export default function WebPreviewScreen() {
                   name={
                     chefLiveVoice.isConnected || chefLiveVoice.isConnecting
                       ? "stop-circle"
-                      : "headset-outline"
+                      : "volume-high-outline"
                   }
                   size={22}
                   color={

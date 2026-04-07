@@ -228,9 +228,16 @@ export const cookingApi = {
   },
 };
 
+export interface RealtimeSession {
+  sessionId: string;
+  expiresAt: string;
+  model: string;
+  clientSecret: string;
+}
+
 export const realtimeApi = {
-  createSession: async () => {
-    const { data } = await api.post("/realtime/session");
+  createSession: async (): Promise<RealtimeSession> => {
+    const { data } = await api.post<RealtimeSession>("/realtime/session");
     return data;
   },
   /** Web browser WebRTC: exchange SDP via backend (CORS-safe). */
