@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from "react-native";
+import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
@@ -19,6 +20,14 @@ type SubView =
 
 interface SettingsScreenProps {
   onBack?: () => void;
+}
+
+function formatAboutVersionLine(): string {
+  const v = Constants.expoConfig?.version ?? "1.1.0";
+  const iosBuild = Constants.expoConfig?.ios?.buildNumber;
+  const androidCode = Constants.expoConfig?.android?.versionCode;
+  const build = iosBuild ?? (androidCode != null ? String(androidCode) : undefined);
+  return build ? `Version ${v} (Build ${build})` : `Version ${v}`;
 }
 
 export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
@@ -313,14 +322,14 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
             <Text style={{ fontSize: 42 }}>🍳</Text>
           </View>
           <Text style={[styles.centeredTitle, { color: c.text }]}>AIpron</Text>
-          <Text style={[styles.versionText, { color: c.primary }]}>Version 1.0.0 (Build 42)</Text>
+          <Text style={[styles.versionText, { color: c.primary }]}>{formatAboutVersionLine()}</Text>
           <Text style={[styles.centeredDescription, { color: c.textSecondary }]}>
             Your AI-powered cooking companion. Personalized recipes, smart pantry management, and step-by-step cooking guidance.
           </Text>
           <View style={[styles.infoCard, { backgroundColor: c.surface }]}>
             <InfoRow label="Platform" value="React Native / Expo" color={c} />
-            <InfoRow label="API Version" value="v2.1" color={c} />
-            <InfoRow label="Last Updated" value="March 2026" color={c} />
+            <InfoRow label="API Version" value="v1.1" color={c} />
+            <InfoRow label="Last Updated" value="April 2026" color={c} />
             <InfoRow label="Developer" value="AIpron Team" color={c} last />
           </View>
         </View>

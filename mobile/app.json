@@ -14,6 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.aipron.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "AIpron needs microphone access for voice-guided cooking.",
         "NSSpeechRecognitionUsageDescription": "AIpron uses speech recognition for hands-free cooking guidance."
@@ -24,6 +25,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.aipron.app",
+      "versionCode": 1,
       "permissions": [
         "RECORD_AUDIO",
         "INTERNET"
