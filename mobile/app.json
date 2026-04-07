@@ -26,10 +26,16 @@
       "package": "com.aipron.app",
       "permissions": [
         "RECORD_AUDIO",
-        "INTERNET"
+        "INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
-    "web": {},
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "plugins": [
       [
         "expo-av",
@@ -39,6 +45,18 @@
       ],
       "expo-font"
     ],
-    "scheme": "aipron"
+    "scheme": "aipron",
+    "extra": {
+      "eas": {
+        "projectId": "e8685c6f-0405-499a-952e-d75acad7c1e9"
+      }
+    },
+    "owner": "devin8899",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e8685c6f-0405-499a-952e-d75acad7c1e9"
+    }
   }
 }
