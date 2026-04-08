@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
@@ -65,7 +66,9 @@ export default function AboutScreen({ onBack }: AboutScreenProps = {}) {
             <Text style={styles.logoEmoji}>🍳</Text>
           </View>
           <Text style={[styles.appName, { color: c.text }]}>AIpron</Text>
-          <Text style={[styles.version, { color: c.primary }]}>Version 1.0.0</Text>
+          <Text style={[styles.version, { color: c.primary }]}>
+            Version {Constants.expoConfig?.version ?? "1.1.0"}
+          </Text>
           <Text style={[styles.tagline, { color: c.textSecondary }]}>
             Your AI-powered cooking companion. From pantry to plate, we make every meal an adventure.
           </Text>
@@ -89,7 +92,7 @@ export default function AboutScreen({ onBack }: AboutScreenProps = {}) {
           <InfoRow label="Platform" value="React Native / Expo" c={c} />
           <InfoRow label="Backend" value="Node.js + Supabase" c={c} />
           <InfoRow label="AI Model" value="OpenAI GPT" c={c} />
-          <InfoRow label="Last Updated" value="March 2026" c={c} />
+          <InfoRow label="Last Updated" value="April 2026" c={c} />
           <InfoRow label="Developer" value="AIpron Team" c={c} last />
         </View>
 

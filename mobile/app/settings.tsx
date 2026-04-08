@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from "react-native";
+import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 import { useThemeStore } from "../src/store/useThemeStore";
+import { useSettingsStore, type AppLanguage } from "../src/store/useSettingsStore";
 
 type SubView =
   | null
@@ -20,16 +22,24 @@ interface SettingsScreenProps {
   onBack?: () => void;
 }
 
+function formatAboutVersionLine(): string {
+  const v = Constants.expoConfig?.version ?? "1.1.0";
+  const iosBuild = Constants.expoConfig?.ios?.buildNumber;
+  const androidCode = Constants.expoConfig?.android?.versionCode;
+  const build = iosBuild ?? (androidCode != null ? String(androidCode) : undefined);
+  return build ? `Version ${v} (Build ${build})` : `Version ${v}`;
+}
+
 export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   const c = useThemeColors();
   const { mode, toggleMode } = useThemeStore();
   const isDark = mode === "dark";
+  const { language: selectedLanguage, setLanguage: setSelectedLanguage } = useSettingsStore();
 
   const [subView, setSubView] = useState<SubView>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [cookingTimerSound, setCookingTimerSound] = useState(true);
   const [metricUnits, setMetricUnits] = useState(true);
-  const [selectedLanguage, setSelectedLanguage] = useState("English");
   const [dietaryPrefs, setDietaryPrefs] = useState({
     vegetarian: false,
     vegan: false,
@@ -118,7 +128,7 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   // --- Sub-views ---
 
   if (subView === "language") {
-    const languages = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Japanese", "Korean", "Chinese"];
+    const languages: AppLanguage[] = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Japanese", "Korean", "Chinese"];
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <SubViewHeader title="Language" />
@@ -129,7 +139,10 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
                 key={lang}
                 style={[styles.row, { backgroundColor: c.surface, borderBottomColor: c.border }]}
                 activeOpacity={0.7}
-                onPress={() => setSelectedLanguage(lang)}
+                onPress={() => {
+                  setSelectedLanguage(lang);
+                  setSubView(null);
+                }}
               >
                 <Text style={[styles.rowLabel, { color: c.text }]}>{lang}</Text>
                 {selectedLanguage === lang && (
@@ -309,14 +322,14 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
             <Text style={{ fontSize: 42 }}>🍳</Text>
           </View>
           <Text style={[styles.centeredTitle, { color: c.text }]}>AIpron</Text>
-          <Text style={[styles.versionText, { color: c.primary }]}>Version 1.0.0 (Build 42)</Text>
+          <Text style={[styles.versionText, { color: c.primary }]}>{formatAboutVersionLine()}</Text>
           <Text style={[styles.centeredDescription, { color: c.textSecondary }]}>
             Your AI-powered cooking companion. Personalized recipes, smart pantry management, and step-by-step cooking guidance.
           </Text>
           <View style={[styles.infoCard, { backgroundColor: c.surface }]}>
             <InfoRow label="Platform" value="React Native / Expo" color={c} />
-            <InfoRow label="API Version" value="v2.1" color={c} />
-            <InfoRow label="Last Updated" value="March 2026" color={c} />
+            <InfoRow label="API Version" value="v1.1" color={c} />
+            <InfoRow label="Last Updated" value="April 2026" color={c} />
             <InfoRow label="Developer" value="AIpron Team" color={c} last />
           </View>
         </View>

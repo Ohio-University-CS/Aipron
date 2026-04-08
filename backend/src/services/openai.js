@@ -105,8 +105,11 @@ Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
 /**
  * Stateless cooking Q&A for web/mobile chat UIs (messages: { role, content }[]).
  */
-export async function chatWithAssistant(messages) {
-  const systemPrompt = `You are a helpful professional cooking assistant for AIpron. Answer clearly about recipes, techniques, substitutions, timing, and food safety. Be concise unless the user asks for more detail.`;
+export async function chatWithAssistant(messages, userContext = "", language = "English") {
+  const langInstruction = language && language !== "English"
+    ? ` Always respond in ${language}.`
+    : "";
+  const systemPrompt = `You are a helpful professional cooking assistant for AIpron. Answer clearly about recipes, techniques, substitutions, timing, and food safety. Be concise unless the user asks for more detail.${langInstruction}${userContext}`;
 
   const openai = getOpenAIClient();
   const completion = await openai.chat.completions.create({

@@ -1,14 +1,15 @@
 import express from "express";
 import { chatWithAssistant } from "../services/openai.js";
 import { authenticateToken } from "../middleware/auth.js";
+import { fetchUserContext } from "../services/userContext.js";
 import { supabaseAdmin } from "../db/supabase.js";
 
 export const chatRouter = express.Router();
 
-// Legacy stateless chat (no persistence)
+// Legacy stateless chat (no persistence, auth optional for user context)
 chatRouter.post("/", async (req, res, next) => {
   try {
-    const { messages } = req.body;
+    const { messages, language } = req.body;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res
@@ -16,7 +17,16 @@ chatRouter.post("/", async (req, res, next) => {
         .json({ error: "messages must be a non-empty array" });
     }
 
-    const content = await chatWithAssistant(messages);
+    let userContext = "";
+    const token = req.headers["authorization"]?.split(" ")[1];
+    if (token) {
+      try {
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        if (user) userContext = await fetchUserContext(user.id);
+      } catch { /* proceed without context */ }
+    }
+
+    const content = await chatWithAssistant(messages, userContext, language);
     res.json({ content });
   } catch (error) {
     next(error);
@@ -88,7 +98,7 @@ chatRouter.get("/conversations/:id/messages", authenticateToken, async (req, res
 chatRouter.post("/conversations/:id/messages", authenticateToken, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { content } = req.body;
+    const { content, language } = req.body;
 
     if (!content || typeof content !== "string") {
       return res.status(400).json({ error: "content is required" });
@@ -110,14 +120,17 @@ chatRouter.post("/conversations/:id/messages", authenticateToken, async (req, re
       .from("conversation_messages")
       .insert({ conversation_id: id, role: "user", content });
 
-    // Load full history for context
-    const { data: history } = await supabaseAdmin
-      .from("conversation_messages")
-      .select("role, content")
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: true });
+    // Load full history and user context in parallel
+    const [{ data: history }, userContext] = await Promise.all([
+      supabaseAdmin
+        .from("conversation_messages")
+        .select("role, content")
+        .eq("conversation_id", id)
+        .order("created_at", { ascending: true }),
+      fetchUserContext(req.user.id),
+    ]);
 
-    const reply = await chatWithAssistant(history || []);
+    const reply = await chatWithAssistant(history || [], userContext, language);
 
     // Save assistant reply
     const { data: assistantMsg, error: insertErr } = await supabaseAdmin

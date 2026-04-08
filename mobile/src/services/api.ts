@@ -228,10 +228,26 @@ export const cookingApi = {
   },
 };
 
+export interface RealtimeSession {
+  sessionId: string;
+  expiresAt: string;
+  model: string;
+  clientSecret: string;
+}
+
 export const realtimeApi = {
-  createSession: async () => {
-    const { data } = await api.post("/realtime/session");
+  createSession: async (): Promise<RealtimeSession> => {
+    const { data } = await api.post<RealtimeSession>("/realtime/session");
     return data;
+  },
+  /** Web browser WebRTC: exchange SDP via backend (CORS-safe). */
+  negotiateSdp: async (sdp: string, clientSecret: string, model: string): Promise<string> => {
+    const { data } = await api.post<{ sdp: string }>("/realtime/negotiate", {
+      sdp,
+      clientSecret,
+      model,
+    });
+    return data.sdp;
   },
 };
 
@@ -250,8 +266,8 @@ export interface ConversationMessage {
 }
 
 export const chatApi = {
-  send: async (messages: { role: "user" | "assistant"; content: string }[]) => {
-    const { data } = await api.post("/chat", { messages });
+  send: async (messages: { role: "user" | "assistant"; content: string }[], language?: string) => {
+    const { data } = await api.post("/chat", { messages, language });
     return data.content as string;
   },
   getConversations: async (): Promise<Conversation[]> => {
@@ -266,8 +282,8 @@ export const chatApi = {
     const { data } = await api.get(`/chat/conversations/${id}/messages`);
     return data;
   },
-  sendMessage: async (id: string, content: string): Promise<ConversationMessage> => {
-    const { data } = await api.post(`/chat/conversations/${id}/messages`, { content });
+  sendMessage: async (id: string, content: string, language?: string): Promise<ConversationMessage> => {
+    const { data } = await api.post(`/chat/conversations/${id}/messages`, { content, language });
     return data;
   },
   deleteConversation: async (id: string): Promise<void> => {

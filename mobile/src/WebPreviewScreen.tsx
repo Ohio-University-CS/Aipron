@@ -21,6 +21,7 @@ import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
 import { useThemeColors } from "./hooks/useThemeColors";
 import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
+import { useSettingsStore } from "./store/useSettingsStore";
 import ProfileScreen from "../app/(tabs)/profile";
 import LoginScreen from "../app/login";
 import SettingsScreen from "../app/settings";
@@ -92,10 +93,25 @@ const recipe = {
   ],
 };
 
+const HIDE_SCROLLBAR_CSS = `
+[data-hide-scrollbar] *::-webkit-scrollbar { display: none !important; }
+[data-hide-scrollbar] * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+`;
+
 export default function WebPreviewScreen() {
   const isWeb = Platform.OS === "web";
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
+  const language = useSettingsStore((s) => s.language);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const style = document.createElement("style");
+    style.textContent = HIDE_SCROLLBAR_CSS;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
   const [activeTab, setActiveTab] = useState<MockTab>("home");
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
@@ -279,7 +295,7 @@ export default function WebPreviewScreen() {
 
     try {
       if (activeConvoId) {
-        const reply = await chatApi.sendMessage(activeConvoId, msg);
+        const reply = await chatApi.sendMessage(activeConvoId, msg, language);
         const assistantEntry = {
           id: reply.id,
           role: "assistant" as const,
@@ -292,7 +308,7 @@ export default function WebPreviewScreen() {
           role: m.role,
           content: m.content,
         }));
-        const replyContent = await chatApi.send(history);
+        const replyContent = await chatApi.send(history, language);
         const assistantEntry = {
           id: (Date.now() + 1).toString(),
           role: "assistant" as const,
@@ -751,6 +767,7 @@ export default function WebPreviewScreen() {
               style={styles.scroll}
               contentContainerStyle={styles.chefScroll}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
               {chefMessages.length === 0 && !chefLoading && (
                 <>
@@ -1534,7 +1551,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 80,
+    paddingBottom: spacing.md,
     gap: spacing.sm,
   },
   chefWelcomeCard: {
@@ -1603,10 +1620,6 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   chefComposer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 64,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: spacing.md,
