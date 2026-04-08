@@ -28,7 +28,20 @@ export async function generateRecipe(prompt, options = {}) {
     servings = 4,
     skillLevel = "intermediate",
     availableIngredients = [],
+    usePantry = false,
   } = options;
+
+  let pantryBlock = "";
+  if (usePantry) {
+    if (availableIngredients.length > 0) {
+      pantryBlock = `
+Pantry mode is ON. The cook has these ingredients on hand. Prefer a recipe that uses as many of them as reasonably possible; only add common staples if needed (salt, oil, basic spices, etc.):
+${availableIngredients.join(", ")}`;
+    } else {
+      pantryBlock = `
+Pantry mode is ON but the user has no pantry items saved yet. Create a recipe from their request alone. In the recipe "description", add one short sentence inviting them to add ingredients in Pantry for tighter suggestions next time.`;
+    }
+  }
 
   const systemPrompt = `You are a professional chef and cooking assistant. Generate detailed, accurate recipes that are:
 - Clear and easy to follow
@@ -37,6 +50,7 @@ export async function generateRecipe(prompt, options = {}) {
 - Consider dietary restrictions: ${dietaryFilters.join(", ") || "none"}
 - Appropriate for ${skillLevel} skill level
 - Serve ${servings} people
+${pantryBlock}
 
 Format your response as JSON with this structure:
 {
@@ -132,9 +146,27 @@ export async function chatWithAssistant(messages, userContext = "", language = "
 }
 
 export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5) {
-  const prompt = `Given these ingredients: ${ingredients.join(", ")}, suggest ${limit} recipes that use most of them.
+  const prompt = `You are helping a cooking app suggest recipe ideas based on a user's pantry. Please suggest ${limit} recipes.
+
+Pantry ingredients: ${ingredients.join(", ")}
 Dietary restrictions: ${dietaryFilters.join(", ") || "none"}.
-Return JSON array of recipes with match percentage.`;
+
+Return JSON in this exact shape:
+{
+  "recipes": [
+    {
+      "title": "Recipe name",
+      "description": "One sentence description",
+      "matchPercentage": 0
+    }
+  ]
+}
+
+Rules:
+- Return exactly ${limit} recipes.
+- "title" must be a concise, realistic recipe name.
+- "matchPercentage" must be a number from 0 to 100 indicating how well it matches the pantry.
+- Do not include any extra top-level keys besides "recipes".`;
 
   try {
     const openai = getOpenAIClient();
@@ -146,7 +178,9 @@ Return JSON array of recipes with match percentage.`;
     });
 
     const result = JSON.parse(completion.choices[0].message.content);
-    return result.recipes || [];
+    if (Array.isArray(result)) return result;
+    if (result && Array.isArray(result.recipes)) return result.recipes;
+    return [];
   } catch (error) {
     console.error("OpenAI API error:", error);
     throw new Error("Failed to find pantry recipes");

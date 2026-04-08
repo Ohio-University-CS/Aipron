@@ -35,15 +35,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="pantry"
-        options={{
-          title: "Pantry",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="basket-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="search"
         options={{
           title: "Search",

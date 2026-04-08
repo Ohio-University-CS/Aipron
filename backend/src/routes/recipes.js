@@ -82,6 +82,7 @@ recipesRouter.post(
     body("dietaryFilters").optional().isArray(),
     body("servings").optional().isInt({ min: 1, max: 12 }),
     body("skillLevel").optional().isIn(["beginner", "intermediate", "advanced"]),
+    body("usePantry").optional().isBoolean(),
   ],
   async (req, res, next) => {
     try {
@@ -90,12 +91,35 @@ recipesRouter.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { prompt, dietaryFilters = [], servings = 4, skillLevel = "intermediate" } = req.body;
+      const {
+        prompt,
+        dietaryFilters = [],
+        servings = 4,
+        skillLevel = "intermediate",
+        usePantry = false,
+      } = req.body;
+
+      // Pantry mode: load user's pantry and steer generation to use those ingredients.
+      let availableIngredients = [];
+      if (usePantry) {
+        const { data: pantryRows, error: pantryError } = await req.supabase
+          .from("pantry_items")
+          .select("name")
+          .order("name");
+
+        if (pantryError) {
+          return res.status(500).json({ error: "Failed to load pantry for recipe generation" });
+        }
+
+        availableIngredients = (pantryRows || []).map((row) => row.name).filter(Boolean);
+      }
 
       const recipe = await generateRecipe(prompt, {
         dietaryFilters,
         servings,
         skillLevel,
+        availableIngredients,
+        usePantry: Boolean(usePantry),
       });
 
       const { data, error } = await req.supabase

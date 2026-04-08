@@ -10,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,10 +29,13 @@ import LoginScreen from "../app/login";
 import SettingsScreen from "../app/settings";
 import HelpScreen from "../app/help";
 import AboutScreen from "../app/about";
+import PantryScreen from "../app/pantry";
+import { CookingModeFrame } from "./components/CookingModeFrame";
 
 type MockTab =
   | "home"
   | "search"
+  | "pantry"
   | "saved"
   | "profile"
   | "settings"
@@ -104,6 +108,7 @@ export default function WebPreviewScreen() {
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
   const language = useSettingsStore((s) => s.language);
+  const { width: winW, height: winH } = useWindowDimensions();
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -114,6 +119,7 @@ export default function WebPreviewScreen() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<MockTab>("home");
+  const [cookingId, setCookingId] = useState<string | null>(null);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
   );
@@ -343,9 +349,20 @@ export default function WebPreviewScreen() {
     setCheckedIngredients(next);
   };
 
+  const baseW = 390;
+  const baseH = 844;
+  const outerPad = spacing.lg * 2;
+  const scale = isWeb ? Math.min(1, (winW - outerPad) / baseW, (winH - outerPad) / baseH) : 1;
+
   return (
     <View style={[styles.root, !isWeb && styles.rootNative]}>
-      <View style={[styles.deviceFrame, !isWeb && styles.deviceFrameNative]}>
+      <View
+        style={[
+          styles.deviceFrame,
+          !isWeb && styles.deviceFrameNative,
+          isWeb && { transform: [{ scale }] },
+        ]}
+      >
         {isWeb ? <View style={styles.notch} /> : null}
 
         {/* Header */}
@@ -362,6 +379,8 @@ export default function WebPreviewScreen() {
                 ? "Favorites"
                 : activeTab === "search"
                   ? "Search"
+                  : activeTab === "pantry"
+                    ? "Pantry"
                   : activeTab === "profile"
                     ? "Profile"
                     : activeTab === "settings"
@@ -389,6 +408,8 @@ export default function WebPreviewScreen() {
                 ? "❤️"
                 : activeTab === "search"
                   ? "🔍"
+                  : activeTab === "pantry"
+                    ? "🧺"
                   : activeTab === "profile"
                     ? "👤"
                     : activeTab === "settings"
@@ -655,6 +676,7 @@ export default function WebPreviewScreen() {
           <View style={[styles.profileContainer, { backgroundColor: c.background }]}>
             <ProfileScreen
               onNavigateToLogin={() => setActiveTab("login")}
+              onNavigateToPantry={() => setActiveTab("pantry")}
               onNavigateToSettings={() => setActiveTab("settings")}
               onNavigateToHelp={() => setActiveTab("help")}
               onNavigateToAbout={() => setActiveTab("about")}
@@ -662,6 +684,26 @@ export default function WebPreviewScreen() {
             />
           </View>
         )}
+
+        {activeTab === "pantry" && (
+          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
+            <PantryScreen onOpenCookingId={(id) => setCookingId(id)} />
+          </View>
+        )}
+
+        {cookingId ? (
+          <View style={styles.cookingOverlay}>
+            <CookingModeFrame
+              recipeId={cookingId}
+              onClose={() => setCookingId(null)}
+              onAskChef={() => {
+                setCookingId(null);
+                setActiveTab("chef");
+                setChefView("chat");
+              }}
+            />
+          </View>
+        ) : null}
 
         {activeTab === "settings" && (
           <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
@@ -1015,6 +1057,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF3C7",
     ...shadows.lg,
     overflow: "hidden",
+  },
+  cookingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 50,
   },
   deviceFrameNative: {
     width: "100%",
