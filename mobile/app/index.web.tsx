@@ -1778,4 +1778,3 @@ const getStyles = (c: ThemeColors) => StyleSheet.create({
     ...typography.body,
   },
 });
-

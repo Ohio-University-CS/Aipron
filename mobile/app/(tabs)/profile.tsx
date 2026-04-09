@@ -9,12 +9,14 @@ import { useRouter } from "expo-router";
 
 const loggedOutFeatures = [
   { key: "login", icon: "log-in-outline" as const, label: "Go to Login", accent: "#4CAF50" },
+  { key: "pantry", icon: "basket-outline" as const, label: "Pantry", accent: "#8E44AD" },
   { key: "settings", icon: "settings-outline" as const, label: "Settings", accent: "#FF6B35" },
   { key: "help", icon: "help-circle-outline" as const, label: "Help & Support", accent: "#2196F3" },
   { key: "about", icon: "information-circle-outline" as const, label: "About", accent: "#FF9800" },
 ];
 
 const loggedInFeatures = [
+  { key: "pantry", icon: "basket-outline" as const, label: "Pantry", accent: "#8E44AD" },
   { key: "logout", icon: "log-out-outline" as const, label: "Logout", accent: "#F44336" },
   { key: "settings", icon: "settings-outline" as const, label: "Settings", accent: "#FF6B35" },
   { key: "help", icon: "help-circle-outline" as const, label: "Help & Support", accent: "#2196F3" },
@@ -26,6 +28,7 @@ interface ProfileScreenProps {
   onNavigateToSettings?: () => void;
   onNavigateToHelp?: () => void;
   onNavigateToAbout?: () => void;
+  onNavigateToPantry?: () => void;
   onLogout?: () => void;
 }
 
@@ -34,6 +37,7 @@ export default function ProfileScreen({
   onNavigateToSettings,
   onNavigateToHelp,
   onNavigateToAbout,
+  onNavigateToPantry,
   onLogout,
 }: ProfileScreenProps = {}) {
   const router = useRouter();
@@ -62,6 +66,21 @@ export default function ProfileScreen({
         onNavigateToLogin();
       } else {
         router.push("/login");
+      }
+    } else if (key === "pantry") {
+      // Pantry requires auth to sync items; route through login if user is signed out.
+      if (!isSignedIn) {
+        if (onNavigateToLogin) {
+          onNavigateToLogin();
+        } else {
+          router.push("/login");
+        }
+        return;
+      }
+      if (onNavigateToPantry) {
+        onNavigateToPantry();
+      } else {
+        router.push("/pantry");
       }
     } else if (key === "settings") {
       if (onNavigateToSettings) {

@@ -9,12 +9,17 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "./components/RecipeCard";
 import { ChatMessage } from "./components/ChatMessage";
-import { recipeApi, chatApi, Conversation, ConversationMessage } from "./services/api";
+import { filterLocalCatalogRecipes, LOCAL_CATALOG_RECIPES } from "./data/localCatalog";
+import { useLocalCatalogSavedIds } from "./hooks/useLocalCatalogSavedIds";
+import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
 import { useThemeColors } from "./hooks/useThemeColors";
 import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
@@ -24,8 +29,20 @@ import LoginScreen from "../app/login";
 import SettingsScreen from "../app/settings";
 import HelpScreen from "../app/help";
 import AboutScreen from "../app/about";
+import PantryScreen from "../app/pantry";
+import { CookingModeFrame } from "./components/CookingModeFrame";
 
-type MockTab = "home" | "search" | "saved" | "profile" | "settings" | "help" | "about" | "login" | "chef";
+type MockTab =
+  | "home"
+  | "search"
+  | "pantry"
+  | "saved"
+  | "profile"
+  | "settings"
+  | "help"
+  | "about"
+  | "login"
+  | "chef";
 
 const recipe = {
   title: "Classic Spaghetti Carbonara",
@@ -87,8 +104,11 @@ const HIDE_SCROLLBAR_CSS = `
 `;
 
 export default function WebPreviewScreen() {
+  const isWeb = Platform.OS === "web";
+  const insets = useSafeAreaInsets();
   const c = useThemeColors();
   const language = useSettingsStore((s) => s.language);
+  const { width: winW, height: winH } = useWindowDimensions();
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -99,11 +119,17 @@ export default function WebPreviewScreen() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<MockTab>("home");
+  const [cookingId, setCookingId] = useState<string | null>(null);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
   );
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Recipe[]>(LOCAL_CATALOG_RECIPES);
+  const searchSeqRef = useRef(0);
+  const { savedIds: localCatalogSavedIds, toggleSave: toggleLocalCatalogSave, reloadSavedIds: reloadLocalCatalogSaved } =
+    useLocalCatalogSavedIds();
 
   const [chefView, setChefView] = useState<"history" | "chat">("history");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -141,28 +167,20 @@ export default function WebPreviewScreen() {
     }
   }, [activeTab, loadSavedRecipes]);
 
-  const handleUnsave = useCallback(
-    async (recipeId: string) => {
-      const previous = savedRecipes;
-      setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
-      try {
-        await recipeApi.unsave(recipeId);
-      } catch {
-        setSavedRecipes(previous);
-      }
-    },
-    [savedRecipes]
-  );
+  useEffect(() => {
+    if (activeTab !== "search") return;
 
-  const toggleIngredient = (id: string) => {
-    const next = new Set(checkedIngredients);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setCheckedIngredients(next);
-  };
+    const q = searchQuery.trim();
+    const seq = ++searchSeqRef.current;
+
+    const handle = setTimeout(() => {
+      const list = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
+      if (seq !== searchSeqRef.current) return;
+      setSearchResults(list);
+    }, 250);
+
+    return () => clearTimeout(handle);
+  }, [activeTab, searchQuery]);
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
@@ -209,7 +227,6 @@ export default function WebPreviewScreen() {
       setChefMessages([]);
       setChefView("chat");
     } catch {
-      // Fallback: open chat without persistence
       setActiveConvoId(null);
       setChefMessages([]);
       setChefView("chat");
@@ -309,15 +326,52 @@ export default function WebPreviewScreen() {
     return `${days}d ago`;
   };
 
+  const handleUnsave = useCallback(
+    async (recipeId: string) => {
+      const previous = savedRecipes;
+      setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+      try {
+        await recipeApi.unsave(recipeId);
+      } catch {
+        setSavedRecipes(previous);
+      }
+    },
+    [savedRecipes]
+  );
+
+  const toggleIngredient = (id: string) => {
+    const next = new Set(checkedIngredients);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setCheckedIngredients(next);
+  };
+
+  const baseW = 390;
+  const baseH = 844;
+  const outerPad = spacing.lg * 2;
+  const scale = isWeb ? Math.min(1, (winW - outerPad) / baseW, (winH - outerPad) / baseH) : 1;
+
   return (
-    <View style={styles.root}>
-      {/* @ts-ignore web-only prop */}
-      <View style={styles.deviceFrame} dataSet={{ hideScrollbar: "" }}>
-        {/* Status bar notch */}
-        <View style={styles.notch} />
+    <View style={[styles.root, !isWeb && styles.rootNative]}>
+      <View
+        style={[
+          styles.deviceFrame,
+          !isWeb && styles.deviceFrameNative,
+          isWeb && { transform: [{ scale }] },
+        ]}
+      >
+        {isWeb ? <View style={styles.notch} /> : null}
 
         {/* Header */}
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            !isWeb && { paddingTop: Math.max(insets.top, 8) + spacing.md },
+          ]}
+        >
           <View style={styles.headerTextBlock}>
             <Text style={styles.headerEyebrow}>AI Cooking Assistant</Text>
             <Text style={styles.headerTitle}>
@@ -325,6 +379,8 @@ export default function WebPreviewScreen() {
                 ? "Favorites"
                 : activeTab === "search"
                   ? "Search"
+                  : activeTab === "pantry"
+                    ? "Pantry"
                   : activeTab === "profile"
                     ? "Profile"
                     : activeTab === "settings"
@@ -352,6 +408,8 @@ export default function WebPreviewScreen() {
                 ? "❤️"
                 : activeTab === "search"
                   ? "🔍"
+                  : activeTab === "pantry"
+                    ? "🧺"
                   : activeTab === "profile"
                     ? "👤"
                     : activeTab === "settings"
@@ -525,13 +583,56 @@ export default function WebPreviewScreen() {
             style={styles.scroll}
             contentContainerStyle={styles.placeholderScroll}
           >
-            <View style={styles.placeholderInner}>
-              <Text style={styles.placeholderEmoji}>🔍</Text>
-              <Text style={styles.placeholderTitle}>Search recipes</Text>
-              <Text style={styles.placeholderBody}>
-                Browse and filter in the full app; this preview stays on one
-                screen.
+            <View style={styles.searchWrap}>
+              <View style={styles.searchInputRow}>
+                <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search recipes (salmon, lemon dill, greek yogurt, sour cream)"
+                  placeholderTextColor={colors.textDisabled}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.searchInput}
+                />
+                {!!searchQuery && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery("")}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Text style={styles.searchMetaText}>
+                {searchQuery.trim()
+                  ? `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`
+                  : `${LOCAL_CATALOG_RECIPES.length} built-in recipes — type to filter`}
               </Text>
+
+              {searchResults.length === 0 && !!searchQuery.trim() && (
+                <View style={styles.placeholderInner}>
+                  <Text style={styles.placeholderEmoji}>🔍</Text>
+                  <Text style={styles.placeholderTitle}>No matches</Text>
+                  <Text style={styles.placeholderBody}>
+                    Try: salmon, lemon dill, green beans, sour cream, trout, curry, dal
+                  </Text>
+                </View>
+              )}
+
+              {searchResults.map((r, idx) => (
+                <RecipeCard
+                  key={r.id || `search-${idx}`}
+                  recipe={r}
+                  isSaved={!!r.id && localCatalogSavedIds.has(r.id)}
+                  onToggleSave={toggleLocalCatalogSave}
+                  onPress={() => {}}
+                  disabled
+                  loading={false}
+                />
+              ))}
             </View>
           </ScrollView>
         )}
@@ -575,6 +676,7 @@ export default function WebPreviewScreen() {
           <View style={[styles.profileContainer, { backgroundColor: c.background }]}>
             <ProfileScreen
               onNavigateToLogin={() => setActiveTab("login")}
+              onNavigateToPantry={() => setActiveTab("pantry")}
               onNavigateToSettings={() => setActiveTab("settings")}
               onNavigateToHelp={() => setActiveTab("help")}
               onNavigateToAbout={() => setActiveTab("about")}
@@ -582,6 +684,26 @@ export default function WebPreviewScreen() {
             />
           </View>
         )}
+
+        {activeTab === "pantry" && (
+          <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
+            <PantryScreen onOpenCookingId={(id) => setCookingId(id)} />
+          </View>
+        )}
+
+        {cookingId ? (
+          <View style={styles.cookingOverlay}>
+            <CookingModeFrame
+              recipeId={cookingId}
+              onClose={() => setCookingId(null)}
+              onAskChef={() => {
+                setCookingId(null);
+                setActiveTab("chef");
+                setChefView("chat");
+              }}
+            />
+          </View>
+        ) : null}
 
         {activeTab === "settings" && (
           <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
@@ -621,7 +743,7 @@ export default function WebPreviewScreen() {
                   <Ionicons name="chatbubbles-outline" size={48} color={colors.textDisabled} />
                   <Text style={styles.historyEmptyTitle}>No chats yet</Text>
                   <Text style={styles.historyEmptyBody}>
-                    Tap "New Chat" to start a conversation with Chef.
+                    Tap &quot;New Chat&quot; to start a conversation with Chef.
                   </Text>
                 </View>
               )}
@@ -653,7 +775,7 @@ export default function WebPreviewScreen() {
                 <Ionicons name="arrow-back" size={20} color={colors.primary} />
               </TouchableOpacity>
               <Text style={styles.chatHeaderTitle} numberOfLines={1}>
-                {conversations.find((c) => c.id === activeConvoId)?.title || "New Chat"}
+                {conversations.find((x) => x.id === activeConvoId)?.title || "New Chat"}
               </Text>
             </View>
             <ScrollView
@@ -712,7 +834,12 @@ export default function WebPreviewScreen() {
                 </View>
               )}
             </ScrollView>
-            <View style={styles.chefComposer}>
+            <View
+              style={[
+                styles.chefComposer,
+                !isWeb && { bottom: 64 + insets.bottom },
+              ]}
+            >
               <TouchableOpacity
                 style={[
                   styles.chefMicBtn,
@@ -771,7 +898,15 @@ export default function WebPreviewScreen() {
         )}
 
         {/* Bottom nav — same chrome as before; only switches in-frame tab */}
-        <View style={styles.bottomBar}>
+        <View
+          style={[
+            styles.bottomBar,
+            !isWeb && {
+              paddingBottom: insets.bottom,
+              height: 64 + insets.bottom,
+            },
+          ]}
+        >
           <TouchableOpacity
             style={styles.bottomItem}
             onPress={() => setActiveTab("home")}
@@ -826,7 +961,7 @@ export default function WebPreviewScreen() {
             style={styles.bottomItem}
             onPress={() => setActiveTab("chef")}
             accessibilityRole="button"
-            accessibilityLabel="Chef"
+            accessibilityLabel="Chef AI chat"
           >
             <Ionicons
               name={activeTab === "chef" ? "sparkles" : "sparkles-outline"}
@@ -907,6 +1042,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: spacing.lg,
   },
+  rootNative: {
+    backgroundColor: "#FEF3C7",
+    padding: 0,
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+  },
   deviceFrame: {
     width: 390,
     height: 844,
@@ -916,6 +1057,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF3C7",
     ...shadows.lg,
     overflow: "hidden",
+  },
+  cookingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 50,
+  },
+  deviceFrameNative: {
+    width: "100%",
+    flex: 1,
+    alignSelf: "stretch",
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
   },
   notch: {
     position: "absolute",
@@ -1023,6 +1184,31 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.sm,
     textAlign: "center",
+  },
+  searchWrap: {
+    flexGrow: 1,
+    gap: spacing.md,
+  },
+  searchInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    color: colors.text,
+    paddingVertical: 0,
+  },
+  searchMetaText: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,

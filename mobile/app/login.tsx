@@ -1,10 +1,20 @@
 import React, { useState } from "react";
-import { View, TextInput, TouchableOpacity, StyleSheet, Text } from "react-native";
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { authApi } from "../src/services/api";
 import { useAuthStore } from "../src/store/useAuthStore";
 import { spacing, borderRadius, typography } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -21,6 +31,7 @@ interface LoginScreenProps {
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps = {}) {
   const router = useRouter();
   const c = useThemeColors();
+  const insets = useSafeAreaInsets();
   const { setSession } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -145,11 +156,20 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps = {}) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: c.background }]}>
-      <Text style={[styles.title, { color: c.text }]}>AIpron</Text>
-      <Text style={[styles.subtitle, { color: c.textSecondary }]}>
-        {isRegister ? "Create an account" : "Sign in to continue"}
-      </Text>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: c.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={insets.top}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.title, { color: c.text }]}>AIpron</Text>
+        <Text style={[styles.subtitle, { color: c.textSecondary }]}>
+          {isRegister ? "Create an account" : "Sign in to continue"}
+        </Text>
 
       {errorMessage !== "" && (
         <View style={[styles.errorBanner, { backgroundColor: c.error + "15" }]}>
@@ -222,7 +242,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps = {}) {
           {isRegister ? "Already have an account? Sign in" : "Don't have an account? Register"}
         </Text>
       </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -231,6 +252,11 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.xl,
     justifyContent: "center",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingVertical: spacing.xl,
   },
   title: {
     ...typography.h1,
