@@ -87,7 +87,10 @@ app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// Bind all interfaces so LAN IPs (e.g. http://192.168.x.x:3001) work for Expo on devices.
+// Set BIND_HOST=127.0.0.1 if you must not expose the port on your network.
+const BIND_HOST = process.env.BIND_HOST || "0.0.0.0";
+app.listen(PORT, BIND_HOST, () => {
+  console.log(`🚀 Server listening on ${BIND_HOST}:${PORT}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV || "development"}`);
 });
