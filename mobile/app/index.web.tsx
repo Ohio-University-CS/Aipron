@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import axios from "axios";
 import {
   View,
   Text,
@@ -9,6 +10,7 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
@@ -403,7 +405,12 @@ export default function WebPreviewScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[
+        styles.root,
+        Platform.OS === "web" && ({ minHeight: "100vh" } as Record<string, unknown>),
+      ]}
+    >
       {/* @ts-ignore web-only prop */}
       <View style={styles.deviceFrame} dataSet={{ hideScrollbar: "" }}>
         {/* Status bar notch */}
@@ -1093,6 +1100,7 @@ export default function WebPreviewScreen() {
 const getStyles = (c: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
+    width: "100%" as const,
     backgroundColor: "#020617",
     alignItems: "center",
     justifyContent: "center",
