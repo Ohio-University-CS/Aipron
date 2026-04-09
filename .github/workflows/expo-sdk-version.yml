@@ -1,0 +1,38 @@
+name: Expo SDK version
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify-expo-sdk-54:
+    name: Verify mobile uses Expo SDK 54
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify expo dependency is SDK 54
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const path = 'mobile/package.json';
+          let pkg;
+          try {
+            pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          } catch (e) {
+            console.error(`::error::Could not read ${path}`);
+            process.exit(1);
+          }
+          const expo = pkg.dependencies?.expo;
+          if (!expo || typeof expo !== 'string') {
+            console.error('::error::mobile/package.json must declare dependencies.expo');
+            process.exit(1);
+          }
+          const major = expo.replace(/^[\^~>=<]*\s*/, '').split('.')[0];
+          if (major !== '54') {
+            console.error(`::error::PRs must target Expo SDK 54; found expo "${expo}" (major ${major})`);
+            process.exit(1);
+          }
+          console.log(`OK: expo ${expo} (SDK ${major})`);
+          EOF
