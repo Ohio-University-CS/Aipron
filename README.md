@@ -42,9 +42,9 @@ Whether you're a beginner fumbling through your first stir-fry or a seasoned coo
 
 AIpron is built as a monorepo with:
 
-- **Mobile App** (Primary): React Native + Expo
-- **Web App** (Secondary): Next.js 14
+- **Mobile app** (what we ship): React Native + Expo — use **Expo web** (`npx expo start --web`) for a quick **localhost** browser preview only
 - **Backend**: Node.js + Express
+- **`web/`** (Next.js): legacy / non–product; not part of the release surface
 - **Database**: PostgreSQL
 - **AI Engine**: OpenAI Realtime API (GPT-4o Realtime)
 

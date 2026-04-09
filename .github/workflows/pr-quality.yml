@@ -9,7 +9,7 @@ on:
 
 jobs:
   pr-quality-checks:
-    name: Backend tests + shared/web build
+    name: Backend tests + shared build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -29,6 +29,3 @@ jobs:
 
       - name: Build shared package
         run: npm run build --workspace shared
-
-      - name: Build web app
-        run: npm run build --workspace web

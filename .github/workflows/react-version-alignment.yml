@@ -1,0 +1,31 @@
+name: React version alignment (mobile)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  react-versions:
+    name: Mobile React / react-dom pins
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify mobile react matches react-dom
+        run: node scripts/check-react-versions.mjs
+
+      - name: Install dependencies (lockfile must resolve)
+        run: npm ci
+
+      - name: Show hoisted React at workspace root
+        run: |
+          echo "React resolution (workspaces):"
+          npm ls react react-dom --depth=0 || true

@@ -11,9 +11,9 @@
   ],
   "scripts": {
     "dev:mobile": "cd mobile && npm run dev",
-    "dev:web": "cd web && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "install:all": "cd mobile && npm install && cd ../web && npm install && cd ../backend && npm install && cd ../shared && npm install"
+    "install:all": "cd mobile && npm install && cd ../backend && npm install && cd ../shared && npm install",
+    "check:react": "node scripts/check-react-versions.mjs"
   },
   "keywords": [
     "cooking",

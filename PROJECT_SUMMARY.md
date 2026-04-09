@@ -2,15 +2,15 @@
 
 ## Overview
 
-AIpron is a mobile-first, AI-powered cooking assistant built according to the PRD v1.1. The project is structured as a monorepo with separate mobile, web, and backend applications.
+AIpron is a mobile-first, AI-powered cooking assistant built according to the PRD v1.1. The **shipping product is the Expo mobile app**; **web UI for developers** is **Expo web on localhost** only. The `web/` Next.js package is not a release target.
 
 ## Project Structure
 
 ```
 Aipron/
 ├── backend/          # Node.js + Express API server
-├── mobile/           # React Native + Expo mobile app (PRIMARY)
-├── web/              # Next.js web app (SECONDARY)
+├── mobile/           # React Native + Expo — primary app (stores / TestFlight / Play)
+├── web/              # Next.js (legacy / optional; not shipped)
 ├── shared/           # Shared TypeScript types
 └── [config files]
 ```
@@ -48,10 +48,8 @@ Aipron/
 - [x] API service layer
 - [x] Zustand state management
 
-#### Web App
-- [x] Next.js 14 setup
-- [x] Tailwind CSS configuration
-- [x] Basic landing page
+#### Web (`web/` — not shipped)
+- [x] Next.js 14 setup (optional; CI does not require a web production build)
 
 #### Shared
 - [x] TypeScript type definitions
@@ -74,10 +72,8 @@ Aipron/
 - [ ] Screen lock disable during cooking
 - [ ] Offline recipe caching
 
-#### Web App
-- [ ] Account management UI
-- [ ] Recipe browsing interface
-- [ ] Onboarding flow
+#### Web App (`web/` — deprioritized)
+- [ ] (Not planned for product; mobile-only roadmap)
 
 ## Key Features Implemented
 

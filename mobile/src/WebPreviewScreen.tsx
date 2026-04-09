@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import axios from "axios";
 import {
   View,
   Text,
@@ -102,6 +103,33 @@ const HIDE_SCROLLBAR_CSS = `
 [data-hide-scrollbar] *::-webkit-scrollbar { display: none !important; }
 [data-hide-scrollbar] * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
 `;
+
+/** Maps API/network failures to a short user-visible line (devs still see console). */
+function chefChatErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    if (!err.response) {
+      return "Can't reach the API. Start the backend on port 3001 (or set EXPO_PUBLIC_API_URL to match).";
+    }
+    const status = err.response.status;
+    const data = err.response.data as { error?: string; details?: string } | undefined;
+    const serverMsg = [data?.error, data?.details].find((s) => typeof s === "string" && s.trim()) as
+      | string
+      | undefined;
+    if (status === 401) {
+      return "Session expired or not signed in. Open Profile and sign in, then try Chef again.";
+    }
+    if (status === 404) {
+      return "That chat no longer exists. Use back, then start a new chat.";
+    }
+    if (serverMsg && serverMsg.length < 280) {
+      return serverMsg;
+    }
+  }
+  if (err instanceof Error && err.message && err.message.length < 200) {
+    return err.message;
+  }
+  return "Sorry, something went wrong. Please try again.";
+}
 
 export default function WebPreviewScreen() {
   const isWeb = Platform.OS === "web";
@@ -301,11 +329,12 @@ export default function WebPreviewScreen() {
         };
         setChefMessages((prev) => [...prev, assistantEntry]);
       }
-    } catch {
+    } catch (err) {
+      console.error("Chef chat failed:", err);
       const errorEntry = {
         id: (Date.now() + 1).toString(),
         role: "assistant" as const,
-        content: "Sorry, something went wrong. Please try again.",
+        content: chefChatErrorMessage(err),
         timestamp: new Date(),
       };
       setChefMessages((prev) => [...prev, errorEntry]);
@@ -782,7 +811,7 @@ export default function WebPreviewScreen() {
               ref={chefScrollRef}
               style={styles.scroll}
               contentContainerStyle={styles.chefScroll}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
               showsVerticalScrollIndicator={false}
             >
               {chefMessages.length === 0 && !chefLoading && (
