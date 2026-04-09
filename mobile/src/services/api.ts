@@ -125,6 +125,8 @@ export const recipeApi = {
     dietaryFilters?: string[];
     servings?: number;
     skillLevel?: "beginner" | "intermediate" | "advanced";
+    /** When true, backend loads your pantry and steers the recipe to use those ingredients. */
+    usePantry?: boolean;
   }) => {
     const { data } = await api.post("/recipes/generate", { prompt, ...options });
     return data;
