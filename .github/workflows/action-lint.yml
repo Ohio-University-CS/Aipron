@@ -1,0 +1,28 @@
+# Rowan — individual GitHub Actions workflow (course: each member deploys ≥1 workflow).
+# Unlike teammates' PR Quality (backend tests + web/shared builds) and Web lint (ESLint + shared build),
+# this workflow statically validates GitHub Actions YAML with actionlint (workflow correctness / security hints).
+name: Workflow syntax check (Rowan)
+
+on:
+  push:
+    branches: [main, assignment_9_rowan]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rowan-actionlint:
+    name: Rowan — actionlint on workflow files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz -o actionlint.tar.gz
+          tar xzf actionlint.tar.gz actionlint
+          chmod +x actionlint
+
+      - name: Lint GitHub Actions workflow files
+        run: ./actionlint -color
