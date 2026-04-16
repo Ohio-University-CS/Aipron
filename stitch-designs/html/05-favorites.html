@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Apron - Saved Collection</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-high": "#eae8e4",
+                    "surface-tint": "#755b00",
+                    "on-secondary": "#ffffff",
+                    "secondary": "#77574d",
+                    "on-tertiary-container": "#864300",
+                    "primary-fixed-dim": "#f0c12c",
+                    "background": "#fbf9f5",
+                    "primary-fixed": "#ffdf90",
+                    "secondary-fixed-dim": "#e7bdb1",
+                    "primary-container": "#f4c430",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-container": "#695200",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-fixed": "#ffdbd0",
+                    "on-tertiary-fixed-variant": "#713700",
+                    "tertiary": "#944a00",
+                    "on-tertiary-fixed": "#301400",
+                    "tertiary-fixed-dim": "#ffb783",
+                    "surface-variant": "#e4e2de",
+                    "on-secondary-fixed-variant": "#5d4037",
+                    "on-primary": "#ffffff",
+                    "outline-variant": "#d1c5ad",
+                    "on-error": "#ffffff",
+                    "on-background": "#1b1c1a",
+                    "surface-container-low": "#f5f3ef",
+                    "surface": "#fbf9f5",
+                    "on-primary-fixed": "#241a00",
+                    "on-secondary-fixed": "#2c160e",
+                    "error-container": "#ffdad6",
+                    "error": "#ba1a1a",
+                    "surface-container": "#efeeea",
+                    "on-secondary-container": "#795950",
+                    "inverse-primary": "#f0c12c",
+                    "on-error-container": "#93000a",
+                    "tertiary-container": "#ffbc8d",
+                    "surface-bright": "#fbf9f5",
+                    "surface-container-highest": "#e4e2de",
+                    "inverse-surface": "#30312e",
+                    "surface-dim": "#dbdad6",
+                    "on-primary-fixed-variant": "#584400",
+                    "on-surface": "#1b1c1a",
+                    "secondary-container": "#fed3c7",
+                    "outline": "#807661",
+                    "primary": "#755b00",
+                    "on-surface-variant": "#4e4634",
+                    "inverse-on-surface": "#f2f0ed",
+                    "tertiary-fixed": "#ffdcc5"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Noto Serif"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .editorial-shadow {
+            box-shadow: 0 12px 40px rgba(27, 28, 26, 0.05);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface antialiased">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#fbf9f5]/80 backdrop-blur-xl">
+<div class="flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-[#efeeea] transition-colors rounded-full active:scale-95 duration-200 ease-in-out">
+<span class="material-symbols-outlined text-[#755b00]">menu</span>
+</button>
+<h1 class="font-['Noto_Serif'] italic text-2xl text-[#755b00]">Apron</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="User profile photo" class="w-full h-full object-cover" data-alt="close-up portrait of a smiling woman in a sunlit kitchen, warm natural lighting, professional photography style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBckzPrHiLjfzS3whHFwXnM1AwAD22Gye-k1B1kEvNVrPwOwJVrOufgmhFt7ye_3XogCn3hichfQ8lZfx95yJs-6GZaVdKkZuqXKvG5LRPpZ1Gp5Rg8dqIWOZ7nUZ7eY45iXnx1jnhkSFJu20WjhISiwd51IpYwqmIyZgMGJBGKS7SJPJY21cQQ8FhDeNKOAyCgGF7_6MCsC1fS0ESM6mCJsTuaCF2SJpeSs2TnHyvsVWP4d2xqdgWNQzTVwdd0j2BVQPI9IAd20eJt"/>
+</div>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-7xl mx-auto">
+<!-- Header & Toggle Section -->
+<div class="mb-12">
+<h2 class="font-headline text-4xl lg:text-5xl mb-8 leading-tight">My Saved<br/><span class="italic text-primary">Kitchen Notes</span></h2>
+<div class="flex items-center justify-between">
+<!-- Collection Toggle -->
+<div class="flex p-1 bg-surface-container rounded-xl">
+<button class="px-6 py-2 rounded-lg text-sm font-semibold transition-all bg-surface-container-lowest text-primary editorial-shadow">
+                        To Cook
+                    </button>
+<button class="px-6 py-2 rounded-lg text-sm font-semibold transition-all text-stone-500 hover:text-primary">
+                        Loved
+                    </button>
+</div>
+<button class="flex items-center gap-2 text-stone-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">tune</span>
+<span class="text-xs uppercase tracking-widest font-semibold">Filter</span>
+</button>
+</div>
+</div>
+<!-- Asymmetric Bento Grid for Saved Recipes -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+<!-- Featured Card (Large) -->
+<div class="md:col-span-8 group cursor-pointer">
+<div class="relative overflow-hidden rounded-lg aspect-[16/10] bg-surface-container-low">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="rustic wooden table with a large bowl of vibrant citrus salad, soft morning light, editorial food photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7VBKFaS43ERLi78Zsiwv9fhjLhAbtcmEaPlNaNefb4X9D8A5dErIplsOdpJx4KlzYcyzRv5e0wXNN-grgWVOMv0EpDC-pdsW8ujmf3eAnTbsKfBvqoQsO9Rj4Y00scIuuRonAliNytzYJlYLKGskm3XWj2_fw0MGSQQuiGRnYp2O8SgQUU6BGT0TKAI0GsvpIRbEtI-4ZJWWth7W0uSkCLUFV0uwWw_Mr1ex8TqDwi855KXyDPvwY-c24LFSwmoC2YdK5miIa21dp"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-8 text-white">
+<span class="inline-block px-3 py-1 bg-primary text-[#1b1c1a] text-[10px] font-bold uppercase tracking-widest rounded mb-3">Dinner</span>
+<h3 class="font-headline text-3xl leading-tight">Miso Glazed Salmon with Charred Citrus</h3>
+<p class="mt-2 text-white/80 font-body text-sm">25 Minutes • Level: Intermediate</p>
+</div>
+<button class="absolute top-6 right-6 p-2 bg-surface/20 backdrop-blur-md rounded-full text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+</div>
+</div>
+<!-- Side Card (Tall) -->
+<div class="md:col-span-4 group cursor-pointer">
+<div class="relative overflow-hidden rounded-lg h-full min-h-[400px] bg-surface-container-low">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="overhead shot of a thin crust artisan pizza with fresh basil and mozzarella, warm kitchen aesthetic, moody lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqAKnY8fx9AKgcCUi9gdr9V1jO-pt3lX9uHtALN4cepuSwlWOJQ9sSyNB4zwExcF9UOSaJc_bvBsvL-sM-pPpO8u3ra423hSMmOe7MHiCyo44hVWXJVWfbVTDWKz3CmAQfx8GwHF9WRXaAq73tazr-ksBJqJ5WuxonlAahsXTA0uh5jISzJio5LCANg5YeAFLpPc9i5Oc-X_vGBR_2aFT7MNjdhySBrbOEQSFTzNCWszv01jWyxLSJrtIT-EfMmb4bmcv1vLhvcVGd"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-6 text-white">
+<span class="inline-block px-3 py-1 bg-tertiary-container text-on-tertiary-container text-[10px] font-bold uppercase tracking-widest rounded mb-3">Lunch</span>
+<h3 class="font-headline text-2xl leading-tight">Wild Mushroom &amp; Truffle Flatbread</h3>
+</div>
+<button class="absolute top-6 right-6 p-2 bg-surface/20 backdrop-blur-md rounded-full text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+</div>
+</div>
+<!-- Grid Items -->
+<div class="md:col-span-4 group cursor-pointer">
+<div class="relative overflow-hidden rounded-lg aspect-square bg-surface-container-low">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="bright and colorful mediterranean grain bowl with avocado and chickpeas, high key lighting, fresh look" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBoNTBfnEXAiM9jLVxhqxZzHkI2HEDhpqBB-yAsVr9yLX_kwgxhJnPpQUw8IqWzCYepI6eQBmfc5dnbt9drmOhAXQ2DI7IZ42RwpCv429KkW6vtyRSfKOa03KoSWg4BmNnufNnlgtvU2R1ZUL8Mvw4ACWo-vHmpGiE5GiLufa8VUwtJZ6RqxmswsrGk8U4qmpgVB4-sTlkrLBzaMIA-d2qzRmN0qULWI4jJbrqafTC0LoJ0fjt0n2RZjNbIy-b5WJaYgoPgr5V4iaKP"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-6 text-white">
+<h3 class="font-headline text-xl leading-tight">Quinoa &amp; Roasted Root Salad</h3>
+</div>
+<button class="absolute top-6 right-6 p-2 bg-surface/20 backdrop-blur-md rounded-full text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+</div>
+</div>
+<div class="md:col-span-4 group cursor-pointer">
+<div class="relative overflow-hidden rounded-lg aspect-square bg-surface-container-low">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="golden brown donuts with sugar dusting, soft focus background of a pastry shop, warm cozy feel" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwO2jOzXhx0Pg2OBmO5v8vyAoHp-ZEQP2FiO-o94laCv8mp2-BodskFXpPlCIZFtVc-zbN6bg5avGWwsRxxjRO2rRiVUwtpGiv-1mt9v6ujD1A_86tBf6fLQxPKceG63htU6pfKsTvLjnrnv6TteGszYWG6Zm8YErK_Stcz3HTgSSIdTdgwBtxKyRlktzAeiyXxQmCiUaT87iGSBwbWZ5wLJ5dgKxdslptv5Chx5hn7N_YSL9S1K-Dr-XtgrL-S3o1EA2gTh7c8ARN"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-6 text-white">
+<h3 class="font-headline text-xl leading-tight">Classic Cardamom Beignets</h3>
+</div>
+<button class="absolute top-6 right-6 p-2 bg-surface/20 backdrop-blur-md rounded-full text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+</div>
+</div>
+<div class="md:col-span-4 group cursor-pointer">
+<div class="relative overflow-hidden rounded-lg aspect-square bg-surface-container-low">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="close up of gourmet pasta with fresh herbs and parmesan, elegant table setting, soft evening light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2_7tlSQurK8XPWJDHNmzRE9iXpmAgVmYnf4uJn927ljg1kDv6xN8jaOXj3NzL-r6VF6zTlvz043L2MJ_qQ5QEHkfYSUaXZfdZPIzMtKbrRNj2oRLd_aF3EcHiKdZLhHVwF0WPTRw19B1_PpN37pqrtzpfc4W4pMMn9NXMh5ec8myvbaMlJUqPSzXusOV2iw3MQu8Ba7CdzufvTCQOwN3ZX_yc1Y9RvmtDfbeaUwFf4-bw9T4-ROHhsdpR-m-0rLhcBMlFeuMP17sm"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-6 text-white">
+<h3 class="font-headline text-xl leading-tight">Pappardelle with Slow Beef</h3>
+</div>
+<button class="absolute top-6 right-6 p-2 bg-surface/20 backdrop-blur-md rounded-full text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Empty State Hint (Tonal Shift) -->
+<div class="mt-20 p-12 bg-surface-container-low rounded-[2rem] text-center border-2 border-dashed border-outline-variant/20">
+<span class="material-symbols-outlined text-4xl text-primary/40 mb-4">add_circle</span>
+<p class="font-headline text-xl text-stone-500">Save more to your collection</p>
+<p class="text-stone-400 mt-2 max-w-xs mx-auto">Found a recipe you love? Tap the heart to keep it in your apron.</p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-[#fbf9f5]/90 backdrop-blur-2xl shadow-[0_-12px_40px_rgba(27,28,26,0.05)] rounded-t-[2rem]">
+<div class="flex justify-around items-center px-4 pb-6 pt-3">
+<!-- Discover -->
+<a class="flex flex-col items-center justify-center text-stone-500 px-5 py-2 hover:text-[#755b00] transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">restaurant</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold">Discover</span>
+</a>
+<!-- Search -->
+<a class="flex flex-col items-center justify-center text-stone-500 px-5 py-2 hover:text-[#755b00] transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">search</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold">Search</span>
+</a>
+<!-- Saved (ACTIVE) -->
+<a class="flex flex-col items-center justify-center bg-[#f4c430] text-[#1b1c1a] rounded-xl px-5 py-2 scale-90 duration-300" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">favorite</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold">Saved</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-stone-500 px-5 py-2 hover:text-[#755b00] transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold">Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

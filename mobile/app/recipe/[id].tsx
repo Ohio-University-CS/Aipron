@@ -1,519 +1,664 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  Image,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Recipe } from "@aipron/shared";
+import { TopBar } from "../../src/components/TopBar";
+import { GradientButton } from "../../src/components/GradientButton";
+import { Chip } from "../../src/components/Chip";
+import { IngredientRow } from "../../src/components/IngredientRow";
 import { recipeApi } from "../../src/services/api";
 import { findLocalCatalogRecipeById } from "../../src/data/localCatalog";
-import { useLocalCatalogSavedIds } from "../../src/hooks/useLocalCatalogSavedIds";
-import { IngredientRow } from "../../src/components/IngredientRow";
+import { useThemeColors } from "../../src/hooks/useThemeColors";
 import {
-  colors,
+  StitchImages,
+  pickFallbackPhoto,
+} from "../../src/constants/StitchImages";
+import {
+  borderRadius,
+  fonts,
+  shadows,
   spacing,
   typography,
-  borderRadius,
-  shadows,
 } from "../../src/constants/DesignTokens";
-
-function isLocalId(id: string | undefined): boolean {
-  return !!id && id.startsWith("local-");
-}
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useThemeColors();
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const [serverSaved, setServerSaved] = useState(false);
-  const { savedIds: localSavedIds, toggleSave: toggleLocalSave } =
-    useLocalCatalogSavedIds();
-
-  const isLocal = isLocalId(id);
-  const isSaved = isLocal
-    ? !!id && localSavedIds.has(id)
-    : serverSaved;
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [heroFailed, setHeroFailed] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadRecipe = async () => {
+      if (!id) return;
+      const local = findLocalCatalogRecipeById(id);
+      if (local) {
+        if (!cancelled) setRecipe(local);
+        return;
+      }
+      try {
+        const data = await recipeApi.getById(id);
+        if (!cancelled) setRecipe(data);
+      } catch (error) {
+        console.error("Failed to load recipe:", error);
+      }
+    };
     loadRecipe();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  const loadRecipe = async () => {
-    if (!id) return;
-    setLoading(true);
+  const topBarHeight = insets.top + spacing.sm + 56;
 
-    const local = findLocalCatalogRecipeById(id);
-    if (local) {
-      setRecipe(local);
-      setLoading(false);
-      return;
-    }
+  const heroUri = useMemo(() => {
+    if (!recipe) return StitchImages.recipeDetailHero;
+    if (recipe.heroImage && !heroFailed) return recipe.heroImage;
+    if (!heroFailed) return StitchImages.recipeDetailHero;
+    return pickFallbackPhoto(recipe.id ?? recipe.title);
+  }, [recipe, heroFailed]);
 
-    try {
-      const data = await recipeApi.getById(id);
-      setRecipe(data);
-
-      const savedIds = await recipeApi.getSavedIds().catch(() => [] as string[]);
-      setServerSaved(savedIds.includes(id));
-    } catch (error) {
-      console.error("Failed to load recipe:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleSave = useCallback(async () => {
-    if (!id) return;
-
-    if (isLocal) {
-      toggleLocalSave(id);
-      return;
-    }
-
-    const wasSaved = serverSaved;
-    setServerSaved(!wasSaved);
-    try {
-      if (wasSaved) {
-        await recipeApi.unsave(id);
-      } else {
-        await recipeApi.save(id);
-      }
-    } catch (error) {
-      console.error("Failed to toggle save:", error);
-      setServerSaved(wasSaved);
-    }
-  }, [id, isLocal, serverSaved, toggleLocalSave]);
-
-  if (loading || !recipe) {
+  const difficultyLabel = useMemo(() => {
+    if (!recipe?.difficulty) return null;
     return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.loadingText}>
-          {loading ? "Loading recipe..." : "Recipe not found"}
+      recipe.difficulty.charAt(0).toUpperCase() + recipe.difficulty.slice(1)
+    );
+  }, [recipe?.difficulty]);
+
+  const eyebrow = useMemo(() => {
+    if (!recipe) return "";
+    if (recipe.cuisine) return recipe.cuisine.toUpperCase();
+    const firstTag = recipe.dietaryTags?.[0];
+    if (firstTag) return firstTag.toUpperCase();
+    return "SEASONAL BRUNCH";
+  }, [recipe]);
+
+  if (!recipe) {
+    return (
+      <View
+        style={[
+          styles.container,
+          styles.loadingContainer,
+          { backgroundColor: theme.background },
+        ]}
+      >
+        <TopBar showBack onBackPress={() => router.back()} showAvatar={false} />
+        <Text style={[typography.body, { color: theme.onSurfaceVariant }]}>
+          Loading recipe...
         </Text>
       </View>
     );
   }
 
-  const difficultyLabel =
-    recipe.difficulty
-      ? recipe.difficulty.charAt(0).toUpperCase() + recipe.difficulty.slice(1)
-      : null;
+  const categoryChips = [
+    recipe.cuisine,
+    ...(recipe.dietaryTags ?? []).slice(0, 2),
+  ].filter(Boolean) as string[];
+
+  const calories = recipe.nutrition?.calories;
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleToggleSave}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons
-            name={isSaved ? "heart" : "heart-outline"}
-            size={24}
-            color={isSaved ? colors.error : colors.text}
-          />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <TopBar
+        showBack
+        onBackPress={() => router.back()}
+        rightIcon="share"
+        onRightPress={async () => {
+          try {
+            await Share.share({
+              title: recipe.title,
+              message: `${recipe.title}${recipe.description ? `\n\n${recipe.description}` : ""}`,
+            });
+          } catch {
+            // user cancelled or share unavailable — no-op
+          }
+        }}
+        showAvatar={false}
+      />
 
       <ScrollView
-        style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 100 },
+          {
+            paddingTop: topBarHeight,
+            paddingBottom: insets.bottom + 120,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero placeholder */}
-        <View style={styles.hero}>
-          <Ionicons name="restaurant" size={48} color={colors.textSecondary} />
-        </View>
-
-        {/* Title & description */}
-        <View style={styles.section}>
-          <Text style={styles.title}>{recipe.title}</Text>
-          {recipe.cuisine && (
-            <Text style={styles.cuisine}>{recipe.cuisine}</Text>
-          )}
-          {recipe.description && (
-            <Text style={styles.description}>{recipe.description}</Text>
-          )}
-        </View>
-
-        {/* Time / servings / difficulty row */}
-        <View style={styles.metaRow}>
-          <View style={styles.metaCard}>
-            <Ionicons name="time-outline" size={20} color={colors.primary} />
-            <Text style={styles.metaValue}>{recipe.prepTime}m</Text>
-            <Text style={styles.metaLabel}>Prep</Text>
-          </View>
-          <View style={styles.metaCard}>
-            <Ionicons name="flame-outline" size={20} color={colors.primary} />
-            <Text style={styles.metaValue}>{recipe.cookTime}m</Text>
-            <Text style={styles.metaLabel}>Cook</Text>
-          </View>
-          <View style={styles.metaCard}>
-            <Ionicons name="people-outline" size={20} color={colors.primary} />
-            <Text style={styles.metaValue}>{recipe.servings}</Text>
-            <Text style={styles.metaLabel}>Servings</Text>
-          </View>
-          {difficultyLabel && (
-            <View style={styles.metaCard}>
-              <Ionicons name="star-outline" size={20} color={colors.primary} />
-              <Text style={styles.metaValue}>{difficultyLabel}</Text>
-              <Text style={styles.metaLabel}>Level</Text>
+        <View style={styles.contentFrame}>
+          {/* Hero */}
+          <View style={styles.heroWrapper}>
+            <View
+              style={[
+                styles.heroMask,
+                { backgroundColor: theme.surfaceContainerHighest },
+              ]}
+            >
+              <Image
+                source={{ uri: heroUri }}
+                style={styles.heroImage}
+                resizeMode="cover"
+                onError={() => setHeroFailed(true)}
+              />
+              <LinearGradient
+                colors={["transparent", theme.background]}
+                start={{ x: 0.5, y: 0.6 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.heroFade}
+                pointerEvents="none"
+              />
             </View>
-          )}
-        </View>
 
-        {/* Dietary tags */}
-        {recipe.dietaryTags.length > 0 && (
-          <View style={styles.tagsRow}>
-            {recipe.dietaryTags.map((tag) => (
-              <View key={tag} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
+            {/* Floating heart */}
+            <TouchableOpacity
+              style={[
+                styles.floatingHeart,
+                { backgroundColor: theme.surfaceContainerLowest },
+                shadows.md,
+              ]}
+              onPress={() => setIsFavorite((v) => !v)}
+              activeOpacity={0.8}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons
+                name={isFavorite ? "favorite" : "favorite-border"}
+                size={22}
+                color={isFavorite ? theme.tertiary : theme.onSurfaceVariant}
+              />
+            </TouchableOpacity>
+
+            {/* Chef's Tip floating chip */}
+            <View
+              style={[
+                styles.chefTipFloat,
+                { backgroundColor: theme.tertiaryContainer },
+                shadows.md,
+              ]}
+            >
+              <MaterialIcons
+                name="lightbulb"
+                size={14}
+                color={theme.onTertiaryContainer}
+              />
+              <Text
+                style={[
+                  styles.chefTipText,
+                  { color: theme.onTertiaryContainer },
+                ]}
+              >
+                CHEF'S TIP: DON'T OVERMIX
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.body}>
+            {/* Category chips */}
+            {categoryChips.length > 0 && (
+              <View style={styles.categoryRow}>
+                {categoryChips.map((tag) => (
+                  <Chip key={tag} label={tag} variant="tonal" size="sm" />
+                ))}
               </View>
-            ))}
-          </View>
-        )}
+            )}
 
-        {/* Nutrition */}
-        {recipe.nutrition && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Nutrition per serving</Text>
-            <View style={styles.nutritionRow}>
-              {recipe.nutrition.calories != null && (
-                <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>
-                    {recipe.nutrition.calories}
-                  </Text>
-                  <Text style={styles.nutritionLabel}>kcal</Text>
-                </View>
-              )}
-              {recipe.nutrition.protein != null && (
-                <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>
-                    {recipe.nutrition.protein}g
-                  </Text>
-                  <Text style={styles.nutritionLabel}>Protein</Text>
-                </View>
-              )}
-              {recipe.nutrition.carbs != null && (
-                <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>
-                    {recipe.nutrition.carbs}g
-                  </Text>
-                  <Text style={styles.nutritionLabel}>Carbs</Text>
-                </View>
-              )}
-              {recipe.nutrition.fat != null && (
-                <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>
-                    {recipe.nutrition.fat}g
-                  </Text>
-                  <Text style={styles.nutritionLabel}>Fat</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Ingredients */}
-        {recipe.ingredients.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Ingredients ({recipe.ingredients.length})
+            {/* Eyebrow */}
+            <Text style={[styles.eyebrow, { color: theme.tertiary }]}>
+              {eyebrow}
             </Text>
-            <View style={styles.ingredientsCard}>
-              {recipe.ingredients.map((ingredient) => (
-                <IngredientRow
-                  key={ingredient.id || ingredient.name}
-                  ingredient={ingredient}
+
+            {/* Title */}
+            <Text style={[styles.title, { color: theme.onSurface }]}>
+              {recipe.title}
+            </Text>
+
+            {/* Chef intro */}
+            <View style={styles.chefIntroRow}>
+              <Image
+                source={{ uri: StitchImages.chatChefAvatar }}
+                style={styles.chefAvatar}
+              />
+              <View style={styles.chefIntroText}>
+                <Text style={[styles.chefLabel, { color: theme.outline }]}>
+                  AIPRON CHEF
+                </Text>
+                <Text style={[styles.chefName, { color: theme.onSurface }]}>
+                  Curated by your AI sous-chef
+                </Text>
+              </View>
+            </View>
+
+            {/* Description */}
+            {recipe.description && (
+              <Text
+                style={[
+                  styles.description,
+                  { color: theme.onSurfaceVariant },
+                ]}
+              >
+                {recipe.description}
+              </Text>
+            )}
+
+            {/* Stat bento */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.statsRow}
+              style={styles.statsScroll}
+            >
+              <StatTile
+                icon="schedule"
+                label="Total Time"
+                value={`${recipe.totalTime ?? (recipe.prepTime + recipe.cookTime)}m`}
+                theme={theme}
+              />
+              <StatTile
+                icon="people-outline"
+                label="Serves"
+                value={String(recipe.servings)}
+                theme={theme}
+              />
+              <StatTile
+                icon="signal-cellular-alt"
+                label="Level"
+                value={difficultyLabel ?? "—"}
+                theme={theme}
+              />
+              {typeof calories === "number" && (
+                <StatTile
+                  icon="local-fire-department"
+                  label="Calories"
+                  value={String(calories)}
+                  theme={theme}
                 />
-              ))}
-            </View>
-          </View>
-        )}
+              )}
+            </ScrollView>
 
-        {/* Steps */}
-        {recipe.steps.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Steps ({recipe.steps.length})
-            </Text>
-            {recipe.steps.map((step) => (
-              <View key={step.stepNumber} style={styles.stepCard}>
-                <View style={styles.stepNumberBadge}>
-                  <Text style={styles.stepNumberText}>{step.stepNumber}</Text>
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={styles.stepInstruction}>
-                    {step.instruction}
+            {/* Ingredients */}
+            {recipe.ingredients.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text
+                    style={[styles.sectionTitle, { color: theme.onSurface }]}
+                  >
+                    Ingredients
                   </Text>
-                  {step.duration && (
-                    <View style={styles.stepTimerRow}>
-                      <Ionicons
-                        name="time-outline"
-                        size={14}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.stepTimerText}>
-                        {step.duration >= 60
-                          ? `${Math.floor(step.duration / 60)}m ${step.duration % 60 ? `${step.duration % 60}s` : ""}`
-                          : `${step.duration}s`}
-                      </Text>
-                    </View>
-                  )}
+                  <Chip
+                    label={`${recipe.servings} servings`}
+                    variant="tonal"
+                    size="sm"
+                  />
+                </View>
+                <View
+                  style={[
+                    styles.sectionDivider,
+                    { backgroundColor: theme.outlineVariant + "40" },
+                  ]}
+                />
+                <View style={styles.ingredientsList}>
+                  {recipe.ingredients.map((ing, idx) => (
+                    <IngredientRow
+                      key={ing.id || `${ing.name}-${idx}`}
+                      ingredient={ing}
+                    />
+                  ))}
                 </View>
               </View>
-            ))}
+            )}
+
+            {/* Preparation */}
+            {recipe.steps.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text
+                    style={[styles.sectionTitle, { color: theme.onSurface }]}
+                  >
+                    Preparation
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.sectionDivider,
+                    { backgroundColor: theme.outlineVariant + "40" },
+                  ]}
+                />
+                <View style={styles.stepsList}>
+                  {recipe.steps.map((step, idx) => (
+                    <View
+                      key={step.stepNumber ?? idx}
+                      style={styles.stepRow}
+                    >
+                      <Text
+                        style={[
+                          styles.stepNumber,
+                          { color: theme.primaryContainer },
+                        ]}
+                      >
+                        {String(step.stepNumber ?? idx + 1).padStart(2, "0")}
+                      </Text>
+                      <View style={styles.stepContent}>
+                        <Text
+                          style={[
+                            styles.stepInstruction,
+                            { color: theme.onSurface },
+                          ]}
+                        >
+                          {step.instruction}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
-        )}
+        </View>
       </ScrollView>
 
-      {/* Floating Start Cooking button */}
+      {/* Fixed Bottom Bar */}
       <View
-        style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.md }]}
+        style={[
+          styles.bottomBar,
+          {
+            backgroundColor: theme.background + "F2",
+            paddingBottom: insets.bottom + spacing.lg,
+            borderTopColor: theme.outlineVariant + "40",
+          },
+        ]}
       >
-        <TouchableOpacity
-          style={styles.cookButton}
-          onPress={() => router.push(`/cooking/${id}`)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="flame" size={22} color={colors.background} />
-          <Text style={styles.cookButtonText}>Start Cooking</Text>
-        </TouchableOpacity>
+        <View style={styles.bottomBarInner}>
+          <View style={styles.bottomBarCopy}>
+            <Text style={[styles.bottomEyebrow, { color: theme.outline }]}>
+              READY TO BEGIN?
+            </Text>
+            <Text style={[styles.bottomHeadline, { color: theme.onSurface }]}>
+              Let's get cooking.
+            </Text>
+          </View>
+          <GradientButton
+            title="Start Cooking"
+            icon="restaurant"
+            onPress={() => router.push(`/cooking/${id}` as any)}
+            style={styles.startButton}
+          />
+        </View>
       </View>
     </View>
   );
 }
 
+interface StatTileProps {
+  icon: React.ComponentProps<typeof MaterialIcons>["name"];
+  label: string;
+  value: string;
+  theme: ReturnType<typeof useThemeColors>;
+}
+
+const StatTile: React.FC<StatTileProps> = ({ icon, label, value, theme }) => {
+  return (
+    <View
+      style={[
+        styles.statCard,
+        { backgroundColor: theme.surfaceContainerLow },
+      ]}
+    >
+      <MaterialIcons name={icon} size={22} color={theme.primary} />
+      <Text style={[styles.statLabel, { color: theme.outline }]}>
+        {label.toUpperCase()}
+      </Text>
+      <Text style={[styles.statValue, { color: theme.onSurface }]}>
+        {value}
+      </Text>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
-  centered: {
+  loadingContainer: {
     justifyContent: "center",
     alignItems: "center",
-  },
-  loadingText: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background,
-    zIndex: 10,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  saveButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  scroll: {
-    flex: 1,
   },
   scrollContent: {
-    paddingTop: spacing.sm,
+    flexGrow: 1,
   },
-  hero: {
-    height: 200,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: spacing.lg,
-    borderRadius: borderRadius.xl,
-    marginBottom: spacing.lg,
+  contentFrame: {
+    maxWidth: 680,
+    width: "100%",
+    alignSelf: "center",
+    paddingHorizontal: spacing.screenPadding,
   },
-  section: {
-    paddingHorizontal: spacing.lg,
+  heroWrapper: {
+    position: "relative",
     marginBottom: spacing.xl,
   },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  cuisine: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    marginBottom: spacing.sm,
-  },
-  description: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 22,
-  },
-  metaRow: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  metaCard: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    gap: spacing.xs / 2,
-  },
-  metaValue: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: "700",
-  },
-  metaLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-    gap: spacing.sm,
-  },
-  tag: {
-    backgroundColor: colors.primaryLight + "20",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  tagText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "500",
-  },
-  sectionTitle: {
-    ...typography.h2,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  nutritionRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  nutritionItem: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-  },
-  nutritionValue: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: "700",
-  },
-  nutritionLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: spacing.xs / 2,
-  },
-  ingredientsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
+  heroMask: {
+    width: "100%",
+    aspectRatio: 4 / 5,
     overflow: "hidden",
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 8,
+    borderBottomLeftRadius: 64,
   },
-  stepCard: {
-    flexDirection: "row",
-    marginBottom: spacing.md,
-    gap: spacing.md,
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
-  stepNumberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
+  heroFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 100,
+  },
+  floatingHeart: {
+    position: "absolute",
+    top: spacing.lg,
+    right: spacing.lg,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
-    marginTop: 2,
+    justifyContent: "center",
   },
-  stepNumberText: {
-    ...typography.caption,
-    color: colors.background,
-    fontWeight: "700",
-  },
-  stepContent: {
-    flex: 1,
-  },
-  stepInstruction: {
-    ...typography.body,
-    color: colors.text,
-    lineHeight: 24,
-  },
-  stepTimerRow: {
+  chefTipFloat: {
+    position: "absolute",
+    bottom: spacing.xl,
+    right: -spacing.sm,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    transform: [{ rotate: "-2deg" }],
+  },
+  chefTipText: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  },
+  body: {
+    paddingTop: spacing.sm,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  eyebrow: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 10,
+    letterSpacing: 4,
+    textTransform: "uppercase",
+    marginBottom: spacing.sm,
+  },
+  title: {
+    fontFamily: fonts.serifBold,
+    fontSize: 42,
+    lineHeight: 48,
+    letterSpacing: -0.5,
+    marginBottom: spacing.xl,
+  },
+  chefIntroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  chefAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  chefIntroText: {
+    flex: 1,
+  },
+  chefLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 10,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  chefName: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  description: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 20,
+    lineHeight: 30,
+    marginBottom: spacing.xl,
+  },
+  statsScroll: {
+    marginHorizontal: -spacing.screenPadding,
+    marginBottom: spacing.sectionGap,
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    paddingHorizontal: spacing.screenPadding,
+  },
+  statCard: {
+    minWidth: 110,
+    alignItems: "flex-start",
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.xxl,
+    gap: spacing.xs,
+  },
+  statLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 10,
+    letterSpacing: 2,
+    textTransform: "uppercase",
     marginTop: spacing.xs,
   },
-  stepTimerText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "500",
+  statValue: {
+    fontFamily: fonts.serifBold,
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  section: {
+    marginBottom: spacing.sectionGap,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    fontFamily: fonts.serifBold,
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.3,
+  },
+  sectionDivider: {
+    height: 1,
+    marginBottom: spacing.lg,
+  },
+  ingredientsList: {
+    marginHorizontal: -spacing.lg,
+  },
+  stepsList: {
+    gap: spacing.xl,
+  },
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.lg,
+  },
+  stepNumber: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 42,
+    lineHeight: 46,
+    width: 56,
+  },
+  stepContent: {
+    flex: 1,
+    paddingTop: spacing.sm,
+  },
+  stepInstruction: {
+    fontFamily: fonts.serif,
+    fontSize: 18,
+    lineHeight: 28,
   },
   bottomBar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    backgroundColor: colors.background,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    ...shadows.lg,
   },
-  cookButton: {
+  bottomBarInner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.lg,
+    gap: spacing.lg,
+    maxWidth: 680,
+    width: "100%",
+    alignSelf: "center",
   },
-  cookButtonText: {
-    ...typography.body,
-    color: colors.background,
-    fontWeight: "700",
+  bottomBarCopy: {
+    flex: 1,
+  },
+  bottomEyebrow: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 10,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  bottomHeadline: {
+    fontFamily: fonts.serifBold,
     fontSize: 18,
+    marginTop: 2,
+  },
+  startButton: {
+    minWidth: 180,
   },
 });

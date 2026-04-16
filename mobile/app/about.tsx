@@ -2,6 +2,8 @@ import React from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 
@@ -50,15 +52,16 @@ interface AboutScreenProps {
 
 export default function AboutScreen({ onBack }: AboutScreenProps = {}) {
   const c = useThemeColors();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const handleBack = onBack ?? (() => router.back());
 
   return (
-    <View style={[styles.container, { backgroundColor: c.background }]}>
-      {onBack && (
-        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={c.text} />
-          <Text style={[styles.backText, { color: c.text }]}>Back</Text>
-        </TouchableOpacity>
-      )}
+    <View style={[styles.container, { backgroundColor: c.background, paddingTop: insets.top + spacing.sm }]}>
+      <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="arrow-back" size={20} color={c.text} />
+        <Text style={[styles.backText, { color: c.text }]}>Back</Text>
+      </TouchableOpacity>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.heroSection}>

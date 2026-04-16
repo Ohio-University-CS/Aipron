@@ -13,6 +13,8 @@
     "build:ios": "eas build --platform ios"
   },
   "dependencies": {
+    "@expo-google-fonts/noto-serif": "^0.4.2",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.0.0",
@@ -21,8 +23,11 @@
     "axios": "^1.6.0",
     "expo": "~54.0.0",
     "expo-av": "~16.0.0",
+    "expo-blur": "~15.0.8",
     "expo-font": "~14.0.11",
+    "expo-linear-gradient": "~15.0.8",
     "expo-router": "~6.0.23",
+    "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-updates": "~29.0.16",
     "lodash": "^4.18.1",

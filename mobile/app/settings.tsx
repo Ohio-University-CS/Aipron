@@ -1,25 +1,72 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Switch,
+  Alert,
+  Platform,
+} from "react-native";
 import Constants from "expo-constants";
-import { Ionicons } from "@expo/vector-icons";
-import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import {
+  spacing,
+  borderRadius,
+  shadows,
+  fonts,
+} from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
+import { TopBar } from "../src/components/TopBar";
+import { Chip } from "../src/components/Chip";
 import { useThemeStore } from "../src/store/useThemeStore";
 import { useSettingsStore, type AppLanguage } from "../src/store/useSettingsStore";
+import { useAuthStore } from "../src/store/useAuthStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type SubView =
   | null
   | "language"
   | "dietary"
-  | "export"
   | "clearCache"
   | "privacy"
   | "appVersion"
   | "terms"
+  | "help"
   | "rate";
 
 interface SettingsScreenProps {
   onBack?: () => void;
+}
+
+type ThemeChoice = "light" | "dark" | "system";
+
+const DIETARY_OPTIONS: {
+  key: keyof DietaryState;
+  label: string;
+  icon: string;
+}[] = [
+  { key: "vegetarian", label: "Vegetarian", icon: "eco" },
+  { key: "vegan", label: "Vegan", icon: "spa" },
+  { key: "glutenFree", label: "Gluten-Free", icon: "grain" },
+  { key: "dairyFree", label: "Dairy-Free", icon: "water-drop" },
+  { key: "nutFree", label: "Nut-Free", icon: "block" },
+  { key: "halal", label: "Halal", icon: "check-circle" },
+  { key: "keto", label: "Keto", icon: "local-fire-department" },
+  { key: "lowCarb", label: "Low Carb", icon: "trending-down" },
+];
+
+interface DietaryState {
+  vegetarian: boolean;
+  vegan: boolean;
+  glutenFree: boolean;
+  dairyFree: boolean;
+  nutFree: boolean;
+  halal: boolean;
+  keto: boolean;
+  lowCarb: boolean;
 }
 
 function formatAboutVersionLine(): string {
@@ -31,16 +78,19 @@ function formatAboutVersionLine(): string {
 }
 
 export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
-  const c = useThemeColors();
-  const { mode, toggleMode } = useThemeStore();
-  const isDark = mode === "dark";
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const theme = useThemeColors();
+  const { mode, setMode } = useThemeStore();
   const { language: selectedLanguage, setLanguage: setSelectedLanguage } = useSettingsStore();
+  const { user, logout } = useAuthStore();
 
   const [subView, setSubView] = useState<SubView>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [cookingTimerSound, setCookingTimerSound] = useState(true);
-  const [metricUnits, setMetricUnits] = useState(true);
-  const [dietaryPrefs, setDietaryPrefs] = useState({
+  const [recipeReminders, setRecipeReminders] = useState(true);
+  const [weeklyInspiration, setWeeklyInspiration] = useState(true);
+  const [cookingTimerAlerts, setCookingTimerAlerts] = useState(true);
+  const [themeChoice, setThemeChoice] = useState<ThemeChoice>(mode);
+  const [dietaryPrefs, setDietaryPrefs] = useState<DietaryState>({
     vegetarian: false,
     vegan: false,
     glutenFree: false,
@@ -53,100 +103,186 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   const [userRating, setUserRating] = useState(0);
   const [cacheCleared, setCacheCleared] = useState(false);
 
-  const toggleDietaryPref = (key: keyof typeof dietaryPrefs) => {
+  const toggleDietaryPref = (key: keyof DietaryState) => {
     setDietaryPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const ToggleRow = ({
-    icon,
-    label,
-    value,
-    onToggle,
-    iconColor,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-    value: boolean;
-    onToggle: () => void;
-    iconColor?: string;
-  }) => (
-    <View style={[styles.row, { backgroundColor: c.surface, borderBottomColor: c.border }]}>
-      <View style={[styles.rowIconWrap, { backgroundColor: (iconColor ?? c.primary) + "18" }]}>
-        <Ionicons name={icon} size={18} color={iconColor ?? c.primary} />
-      </View>
-      <Text style={[styles.rowLabel, { color: c.text }]}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: c.border, true: c.primary }}
-        thumbColor="#FFFFFF"
-      />
-    </View>
+  const pickTheme = (choice: ThemeChoice) => {
+    setThemeChoice(choice);
+    if (choice === "system") {
+      // fallback to light; store doesn't track system yet
+      setMode("light");
+    } else {
+      setMode(choice);
+    }
+  };
+
+  const topBarHeight = insets.top + spacing.sm + 56;
+
+  const userName =
+    (user?.user_metadata as any)?.name ||
+    user?.email?.split("@")[0] ||
+    "Guest cook";
+  const userEmail = user?.email ?? "Not signed in";
+
+  const handleSignOut = () => {
+    Alert.alert("Sign out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await logout();
+            router.replace("/login");
+          } catch (e) {
+            Alert.alert("Error", "Could not sign out. Please try again.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const SectionHeader = ({ title }: { title: string }) => (
+    <Text style={[styles.sectionHeader, { color: theme.onSurface }]}>{title}</Text>
   );
 
   const NavRow = ({
     icon,
     label,
     iconColor,
-    detail,
+    value,
     onPress,
+    last,
+    destructive,
   }: {
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: string;
     label: string;
     iconColor?: string;
-    detail?: string;
+    value?: string;
     onPress?: () => void;
+    last?: boolean;
+    destructive?: boolean;
   }) => (
     <TouchableOpacity
-      style={[styles.row, { backgroundColor: c.surface, borderBottomColor: c.border }]}
+      style={[
+        styles.row,
+        !last && { borderBottomColor: theme.outlineVariant + "40", borderBottomWidth: 1 },
+      ]}
       activeOpacity={0.7}
       onPress={onPress}
     >
-      <View style={[styles.rowIconWrap, { backgroundColor: (iconColor ?? c.primary) + "18" }]}>
-        <Ionicons name={icon} size={18} color={iconColor ?? c.primary} />
-      </View>
-      <Text style={[styles.rowLabel, { color: c.text }]}>{label}</Text>
-      {detail && <Text style={[styles.rowDetail, { color: c.textSecondary }]}>{detail}</Text>}
-      <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
+      <MaterialIcons
+        name={icon as any}
+        size={22}
+        color={iconColor ?? (destructive ? theme.error : theme.primary)}
+      />
+      <Text
+        style={[
+          styles.rowLabel,
+          { color: destructive ? theme.error : theme.onSurface },
+        ]}
+      >
+        {label}
+      </Text>
+      {value && (
+        <Text style={[styles.rowValue, { color: theme.onSurfaceVariant }]}>{value}</Text>
+      )}
+      {!destructive && (
+        <MaterialIcons name="chevron-right" size={22} color={theme.outline} />
+      )}
     </TouchableOpacity>
   );
 
-  const SubViewHeader = ({ title }: { title: string }) => (
-    <View style={styles.subViewHeader}>
-      <TouchableOpacity style={styles.backButton} onPress={() => setSubView(null)} activeOpacity={0.7}>
-        <Ionicons name="arrow-back" size={20} color={c.text} />
-        <Text style={[styles.backText, { color: c.text }]}>Settings</Text>
-      </TouchableOpacity>
-      <Text style={[styles.title, { color: c.text }]}>{title}</Text>
+  const SwitchRow = ({
+    icon,
+    label,
+    description,
+    value,
+    onToggle,
+    last,
+  }: {
+    icon: string;
+    label: string;
+    description?: string;
+    value: boolean;
+    onToggle: (v: boolean) => void;
+    last?: boolean;
+  }) => (
+    <View
+      style={[
+        styles.row,
+        !last && { borderBottomColor: theme.outlineVariant + "40", borderBottomWidth: 1 },
+      ]}
+    >
+      <MaterialIcons name={icon as any} size={22} color={theme.primary} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowLabel, { color: theme.onSurface, flex: 0 }]}>{label}</Text>
+        {description && (
+          <Text style={[styles.rowDescription, { color: theme.onSurfaceVariant }]}>
+            {description}
+          </Text>
+        )}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{
+          false: theme.outlineVariant,
+          true: theme.primary,
+        }}
+        thumbColor={
+          Platform.OS === "android"
+            ? value
+              ? theme.onPrimary
+              : theme.surfaceContainerHighest
+            : undefined
+        }
+        ios_backgroundColor={theme.outlineVariant}
+      />
     </View>
   );
 
-  const SectionHeader = ({ title }: { title: string }) => (
-    <Text style={[styles.sectionHeader, { color: c.textSecondary }]}>{title}</Text>
+  const SubViewHeader = ({ title }: { title: string }) => (
+    <View style={[styles.subViewHeader, { paddingTop: topBarHeight + spacing.md }]}>
+      <TouchableOpacity
+        style={styles.backRow}
+        onPress={() => setSubView(null)}
+        activeOpacity={0.7}
+      >
+        <MaterialIcons name="arrow-back" size={20} color={theme.onSurface} />
+        <Text style={[styles.backText, { color: theme.onSurface }]}>Settings</Text>
+      </TouchableOpacity>
+      <Text style={[styles.subViewTitle, { color: theme.onSurface }]}>{title}</Text>
+    </View>
   );
 
   // --- Sub-views ---
-
   if (subView === "language") {
-    const languages: AppLanguage[] = ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Japanese", "Korean", "Chinese"];
+    const languages: AppLanguage[] = [
+      "English", "Spanish", "French", "German", "Italian", "Portuguese", "Japanese", "Korean", "Chinese",
+    ];
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SubViewHeader title="Language" />
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          <View style={styles.card}>
-            {languages.map((lang) => (
+          <View style={[styles.card, { backgroundColor: theme.surfaceContainerLowest, marginHorizontal: spacing.screenPadding }]}>
+            {languages.map((lang, idx) => (
               <TouchableOpacity
                 key={lang}
-                style={[styles.row, { backgroundColor: c.surface, borderBottomColor: c.border }]}
+                style={[
+                  styles.row,
+                  idx < languages.length - 1 && {
+                    borderBottomColor: theme.outlineVariant + "40",
+                    borderBottomWidth: 1,
+                  },
+                ]}
                 activeOpacity={0.7}
-                onPress={() => {
-                  setSelectedLanguage(lang);
-                  setSubView(null);
-                }}
+                onPress={() => { setSelectedLanguage(lang); setSubView(null); }}
               >
-                <Text style={[styles.rowLabel, { color: c.text }]}>{lang}</Text>
+                <Text style={[styles.rowLabel, { color: theme.onSurface }]}>{lang}</Text>
                 {selectedLanguage === lang && (
-                  <Ionicons name="checkmark-circle" size={22} color={c.primary} />
+                  <MaterialIcons name="check-circle" size={22} color={theme.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -157,32 +293,22 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   }
 
   if (subView === "dietary") {
-    const prefs: { key: keyof typeof dietaryPrefs; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-      { key: "vegetarian", label: "Vegetarian", icon: "leaf-outline", color: "#10B981" },
-      { key: "vegan", label: "Vegan", icon: "flower-outline", color: "#059669" },
-      { key: "glutenFree", label: "Gluten-Free", icon: "warning-outline", color: "#F59E0B" },
-      { key: "dairyFree", label: "Dairy-Free", icon: "water-outline", color: "#3B82F6" },
-      { key: "nutFree", label: "Nut-Free", icon: "close-circle-outline", color: "#EF4444" },
-      { key: "halal", label: "Halal", icon: "checkmark-circle-outline", color: "#8B5CF6" },
-      { key: "keto", label: "Keto", icon: "flame-outline", color: "#F97316" },
-      { key: "lowCarb", label: "Low Carb", icon: "trending-down-outline", color: "#14B8A6" },
-    ];
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SubViewHeader title="Dietary Preferences" />
-        <Text style={[styles.subDescription, { color: c.textSecondary }]}>
-          Select your dietary preferences to get personalized recipe suggestions.
+        <Text style={[styles.subDescription, { color: theme.onSurfaceVariant }]}>
+          Select preferences to personalize recipe suggestions.
         </Text>
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          <View style={styles.card}>
-            {prefs.map((p) => (
-              <ToggleRow
+        <ScrollView style={styles.scroll} contentContainerStyle={{ paddingHorizontal: spacing.screenPadding }} showsVerticalScrollIndicator={false}>
+          <View style={styles.chipWrap}>
+            {DIETARY_OPTIONS.map((p) => (
+              <Chip
                 key={p.key}
-                icon={p.icon}
                 label={p.label}
-                value={dietaryPrefs[p.key]}
-                onToggle={() => toggleDietaryPref(p.key)}
-                iconColor={p.color}
+                selected={dietaryPrefs[p.key]}
+                variant={dietaryPrefs[p.key] ? "filled" : "outlined"}
+                icon={dietaryPrefs[p.key] ? "check" : undefined}
+                onPress={() => toggleDietaryPref(p.key)}
               />
             ))}
           </View>
@@ -191,25 +317,28 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
     );
   }
 
-  if (subView === "export") {
+  if (subView === "help") {
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
-        <SubViewHeader title="Export My Data" />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <SubViewHeader title="Help & Support" />
         <View style={styles.centeredContent}>
-          <View style={[styles.bigIconWrap, { backgroundColor: "#6366F1" + "18" }]}>
-            <Ionicons name="cloud-download-outline" size={48} color="#6366F1" />
+          <View style={[styles.bigIconWrap, { backgroundColor: theme.primaryContainer + "40" }]}>
+            <MaterialIcons name="help-outline" size={48} color={theme.primary} />
           </View>
-          <Text style={[styles.centeredTitle, { color: c.text }]}>Download Your Data</Text>
-          <Text style={[styles.centeredDescription, { color: c.textSecondary }]}>
-            Export all your recipes, preferences, and cooking history as a downloadable file.
+          <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>Help &amp; FAQ</Text>
+          <Text style={[styles.centeredDescription, { color: theme.onSurfaceVariant }]}>
+            In-app support is coming soon. For now, ask AIpron directly in chat — it can walk you through most features.
           </Text>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: c.primary }]}
+            style={[styles.actionButton, { backgroundColor: theme.primary }]}
             activeOpacity={0.7}
-            onPress={() => Alert.alert("Export Started", "Your data export is being prepared. You'll receive a notification when it's ready.")}
+            onPress={() => {
+              setSubView(null);
+              router.push("/(tabs)/chat");
+            }}
           >
-            <Ionicons name="download-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Request Data Export</Text>
+            <MaterialIcons name="chat-bubble-outline" size={20} color={theme.onPrimary} />
+            <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>Ask AIpron</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -218,28 +347,32 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
 
   if (subView === "clearCache") {
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SubViewHeader title="Clear Cache" />
         <View style={styles.centeredContent}>
-          <View style={[styles.bigIconWrap, { backgroundColor: "#EF4444" + "18" }]}>
-            <Ionicons name={cacheCleared ? "checkmark-circle" : "trash-outline"} size={48} color={cacheCleared ? "#10B981" : "#EF4444"} />
+          <View style={[styles.bigIconWrap, { backgroundColor: (cacheCleared ? theme.primary : theme.error) + "20" }]}>
+            <MaterialIcons
+              name={cacheCleared ? "check-circle" : "delete-outline"}
+              size={48}
+              color={cacheCleared ? theme.primary : theme.error}
+            />
           </View>
-          <Text style={[styles.centeredTitle, { color: c.text }]}>
+          <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>
             {cacheCleared ? "Cache Cleared!" : "Clear App Cache"}
           </Text>
-          <Text style={[styles.centeredDescription, { color: c.textSecondary }]}>
+          <Text style={[styles.centeredDescription, { color: theme.onSurfaceVariant }]}>
             {cacheCleared
               ? "All cached data has been removed. The app may take a moment to reload images and data."
               : "Free up storage by removing cached images, search results, and temporary data. Your saved recipes and account data won't be affected."}
           </Text>
           {!cacheCleared && (
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: "#EF4444" }]}
+              style={[styles.actionButton, { backgroundColor: theme.error }]}
               activeOpacity={0.7}
               onPress={() => setCacheCleared(true)}
             >
-              <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Clear Cache</Text>
+              <MaterialIcons name="delete-outline" size={20} color={theme.onError} />
+              <Text style={[styles.actionButtonText, { color: theme.onError }]}>Clear Cache</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -249,30 +382,30 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
 
   if (subView === "privacy") {
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SubViewHeader title="Privacy Policy" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.textContent} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.docTitle, { color: c.text }]}>Privacy Policy</Text>
-          <Text style={[styles.docDate, { color: c.textSecondary }]}>Last updated: March 2026</Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>1. Information We Collect</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docTitle, { color: theme.onSurface }]}>Privacy Policy</Text>
+          <Text style={[styles.docDate, { color: theme.onSurfaceVariant }]}>Last updated: March 2026</Text>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>1. Information We Collect</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             We collect information you provide when creating an account, including your email address, name, and dietary preferences. We also collect usage data such as recipe views, cooking history, and app interaction patterns.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>2. How We Use Your Information</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>2. How We Use Your Information</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             Your information is used to personalize recipe recommendations, improve our AI cooking assistant, and provide customer support. We never sell your personal data to third parties.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>3. Data Storage & Security</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>3. Data Storage & Security</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             All data is encrypted in transit and at rest. We use industry-standard security measures to protect your information. You can request data deletion at any time.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>4. Cookies & Analytics</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>4. Cookies & Analytics</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             We use analytics to understand how users interact with the app. You can opt out of analytics tracking in the notification settings.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>5. Contact Us</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
-            If you have questions about this privacy policy, please contact us at privacy@aipron.app.
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>5. Contact Us</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
+            If you have questions about this privacy policy, please reach out through the in-app support flow.
           </Text>
           <View style={{ height: spacing.xxl * 2 }} />
         </ScrollView>
@@ -282,29 +415,29 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
 
   if (subView === "terms") {
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SubViewHeader title="Terms of Service" />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.textContent} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.docTitle, { color: c.text }]}>Terms of Service</Text>
-          <Text style={[styles.docDate, { color: c.textSecondary }]}>Effective: March 2026</Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>1. Acceptance of Terms</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docTitle, { color: theme.onSurface }]}>Terms of Service</Text>
+          <Text style={[styles.docDate, { color: theme.onSurfaceVariant }]}>Effective: March 2026</Text>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>1. Acceptance of Terms</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             By using AIpron, you agree to these Terms of Service. If you do not agree, please do not use the app.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>2. Use of Service</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>2. Use of Service</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             AIpron provides AI-powered cooking assistance, recipe suggestions, and meal planning tools. The service is intended for personal, non-commercial use.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>3. User Accounts</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>3. User Accounts</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             You are responsible for maintaining the confidentiality of your account credentials. You agree to notify us immediately of any unauthorized use.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>4. Content & Recipes</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>4. Content & Recipes</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             Recipes generated by our AI are suggestions only. Always verify ingredient safety, especially for allergies. AIpron is not liable for adverse reactions.
           </Text>
-          <Text style={[styles.docHeading, { color: c.text }]}>5. Limitation of Liability</Text>
-          <Text style={[styles.docBody, { color: c.textSecondary }]}>
+          <Text style={[styles.docHeading, { color: theme.onSurface }]}>5. Limitation of Liability</Text>
+          <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
             AIpron is provided "as is" without warranties. We are not liable for any indirect, incidental, or consequential damages arising from your use of the service.
           </Text>
           <View style={{ height: spacing.xxl * 2 }} />
@@ -315,22 +448,24 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
 
   if (subView === "appVersion") {
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SubViewHeader title="About AIpron" />
         <View style={styles.centeredContent}>
-          <View style={[styles.bigIconWrap, { backgroundColor: "#8B5CF6" + "18" }]}>
+          <View style={[styles.bigIconWrap, { backgroundColor: theme.primaryContainer + "40" }]}>
             <Text style={{ fontSize: 42 }}>🍳</Text>
           </View>
-          <Text style={[styles.centeredTitle, { color: c.text }]}>AIpron</Text>
-          <Text style={[styles.versionText, { color: c.primary }]}>{formatAboutVersionLine()}</Text>
-          <Text style={[styles.centeredDescription, { color: c.textSecondary }]}>
+          <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>AIpron</Text>
+          <Text style={[styles.versionText, { color: theme.primary }]}>
+            {formatAboutVersionLine()}
+          </Text>
+          <Text style={[styles.centeredDescription, { color: theme.onSurfaceVariant }]}>
             Your AI-powered cooking companion. Personalized recipes, smart pantry management, and step-by-step cooking guidance.
           </Text>
-          <View style={[styles.infoCard, { backgroundColor: c.surface }]}>
-            <InfoRow label="Platform" value="React Native / Expo" color={c} />
-            <InfoRow label="API Version" value="v1.1" color={c} />
-            <InfoRow label="Last Updated" value="April 2026" color={c} />
-            <InfoRow label="Developer" value="AIpron Team" color={c} last />
+          <View style={[styles.infoCard, { backgroundColor: theme.surfaceContainerLowest }]}>
+            <InfoRow label="Platform" value="React Native / Expo" theme={theme} />
+            <InfoRow label="API Version" value="v1.1" theme={theme} />
+            <InfoRow label="Last Updated" value="April 2026" theme={theme} />
+            <InfoRow label="Developer" value="AIpron Team" theme={theme} last />
           </View>
         </View>
       </View>
@@ -339,18 +474,18 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
 
   if (subView === "rate") {
     return (
-      <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <SubViewHeader title="Rate AIpron" />
         <View style={styles.centeredContent}>
-          <View style={[styles.bigIconWrap, { backgroundColor: "#F59E0B" + "18" }]}>
+          <View style={[styles.bigIconWrap, { backgroundColor: theme.tertiaryContainer + "40" }]}>
             <Text style={{ fontSize: 42 }}>
               {userRating >= 4 ? "🤩" : userRating >= 2 ? "😊" : "⭐"}
             </Text>
           </View>
-          <Text style={[styles.centeredTitle, { color: c.text }]}>
+          <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>
             {userRating > 0 ? "Thanks for rating!" : "Enjoying AIpron?"}
           </Text>
-          <Text style={[styles.centeredDescription, { color: c.textSecondary }]}>
+          <Text style={[styles.centeredDescription, { color: theme.onSurfaceVariant }]}>
             {userRating > 0
               ? `You gave us ${userRating} star${userRating > 1 ? "s" : ""}. Your feedback helps us improve!`
               : "Tap a star to let us know how we're doing. Your feedback helps us improve!"}
@@ -358,21 +493,23 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
           <View style={styles.starsRow}>
             {[1, 2, 3, 4, 5].map((star) => (
               <TouchableOpacity key={star} onPress={() => setUserRating(star)} activeOpacity={0.7}>
-                <Ionicons
+                <MaterialIcons
                   name={star <= userRating ? "star" : "star-outline"}
                   size={40}
-                  color={star <= userRating ? "#F59E0B" : c.textDisabled}
+                  color={star <= userRating ? theme.tertiary : theme.outline}
                 />
               </TouchableOpacity>
             ))}
           </View>
           {userRating > 0 && (
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: c.primary }]}
+              style={[styles.actionButton, { backgroundColor: theme.primary }]}
               activeOpacity={0.7}
               onPress={() => Alert.alert("Thank you!", "Your rating has been submitted.")}
             >
-              <Text style={styles.actionButtonText}>Submit Rating</Text>
+              <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>
+                Submit Rating
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -381,85 +518,228 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   }
 
   // --- Main settings view ---
+  const activeDietaryCount = Object.values(dietaryPrefs).filter(Boolean).length;
+
   return (
-    <View style={[styles.container, { backgroundColor: c.background }]}>
-      {onBack && (
-        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={c.text} />
-          <Text style={[styles.backText, { color: c.text }]}>Back</Text>
-        </TouchableOpacity>
-      )}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <TopBar title="Settings" showBack onBackPress={onBack ?? (() => router.back())} />
 
-      <Text style={[styles.title, { color: c.text }]}>Settings</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: topBarHeight + spacing.lg, paddingBottom: 120 + insets.bottom },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.inner}>
+          {/* Hero profile summary card */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[styles.profileCard, { backgroundColor: theme.surfaceContainerLow }]}
+            onPress={() => Alert.alert("Profile", "Profile editing coming soon.")}
+          >
+            <View
+              style={[
+                styles.profileAvatar,
+                {
+                  backgroundColor: theme.surfaceContainerHighest,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="person"
+                size={44}
+                color={theme.outline}
+                style={{ marginTop: 6 }}
+              />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[styles.profileName, { color: theme.onSurface }]} numberOfLines={1}>
+                {userName}
+              </Text>
+              <Text style={[styles.profileEmail, { color: theme.onSurfaceVariant }]} numberOfLines={1}>
+                {userEmail}
+              </Text>
+              <Text style={[styles.profileStats, { color: theme.tertiary }]}>
+                {activeDietaryCount} dietary preference{activeDietaryCount === 1 ? "" : "s"}
+                {"  ·  "}
+                Premium member
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={22} color={theme.outline} />
+          </TouchableOpacity>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <SectionHeader title="APPEARANCE" />
-        <View style={styles.card}>
-          <ToggleRow
-            icon={isDark ? "moon" : "sunny"}
-            label="Dark Mode"
-            value={isDark}
-            onToggle={toggleMode}
-            iconColor={isDark ? "#7C3AED" : "#FF9800"}
-          />
+          {/* Preferences */}
+          <SectionHeader title="Preferences" />
+          <Text style={[styles.sectionHint, { color: theme.onSurfaceVariant }]}>
+            Tap a chip to toggle your default filters for recipe discovery.
+          </Text>
+          <View style={styles.chipWrap}>
+            {DIETARY_OPTIONS.map((p) => (
+              <Chip
+                key={p.key}
+                label={p.label}
+                selected={dietaryPrefs[p.key]}
+                variant={dietaryPrefs[p.key] ? "filled" : "outlined"}
+                icon={dietaryPrefs[p.key] ? "check" : undefined}
+                onPress={() => toggleDietaryPref(p.key)}
+              />
+            ))}
+          </View>
+          <View style={[styles.card, { backgroundColor: theme.surfaceContainerLowest, marginTop: spacing.lg }]}>
+            <NavRow
+              icon="language"
+              label="Language"
+              value={selectedLanguage}
+              onPress={() => setSubView("language")}
+              last
+            />
+          </View>
+
+          {/* Appearance */}
+          <SectionHeader title="Appearance" />
+          <View style={[styles.segmentedRow, { backgroundColor: theme.surfaceContainer }]}>
+            {(["light", "dark", "system"] as const).map((opt) => {
+              const active = themeChoice === opt;
+              const label = opt === "light" ? "Light" : opt === "dark" ? "Dark" : "System";
+              const icon: string =
+                opt === "light" ? "wb-sunny" : opt === "dark" ? "nightlight-round" : "settings-brightness";
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={[
+                    styles.segmentPill,
+                    active && { backgroundColor: theme.primaryContainer },
+                  ]}
+                  onPress={() => pickTheme(opt)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name={icon as any}
+                    size={16}
+                    color={active ? theme.onPrimaryContainer : theme.onSurfaceVariant}
+                  />
+                  <Text
+                    style={[
+                      styles.segmentLabel,
+                      {
+                        color: active ? theme.onPrimaryContainer : theme.onSurfaceVariant,
+                      },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Notifications */}
+          <SectionHeader title="Notifications" />
+          <View style={[styles.card, { backgroundColor: theme.surfaceContainerLowest }]}>
+            <SwitchRow
+              icon="restaurant"
+              label="Recipe reminders"
+              description="Daily nudges to try something new"
+              value={recipeReminders}
+              onToggle={setRecipeReminders}
+            />
+            <SwitchRow
+              icon="auto-awesome"
+              label="Weekly inspiration"
+              description="Editorial picks every Sunday"
+              value={weeklyInspiration}
+              onToggle={setWeeklyInspiration}
+            />
+            <SwitchRow
+              icon="timer"
+              label="Cooking timer alerts"
+              description="Never forget something on the stove"
+              value={cookingTimerAlerts}
+              onToggle={setCookingTimerAlerts}
+              last
+            />
+          </View>
+
+          {/* Account */}
+          <SectionHeader title="Account" />
+          <View style={[styles.card, { backgroundColor: theme.surfaceContainerLowest }]}>
+            <NavRow
+              icon="mail-outline"
+              label="Email"
+              value={userEmail}
+              onPress={() => Alert.alert("Email", "Change email is coming soon.")}
+            />
+            <NavRow
+              icon="lock-outline"
+              label="Password"
+              onPress={() => Alert.alert("Password", "Change password is coming soon.")}
+            />
+            <NavRow
+              icon="logout"
+              label="Sign out"
+              onPress={handleSignOut}
+              destructive
+              last
+            />
+          </View>
+
+          {/* About */}
+          <SectionHeader title="About" />
+          <View style={[styles.card, { backgroundColor: theme.surfaceContainerLowest }]}>
+            <NavRow icon="help-outline" label="Help" onPress={() => setSubView("help")} />
+            <NavRow icon="verified-user" label="Privacy Policy" onPress={() => setSubView("privacy")} />
+            <NavRow icon="description" label="Terms of Service" onPress={() => setSubView("terms")} />
+            <NavRow icon="star-outline" label="Rate the app" onPress={() => setSubView("rate")} />
+            <NavRow
+              icon="info-outline"
+              label="App version"
+              value={formatAboutVersionLine().replace("Version ", "")}
+              onPress={() => setSubView("appVersion")}
+              last
+            />
+          </View>
+
+          {/* Editorial quote footer */}
+          <View style={[styles.quoteCard, { backgroundColor: theme.surfaceContainerLow }]}>
+            <Text style={[styles.editorialKicker, { color: theme.primary }]}>Editor's Note</Text>
+            <Text style={[styles.editorialQuote, { color: theme.onSurface }]}>
+              "Cooking is the most ancient of the arts — and the most personal."
+            </Text>
+            <Text style={[styles.editorialByline, { color: theme.onSurfaceVariant }]}>
+              — the AIpron team
+            </Text>
+          </View>
         </View>
-
-        <SectionHeader title="NOTIFICATIONS" />
-        <View style={styles.card}>
-          <ToggleRow
-            icon="notifications-outline"
-            label="Push Notifications"
-            value={notificationsEnabled}
-            onToggle={() => setNotificationsEnabled((v) => !v)}
-            iconColor="#EF4444"
-          />
-          <ToggleRow
-            icon="musical-note-outline"
-            label="Timer Sound"
-            value={cookingTimerSound}
-            onToggle={() => setCookingTimerSound((v) => !v)}
-            iconColor="#EC4899"
-          />
-        </View>
-
-        <SectionHeader title="PREFERENCES" />
-        <View style={styles.card}>
-          <ToggleRow
-            icon="scale-outline"
-            label="Metric Units"
-            value={metricUnits}
-            onToggle={() => setMetricUnits((v) => !v)}
-            iconColor="#10B981"
-          />
-          <NavRow icon="language-outline" label="Language" iconColor="#3B82F6" detail={selectedLanguage} onPress={() => setSubView("language")} />
-          <NavRow icon="nutrition-outline" label="Dietary Preferences" iconColor="#F59E0B" onPress={() => setSubView("dietary")} />
-        </View>
-
-        <SectionHeader title="DATA & PRIVACY" />
-        <View style={styles.card}>
-          <NavRow icon="cloud-download-outline" label="Export My Data" iconColor="#6366F1" onPress={() => setSubView("export")} />
-          <NavRow icon="trash-outline" label="Clear Cache" iconColor="#EF4444" onPress={() => { setCacheCleared(false); setSubView("clearCache"); }} />
-          <NavRow icon="shield-checkmark-outline" label="Privacy Policy" iconColor="#14B8A6" onPress={() => setSubView("privacy")} />
-        </View>
-
-        <SectionHeader title="ABOUT" />
-        <View style={styles.card}>
-          <NavRow icon="information-circle-outline" label="App Version" iconColor="#8B5CF6" detail="1.0.0" onPress={() => setSubView("appVersion")} />
-          <NavRow icon="document-text-outline" label="Terms of Service" iconColor="#64748B" onPress={() => setSubView("terms")} />
-          <NavRow icon="star-outline" label="Rate the App" iconColor="#F59E0B" onPress={() => setSubView("rate")} />
-        </View>
-
-        <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </View>
   );
 }
 
-function InfoRow({ label, value, color, last }: { label: string; value: string; color: ReturnType<typeof useThemeColors>; last?: boolean }) {
+function InfoRow({
+  label,
+  value,
+  theme,
+  last,
+}: {
+  label: string;
+  value: string;
+  theme: ReturnType<typeof useThemeColors>;
+  last?: boolean;
+}) {
   return (
-    <View style={[styles.infoRow, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.border }]}>
-      <Text style={[styles.infoLabel, { color: color.textSecondary }]}>{label}</Text>
-      <Text style={[styles.infoValue, { color: color.text }]}>{value}</Text>
+    <View
+      style={[
+        styles.infoRow,
+        !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.outlineVariant + "40" },
+      ]}
+    >
+      <Text style={[styles.infoLabel, { color: theme.onSurfaceVariant }]}>{label}</Text>
+      <Text style={[styles.infoValue, { color: theme.onSurface }]}>{value}</Text>
     </View>
   );
 }
@@ -467,76 +747,164 @@ function InfoRow({ label, value, color, last }: { label: string; value: string; 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
   },
-  backButton: {
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.screenPadding,
+  },
+  inner: {
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
+  },
+  profileCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.xl,
+    borderRadius: 24,
+    gap: spacing.lg,
+    ...shadows.sm,
+  },
+  profileAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  profileName: {
+    fontFamily: fonts.serifBold,
+    fontSize: 20,
+  },
+  profileEmail: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+  },
+  profileStats: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    marginTop: 4,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  sectionHeader: {
+    fontFamily: fonts.serifBold,
+    fontSize: 22,
+    marginTop: spacing.xxl + spacing.xs,
+    marginBottom: spacing.md,
+    letterSpacing: -0.3,
+  },
+  sectionHint: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    marginBottom: spacing.md,
+    lineHeight: 19,
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  card: {
+    borderRadius: borderRadius.xl,
+    overflow: "hidden",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  rowLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 15,
+    flex: 1,
+  },
+  rowValue: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    marginRight: spacing.xs,
+  },
+  rowDescription: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  segmentedRow: {
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: borderRadius.full,
+    gap: 4,
+  },
+  segmentPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
+    gap: 6,
+  },
+  segmentLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 13,
+  },
+  quoteCard: {
+    marginTop: spacing.sectionGap,
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xl,
+    gap: spacing.xs,
+    ...shadows.sm,
+  },
+  editorialKicker: {
+    fontFamily: fonts.sansBold,
+    fontSize: 10,
+    letterSpacing: 3,
+    textTransform: "uppercase",
+  },
+  editorialQuote: {
+    fontFamily: fonts.serifBoldItalic,
+    fontSize: 22,
+    lineHeight: 30,
+    marginTop: spacing.sm,
+  },
+  editorialByline: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    marginTop: spacing.sm,
+  },
+  subViewHeader: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.md,
+  },
+  backRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
     paddingVertical: spacing.sm,
   },
   backText: {
-    ...typography.body,
+    fontFamily: fonts.sans,
+    fontSize: 15,
   },
-  title: {
-    ...typography.h2,
-    marginBottom: spacing.md,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 80,
-  },
-  sectionHeader: {
-    ...typography.caption,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.xs,
-  },
-  card: {
-    borderRadius: borderRadius.lg,
-    overflow: "hidden",
-    ...shadows.sm,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    gap: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  rowIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: borderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowLabel: {
-    ...typography.body,
-    flex: 1,
-  },
-  rowDetail: {
-    ...typography.caption,
-    marginRight: spacing.xs,
-  },
-  subViewHeader: {
-    marginBottom: spacing.sm,
+  subViewTitle: {
+    fontFamily: fonts.serifBold,
+    fontSize: 28,
+    marginTop: spacing.sm,
   },
   subDescription: {
-    ...typography.caption,
+    fontFamily: fonts.sans,
+    fontSize: 13,
     marginBottom: spacing.md,
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: spacing.screenPadding,
   },
   centeredContent: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: 80,
   },
   bigIconWrap: {
@@ -548,18 +916,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   centeredTitle: {
-    ...typography.h2,
+    fontFamily: fonts.serifBold,
+    fontSize: 24,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
   centeredDescription: {
-    ...typography.body,
+    fontFamily: fonts.sans,
+    fontSize: 15,
     textAlign: "center",
+    lineHeight: 22,
     marginBottom: spacing.xl,
   },
   versionText: {
-    ...typography.caption,
-    fontWeight: "600",
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 13,
     marginBottom: spacing.md,
   },
   actionButton: {
@@ -572,9 +943,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   actionButtonText: {
-    ...typography.body,
-    color: "#FFFFFF",
-    fontWeight: "600",
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 15,
   },
   starsRow: {
     flexDirection: "row",
@@ -582,29 +952,33 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   textContent: {
+    paddingHorizontal: spacing.screenPadding,
     paddingBottom: 80,
   },
   docTitle: {
-    ...typography.h2,
+    fontFamily: fonts.serifBold,
+    fontSize: 24,
     marginBottom: spacing.xs,
   },
   docDate: {
-    ...typography.caption,
+    fontFamily: fonts.sans,
+    fontSize: 13,
     marginBottom: spacing.xl,
   },
   docHeading: {
-    ...typography.body,
-    fontWeight: "600",
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 16,
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
   docBody: {
-    ...typography.body,
+    fontFamily: fonts.sans,
+    fontSize: 15,
     lineHeight: 22,
   },
   infoCard: {
     width: "100%",
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     overflow: "hidden",
     ...shadows.sm,
   },
@@ -616,10 +990,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   infoLabel: {
-    ...typography.caption,
+    fontFamily: fonts.sans,
+    fontSize: 13,
   },
   infoValue: {
-    ...typography.body,
-    fontWeight: "500",
+    fontFamily: fonts.sansMedium,
+    fontSize: 15,
   },
 });

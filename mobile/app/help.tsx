@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, borderRadius, typography, shadows } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 
@@ -43,6 +45,9 @@ interface HelpScreenProps {
 
 export default function HelpScreen({ onBack }: HelpScreenProps = {}) {
   const c = useThemeColors();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const handleBack = onBack ?? (() => router.back());
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [contactMessage, setContactMessage] = useState("");
   const [messageSent, setMessageSent] = useState(false);
@@ -61,13 +66,11 @@ export default function HelpScreen({ onBack }: HelpScreenProps = {}) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: c.background }]}>
-      {onBack && (
-        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={c.text} />
-          <Text style={[styles.backText, { color: c.text }]}>Back</Text>
-        </TouchableOpacity>
-      )}
+    <View style={[styles.container, { backgroundColor: c.background, paddingTop: insets.top + spacing.sm }]}>
+      <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="arrow-back" size={20} color={c.text} />
+        <Text style={[styles.backText, { color: c.text }]}>Back</Text>
+      </TouchableOpacity>
 
       <Text style={[styles.title, { color: c.text }]}>Help & Support</Text>
 
@@ -102,15 +105,6 @@ export default function HelpScreen({ onBack }: HelpScreenProps = {}) {
 
         <Text style={[styles.sectionHeader, { color: c.textSecondary }]}>CONTACT US</Text>
         <View style={[styles.card, { ...shadows.sm }]}>
-          <View style={[styles.contactRow, { backgroundColor: c.surface, borderBottomColor: c.border }]}>
-            <View style={[styles.contactIconWrap, { backgroundColor: "#2196F3" + "18" }]}>
-              <Ionicons name="mail-outline" size={18} color="#2196F3" />
-            </View>
-            <View style={styles.contactInfo}>
-              <Text style={[styles.contactLabel, { color: c.text }]}>Email</Text>
-              <Text style={[styles.contactValue, { color: c.textSecondary }]}>support@aipron.app</Text>
-            </View>
-          </View>
           <View style={[styles.contactRow, { backgroundColor: c.surface, borderBottomColor: c.border, borderBottomWidth: 0 }]}>
             <View style={[styles.contactIconWrap, { backgroundColor: "#10B981" + "18" }]}>
               <Ionicons name="chatbubble-outline" size={18} color="#10B981" />

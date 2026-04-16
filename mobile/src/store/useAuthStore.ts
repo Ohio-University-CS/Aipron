@@ -27,14 +27,24 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }),
 
   initialize: () => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      set({
-        session,
-        user: session?.user ?? null,
-        isAuthenticated: !!session,
-        isLoading: false,
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        set({
+          session,
+          user: session?.user ?? null,
+          isAuthenticated: !!session,
+          isLoading: false,
+        });
+      })
+      .catch(() => {
+        set({
+          session: null,
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
       });
-    });
 
     const {
       data: { subscription },
@@ -43,6 +53,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         session,
         user: session?.user ?? null,
         isAuthenticated: !!session,
+        isLoading: false,
       });
     });
 

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400;1,700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary": "#ffffff",
+                    "secondary-fixed": "#ffdbd0",
+                    "on-secondary-fixed": "#2c160e",
+                    "tertiary-container": "#ffbc8d",
+                    "on-tertiary-container": "#864300",
+                    "inverse-primary": "#f0c12c",
+                    "surface-dim": "#dbdad6",
+                    "primary-fixed": "#ffdf90",
+                    "on-secondary-fixed-variant": "#5d4037",
+                    "surface-container-highest": "#e4e2de",
+                    "on-error-container": "#93000a",
+                    "on-primary-fixed-variant": "#584400",
+                    "surface-variant": "#e4e2de",
+                    "surface": "#fbf9f5",
+                    "secondary-container": "#fed3c7",
+                    "on-primary-fixed": "#241a00",
+                    "on-primary": "#ffffff",
+                    "outline": "#807661",
+                    "background": "#fbf9f5",
+                    "surface-bright": "#fbf9f5",
+                    "secondary-fixed-dim": "#e7bdb1",
+                    "on-surface-variant": "#4e4634",
+                    "primary-container": "#f4c430",
+                    "tertiary-fixed": "#ffdcc5",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed-variant": "#713700",
+                    "on-primary-container": "#695200",
+                    "secondary": "#77574d",
+                    "outline-variant": "#d1c5ad",
+                    "on-tertiary-fixed": "#301400",
+                    "on-surface": "#1b1c1a",
+                    "error": "#ba1a1a",
+                    "inverse-surface": "#30312e",
+                    "tertiary-fixed-dim": "#ffb783",
+                    "surface-container-low": "#f5f3ef",
+                    "tertiary": "#944a00",
+                    "on-secondary-container": "#795950",
+                    "primary-fixed-dim": "#f0c12c",
+                    "surface-container-high": "#eae8e4",
+                    "primary": "#755b00",
+                    "inverse-on-surface": "#f2f0ed",
+                    "error-container": "#ffdad6",
+                    "on-tertiary": "#ffffff",
+                    "surface-tint": "#755b00",
+                    "surface-container": "#efeeea",
+                    "on-error": "#ffffff",
+                    "on-background": "#1b1c1a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Noto Serif"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .sunlight-shadow {
+            box-shadow: 0 12px 40px rgba(27, 28, 26, 0.05);
+        }
+        .editorial-hero-mask {
+            border-bottom-left-radius: 4rem;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #fbf9f5;
+            color: #1b1c1a;
+        }
+        h1, h2, h3 {
+            font-family: 'Noto Serif', serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#fbf9f5]/80 dark:bg-stone-900/80 backdrop-blur-xl flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="p-2 text-[#755b00] hover:bg-[#efeeea] transition-colors rounded-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<span class="font-serif italic font-bold text-[#755b00] dark:text-[#f4c430] text-2xl tracking-tight">Aipron</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-[#77574d] hover:bg-[#efeeea] transition-colors rounded-full">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+</button>
+<button class="p-2 text-[#77574d] hover:bg-[#efeeea] transition-colors rounded-full">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+</div>
+</header>
+<main class="pt-20 pb-32 max-w-6xl mx-auto px-6 md:px-12">
+<!-- Hero Section: Asymmetric Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+<div class="lg:col-span-7 relative group">
+<div class="relative editorial-hero-mask overflow-hidden aspect-[4/5] md:aspect-square bg-surface-container-highest">
+<img alt="Lemon Ricotta Pancakes stacked high" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="Close-up of fluffy lemon ricotta pancakes stacked high on a ceramic plate, topped with fresh blueberries, a dusting of powdered sugar, and a lemon wedge in bright morning sunlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGnB0bmWFcA2QY8kKksdMiuXmx_J6HOYI9KswrePg70f04vYZsDevpoFwuTpAx3FFcVxQK03wjYk3xwdIrjeVbDptUyzVVz05r3ESgxDyw7n9K5Q7uvhT1x-4XT1IPzBqTsqCA0lMnJ1ZKvXe_awLLvzGSQzLx97e9eVuIT4660dDLbpghto0QpJL3w9XcX0qYjyqzaIeePLj2AivqrCuezreGjHCtc0vZ6LGxx6VEF2hZd34QW05gqJ5ZinN6XOuQfccp_d7ErIjb"/>
+</div>
+<!-- Chef's Tip Floating Chip -->
+<div class="absolute bottom-8 right-[-1.5rem] bg-tertiary-container text-on-tertiary-container px-6 py-3 rounded-full sunlight-shadow hidden md:flex items-center gap-2 transform rotate-2">
+<span class="material-symbols-outlined text-sm" data-icon="lightbulb">lightbulb</span>
+<span class="font-label text-sm font-semibold tracking-wide">CHEF'S TIP: DON'T OVERMIX</span>
+</div>
+</div>
+<div class="lg:col-span-5 pt-4">
+<nav class="flex gap-2 mb-6">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase">Breakfast</span>
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase">Vegetarian</span>
+</nav>
+<h1 class="text-5xl md:text-6xl font-headline leading-[1.1] mb-6 text-on-surface">Lemon Ricotta Pancakes</h1>
+<p class="text-body text-lg leading-relaxed text-on-surface-variant mb-10 italic">
+                    Cloud-like textures meet the bright, zesty notes of Meyer lemons. These are the definitive weekend brunch pancakes—elegant, effortless, and impossibly tender.
+                </p>
+<!-- Quick Stats Bento -->
+<div class="grid grid-cols-3 gap-4 mb-10">
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-primary mb-2" data-icon="timer">timer</span>
+<span class="text-xs font-label uppercase tracking-widest text-outline">Prep</span>
+<span class="font-semibold text-on-surface">10m</span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-primary mb-2" data-icon="skillet">skillet</span>
+<span class="text-xs font-label uppercase tracking-widest text-outline">Cook</span>
+<span class="font-semibold text-on-surface">20m</span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-primary mb-2" data-icon="local_fire_department">local_fire_department</span>
+<span class="text-xs font-label uppercase tracking-widest text-outline">Cals</span>
+<span class="font-semibold text-on-surface">340</span>
+</div>
+</div>
+<!-- Scaling Controls -->
+<div class="flex items-center justify-between p-6 bg-surface-container-lowest rounded-2xl sunlight-shadow">
+<div>
+<span class="text-sm font-label uppercase tracking-widest text-outline block mb-1">Yield</span>
+<span class="font-headline text-2xl text-on-surface">4 Servings</span>
+</div>
+<div class="flex items-center bg-surface-container rounded-lg p-1">
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface-container-highest rounded transition-colors text-primary">
+<span class="material-symbols-outlined" data-icon="remove">remove</span>
+</button>
+<span class="px-4 font-bold font-body">4</span>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-surface-container-highest rounded transition-colors text-primary">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Recipe Content Grid -->
+<div class="mt-24 grid grid-cols-1 lg:grid-cols-12 gap-16">
+<!-- Ingredients List -->
+<div class="lg:col-span-4">
+<h2 class="text-3xl font-headline mb-8 border-b border-outline-variant/15 pb-4">Ingredients</h2>
+<ul class="space-y-6">
+<li class="flex items-start gap-4 group">
+<div class="mt-1">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" id="ing1" type="checkbox"/>
+</div>
+<label class="text-body leading-relaxed group-hover:text-primary transition-colors cursor-pointer" for="ing1">
+<span class="font-semibold">1 ½ cups</span> All-purpose flour
+                        </label>
+</li>
+<li class="flex items-start gap-4 group">
+<div class="mt-1">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" id="ing2" type="checkbox"/>
+</div>
+<label class="text-body leading-relaxed group-hover:text-primary transition-colors cursor-pointer" for="ing2">
+<span class="font-semibold">3 ½ tbsp</span> Granulated sugar
+                        </label>
+</li>
+<li class="flex items-start gap-4 group">
+<div class="mt-1">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" id="ing3" type="checkbox"/>
+</div>
+<label class="text-body leading-relaxed group-hover:text-primary transition-colors cursor-pointer" for="ing3">
+<span class="font-semibold">¾ cup</span> Whole milk ricotta cheese, room temperature
+                        </label>
+</li>
+<li class="flex items-start gap-4 group">
+<div class="mt-1">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" id="ing4" type="checkbox"/>
+</div>
+<label class="text-body leading-relaxed group-hover:text-primary transition-colors cursor-pointer" for="ing4">
+<span class="font-semibold">1 large</span> Lemon, zested and juiced
+                        </label>
+</li>
+<li class="flex items-start gap-4 group">
+<div class="mt-1">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" id="ing5" type="checkbox"/>
+</div>
+<label class="text-body leading-relaxed group-hover:text-primary transition-colors cursor-pointer" for="ing5">
+<span class="font-semibold">2 large</span> Eggs, separated
+                        </label>
+</li>
+<li class="flex items-start gap-4 group">
+<div class="mt-1">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" id="ing6" type="checkbox"/>
+</div>
+<label class="text-body leading-relaxed group-hover:text-primary transition-colors cursor-pointer" for="ing6">
+<span class="font-semibold">1 tsp</span> Vanilla bean paste
+                        </label>
+</li>
+<li class="flex items-start gap-4 group">
+<div class="mt-1">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" id="ing7" type="checkbox"/>
+</div>
+<label class="text-body leading-relaxed group-hover:text-primary transition-colors cursor-pointer" for="ing7">
+<span class="font-semibold">½ cup</span> Fresh blueberries for serving
+                        </label>
+</li>
+</ul>
+</div>
+<!-- Instructions Section (Simplified for visual focus) -->
+<div class="lg:col-span-8">
+<h2 class="text-3xl font-headline mb-8 border-b border-outline-variant/15 pb-4">Preparation</h2>
+<div class="space-y-12">
+<div class="flex gap-8 group">
+<span class="font-headline text-5xl text-primary-container/40 group-hover:text-primary-container transition-colors duration-500 italic">01</span>
+<div>
+<h3 class="text-xl font-body font-bold mb-3">Whisk Dry Ingredients</h3>
+<p class="text-on-surface-variant leading-relaxed">In a large bowl, whisk together flour, sugar, baking powder, and salt. Make a well in the center to keep the batter light and airy.</p>
+</div>
+</div>
+<div class="flex gap-8 group">
+<span class="font-headline text-5xl text-primary-container/40 group-hover:text-primary-container transition-colors duration-500 italic">02</span>
+<div>
+<h3 class="text-xl font-body font-bold mb-3">Combine the Wet Base</h3>
+<p class="text-on-surface-variant leading-relaxed">Whisk the ricotta, milk, egg yolks, lemon juice, zest, and vanilla in a separate medium bowl until smooth. The ricotta should be creamy and well-integrated.</p>
+</div>
+</div>
+<div class="flex gap-8 group">
+<span class="font-headline text-5xl text-primary-container/40 group-hover:text-primary-container transition-colors duration-500 italic">03</span>
+<div>
+<h3 class="text-xl font-body font-bold mb-3">The "Secret" Whipped Whites</h3>
+<p class="text-on-surface-variant leading-relaxed">Beat the egg whites until stiff peaks form. Fold them gently into the main batter at the very end to ensure that signature cloud-like lift.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Action Bar -->
+<div class="fixed bottom-0 left-0 w-full bg-[#fbf9f5]/80 backdrop-blur-xl px-6 pb-8 pt-4 z-40 border-t border-[#d1c5ad]/15">
+<div class="max-w-6xl mx-auto flex items-center justify-between gap-6">
+<div class="hidden md:block">
+<span class="text-xs font-label uppercase tracking-widest text-outline block">Ready to begin?</span>
+<span class="font-headline text-xl">Let's get cooking.</span>
+</div>
+<button class="flex-1 md:flex-none md:w-80 bg-gradient-to-r from-primary to-primary-container text-on-primary-container py-4 px-8 rounded-md font-body font-bold tracking-wide sunlight-shadow hover:brightness-105 active:scale-95 transition-all">
+                Start Cooking
+            </button>
+</div>
+</div>
+<!-- Hidden BottomNavBar (Suppressed for transactional screen focus) -->
+<nav class="hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-[#fbf9f5]/80 backdrop-blur-xl shadow-[0_-4px_40px_rgba(27,28,26,0.05)] border-t border-[#d1c5ad]/15">
+<!-- Rendered invisible per "Relevance Check" rules -->
+</nav>
+</body></html>

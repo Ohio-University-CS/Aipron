@@ -18,8 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "./components/RecipeCard";
 import { ChatMessage } from "./components/ChatMessage";
-import { IngredientRow } from "./components/IngredientRow";
-import { filterLocalCatalogRecipes, findLocalCatalogRecipeById, LOCAL_CATALOG_RECIPES } from "./data/localCatalog";
+import { filterLocalCatalogRecipes, LOCAL_CATALOG_RECIPES } from "./data/localCatalog";
 import { useLocalCatalogSavedIds } from "./hooks/useLocalCatalogSavedIds";
 import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
@@ -149,10 +148,6 @@ export default function WebPreviewScreen() {
 
   const [activeTab, setActiveTab] = useState<MockTab>("home");
   const [cookingId, setCookingId] = useState<string | null>(null);
-  const [detailRecipeId, setDetailRecipeId] = useState<string | null>(null);
-  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
-    new Set()
-  );
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -359,10 +354,6 @@ export default function WebPreviewScreen() {
 
   const handleUnsave = useCallback(
     async (recipeId: string) => {
-      if (recipeId.startsWith("local-")) {
-        toggleLocalCatalogSave(recipeId);
-        return;
-      }
       const previous = savedRecipes;
       setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
       try {
@@ -371,59 +362,8 @@ export default function WebPreviewScreen() {
         setSavedRecipes(previous);
       }
     },
-    [savedRecipes, toggleLocalCatalogSave]
+    [savedRecipes]
   );
-
-  const allSavedRecipes = React.useMemo(() => {
-    const localRecipes: Recipe[] = [];
-    for (const id of localCatalogSavedIds) {
-      const r = findLocalCatalogRecipeById(id);
-      if (r) localRecipes.push(r);
-    }
-    const serverIds = new Set(savedRecipes.map((r) => r.id));
-    const deduped = localRecipes.filter((r) => !serverIds.has(r.id));
-    return [...savedRecipes, ...deduped];
-  }, [savedRecipes, localCatalogSavedIds]);
-
-  const detailRecipe = React.useMemo<Recipe | null>(() => {
-    if (!detailRecipeId) return null;
-    const local = findLocalCatalogRecipeById(detailRecipeId);
-    if (local) return local;
-    const fromSaved = savedRecipes.find((r) => r.id === detailRecipeId);
-    if (fromSaved) return fromSaved;
-    return null;
-  }, [detailRecipeId, savedRecipes]);
-
-  const isDetailSaved = detailRecipeId
-    ? detailRecipeId.startsWith("local-")
-      ? localCatalogSavedIds.has(detailRecipeId)
-      : savedRecipes.some((r) => r.id === detailRecipeId)
-    : false;
-
-  const handleDetailToggleSave = useCallback(() => {
-    if (!detailRecipeId) return;
-    if (detailRecipeId.startsWith("local-")) {
-      toggleLocalCatalogSave(detailRecipeId);
-    } else {
-      const wasSaved = savedRecipes.some((r) => r.id === detailRecipeId);
-      if (wasSaved) {
-        handleUnsave(detailRecipeId);
-      } else {
-        recipeApi.save(detailRecipeId).catch(() => {});
-        loadSavedRecipes();
-      }
-    }
-  }, [detailRecipeId, savedRecipes, toggleLocalCatalogSave, handleUnsave, loadSavedRecipes]);
-
-  const toggleIngredient = (id: string) => {
-    const next = new Set(checkedIngredients);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setCheckedIngredients(next);
-  };
 
   const baseW = 390;
   const baseH = 844;
@@ -469,11 +409,11 @@ export default function WebPreviewScreen() {
                             ? "Login"
                             : activeTab === "chef"
                               ? "Chef"
-                              : "Today's Recipe"}
+                              : "Home"}
             </Text>
             {activeTab === "saved" && (
               <Text style={styles.headerSubtitle}>
-                {allSavedRecipes.length} recipe{allSavedRecipes.length === 1 ? "" : "s"}{" "}
+                {savedRecipes.length} recipe{savedRecipes.length === 1 ? "" : "s"}{" "}
                 saved
               </Text>
             )}
@@ -507,150 +447,175 @@ export default function WebPreviewScreen() {
         {activeTab === "home" && (
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={styles.homeScrollContent}
         >
-          {/* Recipe header card */}
-          <View style={styles.recipeCard}>
-            <View style={styles.recipeImageWrapper}>
-              <Image
-                source={{ uri: recipe.image }}
-                style={styles.recipeImage}
-                resizeMode="cover"
-              />
-              <View style={styles.recipeImageOverlay} />
-              <View style={styles.recipeImageContent}>
-                <View style={styles.recipeChip}>
-                  <Text style={styles.recipeChipDot}>•</Text>
-                  <Text style={styles.recipeChipText}>Featured recipe</Text>
-                </View>
-                <Text style={styles.recipeName}>{recipe.title}</Text>
-              </View>
-            </View>
-            <View style={styles.recipeMetaRow}>
-              <View style={styles.recipeMetaItem}>
-                <View style={styles.metaIconBadge}>
-                  <Ionicons
-                    name="time-outline"
-                    size={16}
-                    color={colors.primary}
-                  />
-                </View>
-                <Text style={styles.metaLabel}>Prep</Text>
-                <Text style={styles.metaValue}>{recipe.prepTime}</Text>
-              </View>
-              <View style={styles.recipeMetaItem}>
-                <View style={styles.metaIconBadge}>
-                  <Ionicons
-                    name="flame-outline"
-                    size={16}
-                    color={colors.primary}
-                  />
-                </View>
-                <Text style={styles.metaLabel}>Cook</Text>
-                <Text style={styles.metaValue}>{recipe.cookTime}</Text>
-              </View>
-              <View style={styles.recipeMetaItem}>
-                <View style={styles.metaIconBadge}>
-                  <Ionicons
-                    name="people-outline"
-                    size={16}
-                    color={colors.primary}
-                  />
-                </View>
-                <Text style={styles.metaLabel}>Serves</Text>
-                <Text style={styles.metaValue}>{recipe.servings}</Text>
-              </View>
-            </View>
-          </View>
+          {(() => {
+            const suggested: Recipe | undefined =
+              savedRecipes[0] || LOCAL_CATALOG_RECIPES[0];
+            const suggestedTitle = suggested?.title ?? "A recipe for you";
+            const suggestedMeta = suggested
+              ? `${suggested.totalTime ?? ((suggested.prepTime ?? 0) + (suggested.cookTime ?? 0))} min · ${suggested.servings ?? 4} servings`
+              : "Tap to explore";
+            const suggestedImg =
+              (suggested as unknown as { heroImage?: string; image?: string })?.heroImage ??
+              (suggested as unknown as { image?: string })?.image ??
+              recipe.image;
+            const moreRecipes = LOCAL_CATALOG_RECIPES.slice(
+              suggested && (suggested as { id?: string }).id === LOCAL_CATALOG_RECIPES[0]?.id ? 1 : 0,
+              4
+            );
 
-          {/* Ingredients */}
-          <View style={styles.ingredientsCard}>
-            <View style={styles.ingredientsHeaderRow}>
-              <View style={styles.ingredientsAccent} />
-              <Text style={styles.ingredientsTitle}>Ingredients</Text>
-              <View style={{ flex: 1 }} />
-              <Text style={styles.ingredientsAdjust}>Adjust for guests</Text>
-            </View>
-            {recipe.ingredients.map((item) => {
-              const isChecked = checkedIngredients.has(item.id);
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.ingredientRow}
-                  activeOpacity={0.8}
-                  onPress={() => toggleIngredient(item.id)}
-                >
-                  <View style={styles.ingredientLeft}>
-                    <View style={styles.checkboxOuter}>
-                      {isChecked ? (
+            return (
+              <>
+                {/* Greeting */}
+                <View style={styles.homeGreetingBlock}>
+                  <Text style={styles.homeEyebrow}>TODAY</Text>
+                  <Text style={styles.homeGreetingTitle}>
+                    What's cooking?
+                  </Text>
+                  <Text style={styles.homeGreetingSub}>
+                    Pick a tile or ask the chef anything.
+                  </Text>
+                </View>
+
+                {/* Two-tile row: Suggested + Pantry */}
+                <View style={styles.homeTileRow}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.homeTile}
+                    onPress={() => {
+                      if (suggested && (suggested as { id?: string }).id) {
+                        setCookingId((suggested as { id?: string }).id!);
+                      }
+                    }}
+                  >
+                    <View style={styles.homeTileImageWrap}>
+                      <Image
+                        source={{ uri: suggestedImg }}
+                        style={styles.homeTileImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.homeTileScrim} />
+                      <View style={styles.homeTilePill}>
+                        <Ionicons name="sparkles" size={10} color={colors.primary} />
+                        <Text style={styles.homeTilePillText}>SUGGESTED</Text>
+                      </View>
+                    </View>
+                    <View style={styles.homeTileBody}>
+                      <Text style={styles.homeTileTitle} numberOfLines={2}>
+                        {suggestedTitle}
+                      </Text>
+                      <Text style={styles.homeTileMeta} numberOfLines={1}>
+                        {suggestedMeta}
+                      </Text>
+                      <View style={styles.homeTileFooter}>
+                        <Text style={styles.homeTileCta}>View recipe</Text>
                         <Ionicons
-                          name="checkmark-circle"
-                          size={20}
+                          name="arrow-forward"
+                          size={12}
                           color={colors.primary}
                         />
-                      ) : (
-                        <Ionicons
-                          name="ellipse-outline"
-                          size={20}
-                          color={colors.textSecondary}
-                        />
-                      )}
+                      </View>
                     </View>
-                    <Text
-                      style={[
-                        styles.ingredientName,
-                        isChecked && styles.ingredientNameChecked,
-                      ]}
-                    >
-                      {item.name}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.homeTile}
+                    onPress={() => setActiveTab("pantry")}
+                  >
+                    <View style={styles.homeTileImageWrap}>
+                      <Image
+                        source={{
+                          uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBTJ1x3JM8Cp7syM1C83NCrOP8108gpZtfM_cEnx1qhSJozejchzGsmF2LnP1xi6Jg-KOtzqcO36wELqYG-yrwhx2IutZZvkFfPE6taC0OSAfh3ai0S87Hi6DYzRyZR4FmoipNic6UlvvIXPVkS9YMBLlOpw5T_C5eimPVhOB4Q82CoAnNefFe-3Ve-BviRf7RBR0BzoJch1e9NOZEv4TXzdGywYi6QlYMb4bjmSu1Omy0LHeSqr2vqPSue4fqci9uGu49rIe45IPyf",
+                        }}
+                        style={styles.homeTileImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.homeTileScrim} />
+                      <View style={styles.homeTilePill}>
+                        <Ionicons name="basket-outline" size={10} color={colors.primary} />
+                        <Text style={styles.homeTilePillText}>PANTRY</Text>
+                      </View>
+                    </View>
+                    <View style={styles.homeTileBody}>
+                      <Text style={styles.homeTileTitle} numberOfLines={2}>
+                        Your Pantry
+                      </Text>
+                      <Text style={styles.homeTileMeta} numberOfLines={1}>
+                        See what's in stock
+                      </Text>
+                      <View style={styles.homeTileFooter}>
+                        <Text style={styles.homeTileCta}>Open pantry</Text>
+                        <Ionicons
+                          name="arrow-forward"
+                          size={12}
+                          color={colors.primary}
+                        />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Ask chef banner */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.homeChefBanner}
+                  onPress={() => setActiveTab("chef")}
+                >
+                  <View style={styles.homeChefIcon}>
+                    <Ionicons name="sparkles" size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.homeChefTitle}>Ask the chef</Text>
+                    <Text style={styles.homeChefSub} numberOfLines={1}>
+                      "What can I make with chicken and rice?"
                     </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.ingredientAmount,
-                      isChecked && styles.ingredientAmountChecked,
-                    ]}
-                  >
-                    {item.amount}
-                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
-              );
-            })}
-          </View>
 
-          {/* Steps */}
-          <View style={styles.stepsCard}>
-            <View style={styles.stepsHeaderRow}>
-              <Ionicons
-                name="restaurant-outline"
-                size={18}
-                color={colors.primary}
-              />
-              <Text style={styles.stepsTitle}>Cooking steps</Text>
-            </View>
-            {recipe.steps.map((step) => (
-              <View key={step.id} style={styles.stepRow}>
-                <View style={styles.stepNumberCircle}>
-                  <Text style={styles.stepNumberText}>{step.id}</Text>
-                </View>
-                <View style={styles.stepContent}>
-                  <Text style={styles.stepInstruction}>{step.instruction}</Text>
-                  {step.duration && (
-                    <View style={styles.stepDurationChip}>
-                      <Ionicons
-                        name="time-outline"
-                        size={12}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.stepDurationText}>
-                        {step.duration}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
+                {/* More suggestions rail */}
+                {moreRecipes.length > 0 && (
+                  <View style={styles.homeMoreWrap}>
+                    <Text style={styles.homeSectionTitle}>More for you</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.homeMoreScroll}
+                    >
+                      {moreRecipes.map((r) => {
+                        const img =
+                          (r as unknown as { heroImage?: string; image?: string }).heroImage ??
+                          (r as unknown as { image?: string }).image ??
+                          recipe.image;
+                        return (
+                          <TouchableOpacity
+                            key={r.id}
+                            activeOpacity={0.85}
+                            style={styles.homeMoreCard}
+                            onPress={() => r.id && setCookingId(r.id)}
+                          >
+                            <Image
+                              source={{ uri: img }}
+                              style={styles.homeMoreImage}
+                              resizeMode="cover"
+                            />
+                            <Text style={styles.homeMoreTitle} numberOfLines={2}>
+                              {r.title}
+                            </Text>
+                            <Text style={styles.homeMoreMeta} numberOfLines={1}>
+                              {(r.totalTime ?? (r.prepTime ?? 0) + (r.cookTime ?? 0))} min
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+              </>
+            );
+          })()}
         </ScrollView>
         )}
 
@@ -704,10 +669,8 @@ export default function WebPreviewScreen() {
                   recipe={r}
                   isSaved={!!r.id && localCatalogSavedIds.has(r.id)}
                   onToggleSave={toggleLocalCatalogSave}
-                  onPress={() => {
-                    if (r.id) setDetailRecipeId(r.id);
-                  }}
-                  disabled={!r.id}
+                  onPress={() => {}}
+                  disabled
                   loading={false}
                 />
               ))}
@@ -718,13 +681,11 @@ export default function WebPreviewScreen() {
         {activeTab === "saved" && (
           <View style={styles.savedListWrap}>
             <FlatList
-              data={allSavedRecipes}
+              data={savedRecipes}
               keyExtractor={(item) => item.id || `favorite-${item.title}`}
               contentContainerStyle={styles.savedListContent}
               refreshing={savedLoading}
-              onRefresh={async () => {
-                await Promise.all([loadSavedRecipes(), reloadLocalCatalogSaved()]);
-              }}
+              onRefresh={loadSavedRecipes}
               ListEmptyComponent={
                 <View style={styles.savedEmpty}>
                   <Ionicons
@@ -745,9 +706,7 @@ export default function WebPreviewScreen() {
                   recipe={item}
                   isSaved
                   onToggleSave={handleUnsave}
-                  onPress={() => {
-                    if (item.id) setDetailRecipeId(item.id);
-                  }}
+                  onPress={() => {}}
                 />
               )}
             />
@@ -772,171 +731,6 @@ export default function WebPreviewScreen() {
             <PantryScreen onOpenCookingId={(id) => setCookingId(id)} />
           </View>
         )}
-
-        {detailRecipeId && detailRecipe ? (
-          <View style={styles.detailOverlay}>
-            <View style={styles.detailTopBar}>
-              <TouchableOpacity
-                style={styles.detailBackBtn}
-                onPress={() => setDetailRecipeId(null)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="arrow-back" size={22} color={colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.detailSaveBtn}
-                onPress={handleDetailToggleSave}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={isDetailSaved ? "heart" : "heart-outline"}
-                  size={22}
-                  color={isDetailSaved ? colors.error : colors.text}
-                />
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={styles.detailScroll}
-              contentContainerStyle={styles.detailScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.detailHero}>
-                <Ionicons name="restaurant" size={40} color={colors.textSecondary} />
-              </View>
-              <View style={styles.detailSection}>
-                <Text style={styles.detailTitle}>{detailRecipe.title}</Text>
-                {detailRecipe.cuisine ? (
-                  <Text style={styles.detailCuisine}>{detailRecipe.cuisine}</Text>
-                ) : null}
-                {detailRecipe.description ? (
-                  <Text style={styles.detailDesc}>{detailRecipe.description}</Text>
-                ) : null}
-              </View>
-              <View style={styles.detailMetaRow}>
-                <View style={styles.detailMetaCard}>
-                  <Ionicons name="time-outline" size={18} color={colors.primary} />
-                  <Text style={styles.detailMetaVal}>{detailRecipe.prepTime}m</Text>
-                  <Text style={styles.detailMetaLbl}>Prep</Text>
-                </View>
-                <View style={styles.detailMetaCard}>
-                  <Ionicons name="flame-outline" size={18} color={colors.primary} />
-                  <Text style={styles.detailMetaVal}>{detailRecipe.cookTime}m</Text>
-                  <Text style={styles.detailMetaLbl}>Cook</Text>
-                </View>
-                <View style={styles.detailMetaCard}>
-                  <Ionicons name="people-outline" size={18} color={colors.primary} />
-                  <Text style={styles.detailMetaVal}>{detailRecipe.servings}</Text>
-                  <Text style={styles.detailMetaLbl}>Servings</Text>
-                </View>
-                {detailRecipe.difficulty ? (
-                  <View style={styles.detailMetaCard}>
-                    <Ionicons name="star-outline" size={18} color={colors.primary} />
-                    <Text style={styles.detailMetaVal}>
-                      {detailRecipe.difficulty.charAt(0).toUpperCase() + detailRecipe.difficulty.slice(1)}
-                    </Text>
-                    <Text style={styles.detailMetaLbl}>Level</Text>
-                  </View>
-                ) : null}
-              </View>
-              {detailRecipe.dietaryTags.length > 0 && (
-                <View style={styles.detailTagsRow}>
-                  {detailRecipe.dietaryTags.map((tag) => (
-                    <View key={tag} style={styles.detailTag}>
-                      <Text style={styles.detailTagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {detailRecipe.nutrition && (
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailSectionTitle}>Nutrition per serving</Text>
-                  <View style={styles.detailNutritionRow}>
-                    {detailRecipe.nutrition.calories != null && (
-                      <View style={styles.detailNutritionItem}>
-                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.calories}</Text>
-                        <Text style={styles.detailNutritionLbl}>kcal</Text>
-                      </View>
-                    )}
-                    {detailRecipe.nutrition.protein != null && (
-                      <View style={styles.detailNutritionItem}>
-                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.protein}g</Text>
-                        <Text style={styles.detailNutritionLbl}>Protein</Text>
-                      </View>
-                    )}
-                    {detailRecipe.nutrition.carbs != null && (
-                      <View style={styles.detailNutritionItem}>
-                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.carbs}g</Text>
-                        <Text style={styles.detailNutritionLbl}>Carbs</Text>
-                      </View>
-                    )}
-                    {detailRecipe.nutrition.fat != null && (
-                      <View style={styles.detailNutritionItem}>
-                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.fat}g</Text>
-                        <Text style={styles.detailNutritionLbl}>Fat</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              )}
-              {detailRecipe.ingredients.length > 0 && (
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailSectionTitle}>
-                    Ingredients ({detailRecipe.ingredients.length})
-                  </Text>
-                  <View style={styles.detailIngredientsCard}>
-                    {detailRecipe.ingredients.map((ing) => (
-                      <IngredientRow
-                        key={ing.id || ing.name}
-                        ingredient={ing}
-                      />
-                    ))}
-                  </View>
-                </View>
-              )}
-              {detailRecipe.steps.length > 0 && (
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailSectionTitle}>
-                    Steps ({detailRecipe.steps.length})
-                  </Text>
-                  {detailRecipe.steps.map((step) => (
-                    <View key={step.stepNumber} style={styles.detailStepRow}>
-                      <View style={styles.detailStepBadge}>
-                        <Text style={styles.detailStepBadgeText}>{step.stepNumber}</Text>
-                      </View>
-                      <View style={styles.detailStepContent}>
-                        <Text style={styles.detailStepInstruction}>{step.instruction}</Text>
-                        {step.duration ? (
-                          <View style={styles.detailStepTimerRow}>
-                            <Ionicons name="time-outline" size={12} color={colors.primary} />
-                            <Text style={styles.detailStepTimerText}>
-                              {step.duration >= 60
-                                ? `${Math.floor(step.duration / 60)}m${step.duration % 60 ? ` ${step.duration % 60}s` : ""}`
-                                : `${step.duration}s`}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-              <View style={{ height: 80 }} />
-            </ScrollView>
-            <View style={styles.detailBottomBar}>
-              <TouchableOpacity
-                style={styles.detailCookBtn}
-                onPress={() => {
-                  setCookingId(detailRecipeId);
-                  setDetailRecipeId(null);
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="flame" size={20} color={colors.background} />
-                <Text style={styles.detailCookBtnText}>Start Cooking</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : null}
 
         {cookingId ? (
           <View style={styles.cookingOverlay}>
@@ -1305,217 +1099,6 @@ const styles = StyleSheet.create({
     ...shadows.lg,
     overflow: "hidden",
   },
-  detailOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 40,
-    backgroundColor: colors.background,
-  },
-  detailTopBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: 36,
-    paddingBottom: spacing.sm,
-  },
-  detailBackBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  detailSaveBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  detailScroll: {
-    flex: 1,
-  },
-  detailScrollContent: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xxl,
-  },
-  detailHero: {
-    height: 160,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: spacing.lg,
-    borderRadius: borderRadius.xl,
-    marginBottom: spacing.lg,
-  },
-  detailSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  detailTitle: {
-    ...typography.h2,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  detailCuisine: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    marginBottom: spacing.sm,
-  },
-  detailDesc: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  detailMetaRow: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  detailMetaCard: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    gap: 2,
-  },
-  detailMetaVal: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  detailMetaLbl: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 10,
-  },
-  detailTagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-    gap: spacing.sm,
-  },
-  detailTag: {
-    backgroundColor: colors.primaryLight + "20",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  detailTagText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "500",
-    fontSize: 12,
-  },
-  detailSectionTitle: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: "700",
-    marginBottom: spacing.md,
-  },
-  detailNutritionRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  detailNutritionItem: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-  },
-  detailNutritionVal: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: "700",
-  },
-  detailNutritionLbl: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 10,
-    marginTop: 2,
-  },
-  detailIngredientsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    overflow: "hidden",
-  },
-  detailStepRow: {
-    flexDirection: "row",
-    marginBottom: spacing.md,
-    gap: spacing.md,
-  },
-  detailStepBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 2,
-  },
-  detailStepBadgeText: {
-    ...typography.caption,
-    color: colors.background,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  detailStepContent: {
-    flex: 1,
-  },
-  detailStepInstruction: {
-    ...typography.body,
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  detailStepTimerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  detailStepTimerText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "500",
-    fontSize: 12,
-  },
-  detailBottomBar: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  detailCookBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
-  },
-  detailCookBtnText: {
-    ...typography.body,
-    color: colors.background,
-    fontWeight: "700",
-    fontSize: 16,
-  },
   cookingOverlay: {
     position: "absolute",
     top: 0,
@@ -1674,6 +1257,181 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
     gap: spacing.lg,
   },
+
+  // Home dashboard
+  homeScrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: 96,
+    gap: spacing.lg,
+  },
+  homeGreetingBlock: {
+    paddingTop: spacing.xs,
+    gap: 4,
+  },
+  homeEyebrow: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 10,
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    fontWeight: "700",
+  },
+  homeGreetingTitle: {
+    ...typography.h1,
+    color: colors.text,
+    fontSize: 28,
+    lineHeight: 32,
+    marginTop: 4,
+  },
+  homeGreetingSub: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  homeTileRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  homeTile: {
+    flex: 1,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.background,
+    overflow: "hidden",
+    ...shadows.md,
+  },
+  homeTileImageWrap: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    position: "relative",
+  },
+  homeTileImage: {
+    width: "100%",
+    height: "100%",
+  },
+  homeTileScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.14)",
+  },
+  homeTilePill: {
+    position: "absolute",
+    top: spacing.sm,
+    left: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.94)",
+  },
+  homeTilePillText: {
+    ...typography.caption,
+    color: colors.text,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+  },
+  homeTileBody: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm + 2,
+    paddingBottom: spacing.md,
+    gap: 2,
+  },
+  homeTileTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  homeTileMeta: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 14,
+    marginTop: 2,
+  },
+  homeTileFooter: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  homeTileCta: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  homeChefBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: "#FFFBEB",
+  },
+  homeChefIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FFF7ED",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  homeChefTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  homeChefSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 1,
+    fontStyle: "italic",
+  },
+  homeMoreWrap: {
+    gap: spacing.sm,
+  },
+  homeSectionTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  homeMoreScroll: {
+    gap: spacing.md,
+    paddingRight: spacing.lg,
+  },
+  homeMoreCard: {
+    width: 140,
+    gap: 4,
+  },
+  homeMoreImage: {
+    width: 140,
+    height: 105,
+    borderRadius: borderRadius.md,
+  },
+  homeMoreTitle: {
+    ...typography.caption,
+    color: colors.text,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  homeMoreMeta: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 10,
+  },
+
   recipeCard: {
     backgroundColor: colors.background,
     borderRadius: borderRadius.xl,

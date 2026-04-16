@@ -66,6 +66,7 @@ export interface Recipe {
   dietaryTags: DietaryFilter[];
   cuisine?: string;
   difficulty?: "beginner" | "intermediate" | "advanced";
+  heroImage?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

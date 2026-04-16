@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#eae8e4",
+                        "surface-tint": "#755b00",
+                        "on-secondary": "#ffffff",
+                        "secondary": "#77574d",
+                        "on-tertiary-container": "#864300",
+                        "primary-fixed-dim": "#f0c12c",
+                        "background": "#fbf9f5",
+                        "primary-fixed": "#ffdf90",
+                        "secondary-fixed-dim": "#e7bdb1",
+                        "primary-container": "#f4c430",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#695200",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#ffdbd0",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "tertiary": "#944a00",
+                        "on-tertiary-fixed": "#301400",
+                        "tertiary-fixed-dim": "#ffb783",
+                        "surface-variant": "#e4e2de",
+                        "on-secondary-fixed-variant": "#5d4037",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#d1c5ad",
+                        "on-error": "#ffffff",
+                        "on-background": "#1b1c1a",
+                        "surface-container-low": "#f5f3ef",
+                        "surface": "#fbf9f5",
+                        "on-primary-fixed": "#241a00",
+                        "on-secondary-fixed": "#2c160e",
+                        "error-container": "#ffdad6",
+                        "error": "#ba1a1a",
+                        "surface-container": "#efeeea",
+                        "on-secondary-container": "#795950",
+                        "inverse-primary": "#f0c12c",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#ffbc8d",
+                        "surface-bright": "#fbf9f5",
+                        "surface-container-highest": "#e4e2de",
+                        "inverse-surface": "#30312e",
+                        "surface-dim": "#dbdad6",
+                        "on-primary-fixed-variant": "#584400",
+                        "on-surface": "#1b1c1a",
+                        "secondary-container": "#fed3c7",
+                        "outline": "#807661",
+                        "primary": "#755b00",
+                        "on-surface-variant": "#4e4634",
+                        "inverse-on-surface": "#f2f0ed",
+                        "tertiary-fixed": "#ffdcc5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hero-gradient {
+            background: linear-gradient(to top, rgba(251, 249, 245, 1) 0%, rgba(251, 249, 245, 0.4) 40%, rgba(251, 249, 245, 0) 100%);
+        }
+        .cta-gradient {
+            background: linear-gradient(15deg, #755b00 0%, #f4c430 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- Onboarding Flow: Navigation is suppressed as per The Destination Rule for Transactional/Onboarding screens -->
+<main class="relative min-h-screen flex flex-col">
+<!-- Hero Section with Asymmetric Image Bleed -->
+<section class="relative h-[574px] md:h-[618px] overflow-hidden">
+<div class="absolute inset-0 w-full h-full">
+<img alt="Editorial brunch spread" class="w-full h-full object-cover" data-alt="overhead view of a luxurious brunch spread on a marble table, sun-filled kitchen lighting, linen napkins, artisan bread, and fresh fruit" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRo0eaovSpaYNcjQ7axA5GKoCy-DsDa1hHFB5m20lguZOV8cHFOxr1D4OjkpslEB643ny6tjUsskc_X8lvp8pbvYv3sQ6fqV-qRLAKeVh7bQL0OHCgi42bGFnqnmg2Nv_mJihfwmr6yXqFedqdZb_CVomitvSyaB9xwurvY-l9CPkkfOyJ24dpvSYKKkAKlbcX0-gJ6vMmVuN3U9umiQasnBjKSY0TZTnH5P6ZcOkF_8kORAjjOK0S6vWezO0UEr49arKFZOiKDmTa"/>
+</div>
+<!-- Editorial Mask/Overlay -->
+<div class="absolute inset-0 hero-gradient"></div>
+<!-- Branding Anchor -->
+<div class="absolute top-12 left-6 md:left-16 z-10">
+<span class="font-headline italic text-4xl text-primary tracking-tighter">Apron</span>
+</div>
+</section>
+<!-- Content Content Canvas -->
+<section class="relative -mt-20 flex-grow px-6 md:px-16 pb-12 z-20">
+<div class="max-w-xl">
+<!-- Decorative Chip -->
+<div class="inline-flex items-center gap-2 bg-secondary-container text-on-secondary-container px-4 py-1.5 rounded-full mb-6">
+<span class="material-symbols-outlined text-[18px]">chef_hat</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">Est. 2024</span>
+</div>
+<!-- Editorial Headline -->
+<h1 class="font-headline text-5xl md:text-7xl text-on-background leading-[1.1] mb-6 tracking-tight">
+                    Meet your new <br/>
+<span class="italic text-primary">chef friend.</span>
+</h1>
+<!-- Brief Description -->
+<p class="text-on-surface-variant text-lg md:text-xl leading-relaxed mb-10 max-w-md">
+                    Apron helps you turn your pantry into a gourmet experience. Intelligent recipes tailored to what you already have.
+                </p>
+<!-- Action Cluster -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+<button class="cta-gradient text-on-primary font-bold text-sm uppercase tracking-widest px-10 py-5 rounded-md shadow-[0_12px_40px_rgba(117,91,0,0.2)] transition-transform active:scale-95">
+                        Get Started
+                    </button>
+<button class="flex items-center gap-2 text-on-surface-variant font-semibold text-sm uppercase tracking-widest hover:text-primary transition-colors py-4">
+<span>Sign In</span>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Bento-lite Info Section (Implicit Details) -->
+<div class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-12 border-t border-outline-variant/15 pt-16">
+<div class="flex flex-col gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+</div>
+<h3 class="font-headline text-2xl">Smart Inventory</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Scan your ingredients and we’ll tell you exactly what you can make right now.</p>
+</div>
+<div class="flex flex-col gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<h3 class="font-headline text-2xl">AI Guidance</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Personalized chef tips that adapt to your skill level and taste profile.</p>
+</div>
+<div class="flex flex-col gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+</div>
+<h3 class="font-headline text-2xl">Visual Journals</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Document your culinary journey with beautiful, auto-generated food logs.</p>
+</div>
+</div>
+</section>
+<!-- Footer / Legal -->
+<footer class="px-6 md:px-16 py-12 flex flex-col md:flex-row justify-between items-center text-[10px] uppercase tracking-widest text-stone-400 font-semibold">
+<div class="mb-4 md:mb-0">© 2024 Apron Digital Curator</div>
+<div class="flex gap-8">
+<a class="hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="hover:text-primary transition-colors" href="#">Terms</a>
+<a class="hover:text-primary transition-colors" href="#">Support</a>
+</div>
+</footer>
+</main>
+<!-- Floating Background Element for Texture (Intentional Asymmetry) -->
+<div class="fixed top-1/2 -right-32 w-96 h-96 bg-primary/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+<div class="fixed bottom-0 -left-32 w-64 h-64 bg-tertiary/5 rounded-full blur-[80px] pointer-events-none -z-10"></div>
+</body></html>

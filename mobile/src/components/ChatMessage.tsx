@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { spacing, borderRadius, typography, type ThemeColors } from "../constants/DesignTokens";
+import { MaterialIcons } from "@expo/vector-icons";
+import { spacing, typography, fonts, type ThemeColors } from "../constants/DesignTokens";
 import { useThemeColors } from "../hooks/useThemeColors";
 
 interface ChatMessageProps {
@@ -21,11 +22,16 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   return (
     <View style={[styles.container, isUser && styles.userContainer]}>
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+        {!isUser && (
+          <View style={styles.aiPrefix}>
+            <MaterialIcons name="auto-awesome" size={16} color={c.primary} />
+          </View>
+        )}
         <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
           {content}
         </Text>
         {timestamp && (
-          <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.assistantTimestamp]}>
+          <Text style={styles.timestamp}>
             {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </Text>
         )}
@@ -44,37 +50,42 @@ const getStyles = (c: ThemeColors) => StyleSheet.create({
   },
   bubble: {
     maxWidth: "80%",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   userBubble: {
-    backgroundColor: c.primary,
-    borderBottomRightRadius: borderRadius.sm,
+    backgroundColor: c.surfaceContainerHigh,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    borderBottomLeftRadius: 24,
   },
   assistantBubble: {
-    backgroundColor: c.surface,
-    borderBottomLeftRadius: borderRadius.sm,
+    backgroundColor: c.surfaceContainerLow,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 4,
+  },
+  aiPrefix: {
+    marginBottom: spacing.xs,
   },
   text: {
-    ...typography.body,
-    lineHeight: 20,
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 24,
   },
   userText: {
-    color: c.background,
+    color: c.onSurface,
   },
   assistantText: {
-    color: c.text,
+    color: c.onSurface,
   },
   timestamp: {
-    ...typography.caption,
-    fontSize: 11,
-    marginTop: spacing.xs / 2,
-  },
-  userTimestamp: {
-    color: c.background + "CC",
-  },
-  assistantTimestamp: {
-    color: c.textSecondary,
+    fontFamily: fonts.sansMedium,
+    fontSize: 10,
+    lineHeight: 14,
+    color: c.onSurfaceVariant,
+    marginTop: spacing.xs,
   },
 });

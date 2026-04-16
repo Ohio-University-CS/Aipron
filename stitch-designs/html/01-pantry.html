@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aipron - Your Kitchen</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400;1,700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed": "#ffdbd0",
+                        "on-secondary-fixed": "#2c160e",
+                        "tertiary-container": "#ffbc8d",
+                        "on-tertiary-container": "#864300",
+                        "inverse-primary": "#f0c12c",
+                        "surface-dim": "#dbdad6",
+                        "primary-fixed": "#ffdf90",
+                        "on-secondary-fixed-variant": "#584400",
+                        "surface-container-highest": "#e4e2de",
+                        "on-error-container": "#93000a",
+                        "on-primary-fixed-variant": "#584400",
+                        "surface-variant": "#e4e2de",
+                        "surface": "#fbf9f5",
+                        "secondary-container": "#fed3c7",
+                        "on-primary-fixed": "#241a00",
+                        "on-primary": "#ffffff",
+                        "outline": "#807661",
+                        "background": "#fbf9f5",
+                        "surface-bright": "#fbf9f5",
+                        "secondary-fixed-dim": "#e7bdb1",
+                        "on-surface-variant": "#4e4634",
+                        "primary-container": "#f4c430",
+                        "tertiary-fixed": "#ffdcc5",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "on-primary-container": "#695200",
+                        "secondary": "#77574d",
+                        "outline-variant": "#d1c5ad",
+                        "on-tertiary-fixed": "#301400",
+                        "on-surface": "#1b1c1a",
+                        "error": "#ba1a1a",
+                        "inverse-surface": "#30312e",
+                        "tertiary-fixed-dim": "#ffb783",
+                        "surface-container-low": "#f5f3ef",
+                        "tertiary": "#944a00",
+                        "on-secondary-container": "#795950",
+                        "primary-fixed-dim": "#f0c12c",
+                        "surface-container-high": "#eae8e4",
+                        "primary": "#755b00",
+                        "inverse-on-surface": "#f2f0ed",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#755b00",
+                        "surface-container": "#efeeea",
+                        "on-error": "#ffffff",
+                        "on-background": "#1b1c1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .editorial-shadow {
+            box-shadow: 0 40px 60px -15px rgba(27, 28, 26, 0.08);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface antialiased pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#fbf9f5]/80 dark:bg-stone-900/80 backdrop-blur-xl flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="text-[#755b00] dark:text-[#f4c430] hover:bg-[#efeeea] dark:hover:bg-stone-800 transition-colors p-2 rounded-xl active:scale-95 active:duration-150">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="font-serif italic font-bold text-[#755b00] dark:text-[#f4c430] text-2xl tracking-tight">Aipron</h1>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img alt="User Profile" data-alt="close-up portrait of a woman with a warm smile in soft morning window light with natural texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBgKgzv4kAFaOOx4-ACeL2wKp4i_fmYoDqkfb6UGrm_oeUHpyeZdlYIPo3VO9vr4cIvDFvY6kAo7LWslc6HM8OhHB3qlXyVdc286a9W_uTSBHCLVb8XKHNJpdqkkTzry168Njr0Lb_9n-mjHCSdUJWhr_yIeANEmIUsq2tQmtojjLP8xbCm7deQaWHHVKKUVGr70zFnuQj5tSXvSt1XCErDinXpxA_tlJgzwH51NpJb084mUNneWtO776gKsqFTOIThBmp9cp4Woak"/>
+</div>
+</div>
+</header>
+<main class="pt-24 px-6 md:px-16 max-w-7xl mx-auto">
+<!-- Hero Title Section -->
+<section class="mb-12">
+<p class="font-label text-tertiary font-semibold tracking-[0.2em] text-[10px] uppercase mb-2">Inventory Management</p>
+<h2 class="font-headline text-5xl md:text-7xl font-bold text-on-surface tracking-tighter leading-tight">Your Kitchen</h2>
+</section>
+<!-- "What can I make?" Suggestion Box (Bento Style) -->
+<section class="mb-16">
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low p-8 md:p-12 border border-outline-variant/15 flex flex-col md:flex-row gap-8 items-center">
+<div class="relative z-10 flex-1">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-container text-on-primary-container text-xs font-bold mb-6">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                        AI RECOMMENDATION
+                    </div>
+<h3 class="font-headline text-3xl md:text-4xl text-on-surface mb-4">What can I make?</h3>
+<p class="text-on-surface-variant text-lg mb-8 max-w-md leading-relaxed">
+                        Based on your fresh <span class="text-primary font-bold">Ricotta</span> and seasonal <span class="text-primary font-bold">Lemons</span>, we suggest:
+                    </p>
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-xl editorial-shadow group cursor-pointer transition-all hover:translate-y-[-2px]">
+<img class="w-20 h-20 rounded-md object-cover" data-alt="Overhead shot of lemon ricotta pasta with fresh herbs and cracked black pepper on a handmade ceramic plate" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDWvb8qMabxowLn0pCnxcBNG8KEYomevMTKl10B3EiwKtESlBtHu_3Kj4ZMTXE9DnqDgFG2T2BYmImhy3fzHGW6slJuXce4eBpioyYkiJejR3UYy7XVdux3dSZb_axUl23AIJDJx7QQoM8TmgtbzbYkW2n_61dAxKzAlADz1cR22HLVDAOevFr2lBAm7EmmFsZNlnpfUE_lF6MSIrZu41JvrRAss3gdPF5Cfm2ZGbUJX8qOt2Vc1ODW4YTh6AduLnNf8qLQSNrW4nim"/>
+<div>
+<h4 class="font-bold text-on-surface group-hover:text-primary transition-colors">Lemon Ricotta Linguine</h4>
+<p class="text-sm text-on-surface-variant">25 mins • Intermediate • 98% Match</p>
+</div>
+<span class="material-symbols-outlined ml-auto text-primary" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+<div class="relative w-full md:w-1/3 aspect-square md:aspect-auto md:h-full">
+<img class="w-full h-full object-cover rounded-xl shadow-2xl rotate-3" data-alt="Vibrant close-up of organic lemons with water droplets and fresh garden herbs on a rustic wooden board" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTJ1x3JM8Cp7syM1C83NCrOP8108gpZtfM_cEnx1qhSJozejchzGsmF2LnP1xi6Jg-KOtzqcO36wELqYG-yrwhx2IutZZvkFfPE6taC0OSAfh3ai0S87Hi6DYzRyZR4FmoipNic6UlvvIXPVkS9YMBLlOpw5T_C5eimPVhOB4Q82CoAnNefFe-3Ve-BviRf7RBR0BzoJch1e9NOZEv4TXzdGywYi6QlYMb4bjmSu1Omy0LHeSqr2vqPSue4fqci9uGu49rIe45IPyf"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low/80 to-transparent"></div>
+</div>
+</div>
+</section>
+<!-- Categories Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12 items-start">
+<!-- Category: Fresh -->
+<section class="space-y-8">
+<div class="flex justify-between items-end border-b border-outline-variant/30 pb-4">
+<h3 class="font-headline text-2xl">Fresh</h3>
+<span class="font-label text-sm text-on-surface-variant">12 items</span>
+</div>
+<div class="space-y-12">
+<!-- Item -->
+<div class="group">
+<div class="flex justify-between items-center mb-4">
+<span class="font-bold text-lg tracking-tight">Ricotta</span>
+<div class="flex items-center gap-3">
+<button class="w-8 h-8 rounded-lg flex items-center justify-center bg-surface-container hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="remove">remove</span>
+</button>
+<span class="font-label font-bold text-sm">250g</span>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary-container text-on-primary-container hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+</div>
+<img class="w-full h-48 object-cover rounded-lg grayscale hover:grayscale-0 transition-all duration-700" data-alt="Scoops of fresh ricotta cheese in a glass bowl with a drizzle of honey and sprig of thyme" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCnqxDzO5qGCmWx1nevUkwtwJ-Q9bc4STX0pHs9r8Uuq6-H6UbZDK_7_1fqRv2v7_XLWogZpDDT728k2eFXgABJrk1DsEaN6i-RHIc138S9xiDV8vwPtYZmF_m5q_OaHDULjwt0GtskBqugmnj44MlKVBiEVbb9ayLoR18Y5OZMwxVmYNSH8dEjve4lSQdP_IXGcjJYIjR3hp2NLCXF6hYRonwgikRC9jV5w0lCGqkA8As6TZawsLlkGfcPYykIUO3MuVqQyoNKfZV"/>
+</div>
+<!-- Item -->
+<div class="group">
+<div class="flex justify-between items-center mb-4">
+<span class="font-bold text-lg tracking-tight">Lemons</span>
+<div class="flex items-center gap-3">
+<button class="w-8 h-8 rounded-lg flex items-center justify-center bg-surface-container hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="remove">remove</span>
+</button>
+<span class="font-label font-bold text-sm">4</span>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary-container text-on-primary-container hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+</div>
+<img class="w-full h-48 object-cover rounded-lg grayscale hover:grayscale-0 transition-all duration-700" data-alt="Whole yellow lemons with green leaves in a minimalist stone bowl on a white table" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCTIZmHcwUwi_1SNSDIOub-omSV44ZEg9GToy4papDwSyOhtb98DdN_GZ5AK9gg9Nfns1mDg8FTFDQgMAytWVyj1AhJWFt3y9iupo_cHObID3UC7Pc5FIGek9sLOTzBkZ3rAj9n7nV5BYT_43PVpgDpyrGeXI848eXubn_gI9GcjUPcc_16VOrZ6i6EwidDFbBgV2wrJS3tcYaOigdlr9FOEE_fX3L_yif4HdwW-wPdFj_bYSWc_VskeKw0UujFi3dVnCTgDH_MObU"/>
+</div>
+</div>
+</section>
+<!-- Category: Pantry Staples -->
+<section class="space-y-8 md:mt-16">
+<div class="flex justify-between items-end border-b border-outline-variant/30 pb-4">
+<h3 class="font-headline text-2xl">Pantry Staples</h3>
+<span class="font-label text-sm text-on-surface-variant">24 items</span>
+</div>
+<div class="space-y-6">
+<!-- Text List Items (to vary layout) -->
+<div class="p-6 rounded-xl bg-surface-container-lowest border border-outline-variant/10 editorial-shadow">
+<div class="flex justify-between items-center">
+<div>
+<h4 class="font-bold text-on-surface">All-Purpose Flour</h4>
+<p class="text-xs text-secondary">Remaining: 60%</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined" data-icon="remove">remove</span></button>
+<button class="p-2 text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined" data-icon="add">add</span></button>
+</div>
+</div>
+</div>
+<div class="p-6 rounded-xl bg-surface-container-lowest border border-outline-variant/10">
+<div class="flex justify-between items-center">
+<div>
+<h4 class="font-bold text-on-surface">Olive Oil (Extra Virgin)</h4>
+<p class="text-xs text-secondary">Remaining: 20%</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-error"><span class="material-symbols-outlined" data-icon="priority_high">priority_high</span></button>
+<button class="p-2 text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined" data-icon="add">add</span></button>
+</div>
+</div>
+</div>
+<div class="p-6 rounded-xl bg-surface-container-lowest border border-outline-variant/10">
+<div class="flex justify-between items-center">
+<div>
+<h4 class="font-bold text-on-surface">Arborio Rice</h4>
+<p class="text-xs text-secondary">Remaining: Full</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined" data-icon="remove">remove</span></button>
+<button class="p-2 text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined" data-icon="add">add</span></button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Category: Spices -->
+<section class="space-y-8">
+<div class="flex justify-between items-end border-b border-outline-variant/30 pb-4">
+<h3 class="font-headline text-2xl">Spices</h3>
+<span class="font-label text-sm text-on-surface-variant">42 items</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Spice Tile -->
+<div class="aspect-square bg-[#efeeea] rounded-xl flex flex-col items-center justify-center p-4 text-center group hover:bg-primary-container transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-3xl mb-2 text-primary" data-icon="eco">eco</span>
+<span class="font-bold text-sm">Chili Flakes</span>
+</div>
+<!-- Spice Tile -->
+<div class="aspect-square bg-[#efeeea] rounded-xl flex flex-col items-center justify-center p-4 text-center group hover:bg-primary-container transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-3xl mb-2 text-primary" data-icon="psychiatry">psychiatry</span>
+<span class="font-bold text-sm">Star Anise</span>
+</div>
+<!-- Spice Tile -->
+<div class="aspect-square bg-[#efeeea] rounded-xl flex flex-col items-center justify-center p-4 text-center group hover:bg-primary-container transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-3xl mb-2 text-primary" data-icon="water_drop">water_drop</span>
+<span class="font-bold text-sm">Smoked Paprika</span>
+</div>
+<!-- Spice Tile -->
+<div class="aspect-square bg-[#efeeea] rounded-xl flex flex-col items-center justify-center p-4 text-center group hover:bg-primary-container transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-3xl mb-2 text-primary" data-icon="grain">grain</span>
+<span class="font-bold text-sm">Cumin Seed</span>
+</div>
+</div>
+<button class="w-full py-4 rounded-md border-2 border-dashed border-outline-variant text-on-surface-variant font-bold text-sm hover:border-primary hover:text-primary transition-all">
+                    + Add New Spice
+                </button>
+</section>
+</div>
+</main>
+<!-- FAB -->
+<button class="fixed bottom-28 right-8 w-16 h-16 rounded-2xl bg-tertiary text-on-tertiary shadow-2xl flex items-center justify-center active:scale-90 transition-transform z-40">
+<span class="material-symbols-outlined text-3xl" data-icon="photo_camera">photo_camera</span>
+</button>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full bg-[#fbf9f5]/80 dark:bg-stone-900/80 backdrop-blur-xl flex justify-around items-center px-4 pb-6 pt-3 z-50 border-t border-[#d1c5ad]/15 shadow-[0_-4px_40px_rgba(27,28,26,0.05)]">
+<div class="flex flex-col items-center justify-center text-[#77574d] dark:text-stone-400 px-4 py-1.5 hover:text-[#755b00] dark:hover:text-[#f4c430] active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-sans text-[11px] font-medium tracking-wide uppercase">Chat</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#77574d] dark:text-stone-400 px-4 py-1.5 hover:text-[#755b00] dark:hover:text-[#f4c430] active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+<span class="font-sans text-[11px] font-medium tracking-wide uppercase">Search</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-[#f4c430] text-[#755b00] rounded-xl px-4 py-1.5 active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="restaurant_menu">restaurant_menu</span>
+<span class="font-sans text-[11px] font-medium tracking-wide uppercase">Recipes</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#77574d] dark:text-stone-400 px-4 py-1.5 hover:text-[#755b00] dark:hover:text-[#f4c430] active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+<span class="font-sans text-[11px] font-medium tracking-wide uppercase">Favorites</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#77574d] dark:text-stone-400 px-4 py-1.5 hover:text-[#755b00] dark:hover:text-[#f4c430] active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-sans text-[11px] font-medium tracking-wide uppercase">Profile</span>
+</div>
+</nav>
+</body></html>
