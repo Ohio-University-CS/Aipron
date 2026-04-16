@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   TextInput,
@@ -6,8 +6,9 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, borderRadius, typography } from "../constants/DesignTokens";
+import { MaterialIcons } from "@expo/vector-icons";
+import { spacing, borderRadius, fonts, type ThemeColors } from "../constants/DesignTokens";
+import { useThemeColors } from "../hooks/useThemeColors";
 import { VoiceButton } from "./VoiceButton";
 
 interface ChatComposerProps {
@@ -28,6 +29,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   disabled = false,
 }) => {
   const [message, setMessage] = useState("");
+  const c = useThemeColors();
+  const styles = useMemo(() => getStyles(c), [c]);
 
   const handleSend = () => {
     if (message.trim() && !isLoading && !disabled) {
@@ -38,76 +41,89 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.inputContainer}>
-        {onVoicePress && (
+      <View style={styles.bar}>
+        {onVoicePress ? (
           <VoiceButton
             onPress={onVoicePress}
             isRecording={isRecording}
             disabled={disabled || isLoading}
           />
+        ) : (
+          <View style={styles.attachButton} pointerEvents="none" />
         )}
         <TextInput
           style={styles.input}
           value={message}
           onChangeText={setMessage}
           placeholder={placeholder}
-          placeholderTextColor={colors.textSecondary}
+          placeholderTextColor={c.onSurfaceVariant}
           multiline
           editable={!disabled && !isLoading}
           onSubmitEditing={handleSend}
           returnKeyType="send"
         />
-        {message.trim() && (
+        {message.trim() ? (
           <TouchableOpacity
             style={[styles.sendButton, (disabled || isLoading) && styles.sendButtonDisabled]}
             onPress={handleSend}
             disabled={disabled || isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color={colors.background} size="small" />
+              <ActivityIndicator color={c.onPrimaryContainer} size="small" />
             ) : (
-              <Ionicons name="send" size={20} color={colors.background} />
+              <MaterialIcons name="arrow-upward" size={22} color={c.onPrimaryContainer} />
             )}
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (c: ThemeColors) => StyleSheet.create({
   container: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    position: "absolute",
+    bottom: 90,
+    left: spacing.lg,
+    right: spacing.lg,
   },
-  inputContainer: {
+  bar: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: spacing.sm,
+    backgroundColor: c.surfaceContainerLowest + "E6",
+    borderRadius: borderRadius.xxl,
+    borderWidth: 1,
+    borderColor: c.outlineVariant + "1A",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
+  attachButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
   },
   input: {
     flex: 1,
     minHeight: 44,
     maxHeight: 100,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    ...typography.body,
-    color: colors.text,
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 24,
+    color: c.onSurface,
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primaryContainer,
     justifyContent: "center",
     alignItems: "center",
   },
   sendButtonDisabled: {
-    backgroundColor: colors.textDisabled,
+    backgroundColor: c.outlineVariant,
   },
 });

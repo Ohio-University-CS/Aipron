@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { Ingredient } from "@aipron/shared";
-import { colors, spacing, typography } from "../constants/DesignTokens";
+import { spacing, fonts, type ThemeColors } from "../constants/DesignTokens";
+import { useThemeColors } from "../hooks/useThemeColors";
 
 interface IngredientRowProps {
   ingredient: Ingredient;
@@ -20,9 +22,13 @@ export const IngredientRow: React.FC<IngredientRowProps> = ({
   disabled = false,
   showSubstitution = false,
 }) => {
+  const c = useThemeColors();
+  const styles = useMemo(() => getStyles(c), [c]);
+
   const content = (
     <View style={styles.container}>
-      <View style={styles.content}>
+      <View style={styles.row}>
+        <View style={[styles.indicator, disabled && styles.indicatorDisabled]} />
         <Text
           style={[
             styles.name,
@@ -41,6 +47,7 @@ export const IngredientRow: React.FC<IngredientRowProps> = ({
       )}
       {showSubstitution && (
         <TouchableOpacity style={styles.substitutionButton}>
+          <MaterialIcons name="swap-horiz" size={14} color={c.primary} />
           <Text style={styles.substitutionText}>Find substitution</Text>
         </TouchableOpacity>
       )}
@@ -67,47 +74,69 @@ export const IngredientRow: React.FC<IngredientRowProps> = ({
   return content;
 };
 
-const styles = StyleSheet.create({
+const getStyles = (c: ThemeColors) => StyleSheet.create({
   container: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: c.outlineVariant + "26",
   },
-  content: {
+  row: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
   },
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: c.outline,
+    marginRight: spacing.md,
+  },
+  indicatorDisabled: {
+    borderColor: c.outlineVariant,
+  },
   name: {
-    ...typography.body,
-    color: colors.text,
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 24,
+    color: c.onSurface,
     flex: 1,
   },
   nameDisabled: {
     opacity: 0.5,
   },
   nameError: {
-    color: colors.error,
+    color: c.error,
   },
   quantity: {
-    ...typography.body,
-    color: colors.textSecondary,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 16,
+    lineHeight: 24,
+    color: c.onSurface,
     marginLeft: spacing.md,
   },
   notes: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+    color: c.onSurfaceVariant,
     fontStyle: "italic",
+    marginTop: spacing.xs,
+    marginLeft: spacing.md + 8,
   },
   substitutionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
     marginTop: spacing.xs,
+    marginLeft: spacing.md + 8,
     paddingVertical: spacing.xs,
   },
   substitutionText: {
-    ...typography.caption,
-    color: colors.primary,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: c.primary,
   },
   loadingOverlay: {
     position: "absolute",
@@ -115,12 +144,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    backgroundColor: c.surfaceContainerLowest + "CC",
     justifyContent: "center",
     alignItems: "center",
   },
   loadingText: {
-    ...typography.caption,
-    color: colors.textSecondary,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: c.onSurfaceVariant,
   },
 });

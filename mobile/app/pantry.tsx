@@ -1,9 +1,30 @@
-import React, { useEffect, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useMemo, useState } from "react";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { pantryApi, recipeApi } from "../src/services/api";
-import { borderRadius, colors, shadows, spacing, typography } from "../src/constants/DesignTokens";
+import {
+  borderRadius,
+  fonts,
+  shadows,
+  spacing,
+} from "../src/constants/DesignTokens";
+import { useThemeColors } from "../src/hooks/useThemeColors";
+import { TopBar } from "../src/components/TopBar";
+import {
+  StitchImages,
+  pickFallbackPhoto,
+} from "../src/constants/StitchImages";
 import { useRouter } from "expo-router";
 import axios from "axios";
 
@@ -20,13 +41,31 @@ type PantrySuggestion = {
   description?: string;
   matchPercentage?: number;
   match_percent?: number;
-  // allow extra fields from backend/LLM
   [key: string]: unknown;
 };
 
-export default function PantryScreen(props: { onOpenCookingId?: (id: string) => void } = {}) {
+type MdIconName = React.ComponentProps<typeof MaterialIcons>["name"];
+
+const SPICE_PLACEHOLDERS: { name: string; icon: MdIconName }[] = [
+  { name: "Chili Flakes", icon: "local-fire-department" },
+  { name: "Star Anise", icon: "spa" },
+  { name: "Smoked Paprika", icon: "whatshot" },
+  { name: "Cumin Seed", icon: "grass" },
+];
+
+/** Pick a hero image for a fresh item by index (first two are fixed). */
+function freshImageFor(index: number, id: string): string {
+  if (index === 0) return StitchImages.pantryRicottaBowl;
+  if (index === 1) return StitchImages.pantryLemonsBowl;
+  return pickFallbackPhoto(id);
+}
+
+export default function PantryScreen(
+  props: { onOpenCookingId?: (id: string) => void } = {},
+) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useThemeColors();
   const [items, setItems] = useState<PantryItem[]>([]);
   const [newItem, setNewItem] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +73,7 @@ export default function PantryScreen(props: { onOpenCookingId?: (id: string) => 
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
+  const [addingVisible, setAddingVisible] = useState(false);
 
   useEffect(() => {
     loadPantry();
@@ -56,6 +96,7 @@ export default function PantryScreen(props: { onOpenCookingId?: (id: string) => 
       const item = await pantryApi.add({ name: newItem.trim() });
       setItems((prev) => [...prev, item]);
       setNewItem("");
+      setAddingVisible(false);
     } catch (error) {
       console.error("Failed to add item:", error);
     } finally {
@@ -72,6 +113,19 @@ export default function PantryScreen(props: { onOpenCookingId?: (id: string) => 
     }
   };
 
+  // Backend currently has no PATCH for pantry items — adjust locally so the
+  // steppers give tactile feedback until the update endpoint lands.
+  const handleAdjustQuantity = (id: string, delta: number) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const current = typeof item.quantity === "number" ? item.quantity : 1;
+        const next = Math.max(0, current + delta);
+        return { ...item, quantity: next };
+      }),
+    );
+  };
+
   const handleSuggestRecipes = async () => {
     setSuggestError(null);
     setSuggestLoading(true);
@@ -80,9 +134,10 @@ export default function PantryScreen(props: { onOpenCookingId?: (id: string) => 
         const data = await pantryApi.findRecipes();
         setSuggestions(Array.isArray(data) ? data : []);
       } catch (error) {
-        // First request after app launch can occasionally race network readiness on device.
-        // Retry once if this looks like a transient network failure.
-        if (axios.isAxiosError(error) && error.message.toLowerCase().includes("network")) {
+        if (
+          axios.isAxiosError(error) &&
+          error.message.toLowerCase().includes("network")
+        ) {
           await new Promise((r) => setTimeout(r, 600));
           const data = await pantryApi.findRecipes();
           setSuggestions(Array.isArray(data) ? data : []);
@@ -92,16 +147,25 @@ export default function PantryScreen(props: { onOpenCookingId?: (id: string) => 
       }
     } catch (error) {
       console.error("Failed to suggest recipes:", error);
-      setSuggestError("Could not fetch suggestions. Make sure you’re logged in and the backend is running.");
+      setSuggestError(
+        "Could not fetch suggestions. Make sure you're logged in and the backend is running.",
+      );
       setSuggestions([]);
     } finally {
       setSuggestLoading(false);
     }
   };
 
-  const handleGenerateFromSuggestion = async (s: PantrySuggestion, idx: number) => {
-    const title = typeof s.title === "string" && s.title.trim() ? s.title.trim() : null;
-    const desc = typeof s.description === "string" && s.description.trim() ? s.description.trim() : null;
+  const handleGenerateFromSuggestion = async (
+    s: PantrySuggestion,
+    idx: number,
+  ) => {
+    const title =
+      typeof s.title === "string" && s.title.trim() ? s.title.trim() : null;
+    const desc =
+      typeof s.description === "string" && s.description.trim()
+        ? s.description.trim()
+        : null;
     const prompt = title || desc;
     if (!prompt) return;
 
@@ -118,122 +182,571 @@ export default function PantryScreen(props: { onOpenCookingId?: (id: string) => 
       }
     } catch (error) {
       console.error("Failed to generate recipe from suggestion:", error);
-      setSuggestError("Could not generate that recipe. Try again (and make sure the backend is running).");
+      setSuggestError(
+        "Could not generate that recipe. Try again (and make sure the backend is running).",
+      );
     } finally {
       setGeneratingKey(null);
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Text style={styles.title}>My Pantry</Text>
-        <Text style={styles.subtitle}>Manage your ingredients</Text>
+  const { freshItems, pantryStaples } = useMemo(() => {
+    const fresh = items.slice(0, Math.min(3, items.length));
+    const staples = items.slice(fresh.length);
+    return { freshItems: fresh, pantryStaples: staples };
+  }, [items]);
+
+  const topBarHeight = insets.top + spacing.sm + 56;
+
+  // ---------- Sub renders ----------
+
+  const renderHero = () => (
+    <View style={styles.heroSection}>
+      <Text style={[styles.eyebrow, { color: theme.tertiary }]}>
+        INVENTORY MANAGEMENT
+      </Text>
+      <Text style={[styles.heroTitle, { color: theme.onSurface }]}>
+        Your Kitchen
+      </Text>
+    </View>
+  );
+
+  const renderBento = () => (
+    <TouchableOpacity
+      activeOpacity={0.88}
+      disabled={suggestLoading}
+      onPress={handleSuggestRecipes}
+      style={[
+        styles.bentoCard,
+        {
+          backgroundColor: theme.surfaceContainerLow,
+          borderColor: theme.outlineVariant + "26",
+        },
+      ]}
+    >
+      <View style={styles.bentoBody}>
+        <View
+          style={[
+            styles.bentoChip,
+            { backgroundColor: theme.primaryContainer },
+          ]}
+        >
+          <MaterialIcons
+            name="auto-awesome"
+            size={14}
+            color={theme.onPrimaryContainer}
+          />
+          <Text
+            style={[
+              styles.bentoChipText,
+              { color: theme.onPrimaryContainer },
+            ]}
+          >
+            AI RECOMMENDATION
+          </Text>
+        </View>
+
+        <Text style={[styles.bentoHeadline, { color: theme.onSurface }]}>
+          What can I make?
+        </Text>
+
+        <Text style={[styles.bentoBodyText, { color: theme.onSurfaceVariant }]}>
+          Based on your fresh{" "}
+          <Text style={{ color: theme.primary, fontFamily: fonts.sansBold }}>
+            Ricotta
+          </Text>{" "}
+          and seasonal{" "}
+          <Text style={{ color: theme.primary, fontFamily: fonts.sansBold }}>
+            Lemons
+          </Text>
+          , we suggest:
+        </Text>
+
+        <View
+          style={[
+            styles.bentoSuggestionRow,
+            {
+              backgroundColor: theme.surfaceContainerLowest,
+              borderColor: theme.outlineVariant + "22",
+            },
+            shadows.sm,
+          ]}
+        >
+          <Image
+            source={{ uri: StitchImages.pantryLemonRicottaDish }}
+            style={styles.bentoSuggestionImg}
+            resizeMode="cover"
+          />
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.bentoSuggestionTitle,
+                { color: theme.onSurface },
+              ]}
+            >
+              Lemon Ricotta Linguine
+            </Text>
+            <Text
+              style={[
+                styles.bentoSuggestionMeta,
+                { color: theme.onSurfaceVariant },
+              ]}
+            >
+              25 mins · Intermediate · 98% Match
+            </Text>
+          </View>
+          <MaterialIcons
+            name="chevron-right"
+            size={22}
+            color={theme.primary}
+          />
+        </View>
+
+        {suggestLoading && (
+          <ActivityIndicator
+            size="small"
+            color={theme.primary}
+            style={{ marginTop: spacing.md }}
+          />
+        )}
       </View>
 
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Add ingredient..."
-          placeholderTextColor={colors.textSecondary}
-          value={newItem}
-          onChangeText={setNewItem}
-          onSubmitEditing={handleAddItem}
-          returnKeyType="done"
+      <View style={styles.bentoImageWrap}>
+        <View style={styles.bentoImageInner}>
+          <Image
+            source={{ uri: StitchImages.pantryHeroLemons }}
+            style={styles.bentoImage}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={[
+              "transparent",
+              theme.surfaceContainerLow + "CC",
+              theme.surfaceContainerLow,
+            ]}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0.5, y: 0.4 }}
+            end={{ x: 0.5, y: 1 }}
+          />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderRealSuggestions = () => {
+    if (suggestError) {
+      return (
+        <Text style={[styles.errorText, { color: theme.error }]}>
+          {suggestError}
+        </Text>
+      );
+    }
+    if (suggestions.length === 0) return null;
+    return (
+      <View style={styles.suggestionsWrap}>
+        {suggestions.slice(0, 5).map((r, idx) => {
+          const title =
+            typeof r.title === "string" && r.title.trim().length > 0
+              ? r.title
+              : typeof r.description === "string" &&
+                  r.description.trim().length > 0
+                ? r.description
+                : `Suggestion ${idx + 1}`;
+          const desc = typeof r.description === "string" ? r.description : "";
+          const pctRaw =
+            typeof r.matchPercentage === "number"
+              ? r.matchPercentage
+              : r.match_percent;
+          const pct = typeof pctRaw === "number" ? Math.round(pctRaw) : null;
+          const key = `${title}-${idx}`;
+          const canGenerate =
+            (typeof r.title === "string" && r.title.trim().length > 0) ||
+            (typeof r.description === "string" &&
+              r.description.trim().length > 0);
+          const isGenerating = generatingKey === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.suggestionRow,
+                {
+                  backgroundColor: theme.surfaceContainerLowest,
+                  borderColor: canGenerate
+                    ? theme.primaryContainer
+                    : theme.outlineVariant + "26",
+                },
+              ]}
+              activeOpacity={0.85}
+              disabled={!canGenerate || isGenerating}
+              onPress={() => handleGenerateFromSuggestion(r, idx)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.suggestionRowTitle,
+                    { color: theme.onSurface },
+                  ]}
+                >
+                  {title}
+                </Text>
+                {desc ? (
+                  <Text
+                    style={[
+                      styles.suggestionRowDesc,
+                      { color: theme.onSurfaceVariant },
+                    ]}
+                  >
+                    {desc}
+                  </Text>
+                ) : null}
+                {canGenerate && (
+                  <Text
+                    style={[styles.suggestionRowHint, { color: theme.tertiary }]}
+                  >
+                    {isGenerating ? "Generating recipe…" : "Tap to generate"}
+                  </Text>
+                )}
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.sm,
+                }}
+              >
+                {pct != null && (
+                  <Text style={[styles.matchPct, { color: theme.primary }]}>
+                    {pct}%
+                  </Text>
+                )}
+                <MaterialIcons
+                  name="chevron-right"
+                  size={20}
+                  color={theme.primary}
+                />
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
+  const renderSectionHeader = (label: string, count: number) => (
+    <View
+      style={[
+        styles.sectionHeader,
+        { borderBottomColor: theme.outlineVariant + "4D" },
+      ]}
+    >
+      <Text style={[styles.sectionTitle, { color: theme.onSurface }]}>
+        {label}
+      </Text>
+      <Text style={[styles.sectionCount, { color: theme.onSurfaceVariant }]}>
+        {count} item{count !== 1 ? "s" : ""}
+      </Text>
+    </View>
+  );
+
+  const renderStepper = (item: PantryItem) => (
+    <View style={styles.stepperRow}>
+      <TouchableOpacity
+        style={[styles.stepperBtn, { backgroundColor: theme.surfaceContainer }]}
+        activeOpacity={0.8}
+        onPress={() => handleAdjustQuantity(item.id, -1)}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        <MaterialIcons
+          name="remove"
+          size={16}
+          color={theme.onSurfaceVariant}
         />
+      </TouchableOpacity>
+      <Text style={[styles.stepperValue, { color: theme.onSurface }]}>
+        {item.quantity != null
+          ? `${item.quantity}${item.unit ? item.unit : ""}`
+          : "—"}
+      </Text>
+      <TouchableOpacity
+        style={[
+          styles.stepperBtn,
+          { backgroundColor: theme.primaryContainer },
+        ]}
+        activeOpacity={0.8}
+        onPress={() => handleAdjustQuantity(item.id, 1)}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        <MaterialIcons
+          name="add"
+          size={16}
+          color={theme.onPrimaryContainer}
+        />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.deleteBtn}
+        onPress={() => handleDeleteItem(item.id)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <MaterialIcons name="delete-outline" size={20} color={theme.error} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderFreshItem = (item: PantryItem, index: number) => (
+    <View key={item.id} style={styles.freshCard}>
+      <View style={styles.freshHeader}>
+        <Text style={[styles.freshName, { color: theme.onSurface }]}>
+          {item.name}
+        </Text>
+        {renderStepper(item)}
+      </View>
+      <Image
+        source={{ uri: freshImageFor(index, item.id) }}
+        style={styles.freshImage}
+        resizeMode="cover"
+      />
+    </View>
+  );
+
+  const renderStapleItem = (item: PantryItem) => (
+    <View
+      key={item.id}
+      style={[
+        styles.stapleCard,
+        {
+          backgroundColor: theme.surfaceContainerLowest,
+          borderColor: theme.outlineVariant + "1A",
+        },
+      ]}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.stapleName, { color: theme.onSurface }]}>
+          {item.name}
+        </Text>
+        <Text style={[styles.stapleSub, { color: theme.secondary }]}>
+          {item.quantity != null
+            ? `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
+            : "Remaining: 60%"}
+        </Text>
+      </View>
+      <View style={styles.stapleBtns}>
         <TouchableOpacity
-          style={[styles.addButton, !newItem.trim() && styles.addButtonDisabled]}
-          onPress={handleAddItem}
-          disabled={!newItem.trim() || isLoading}
+          style={styles.stapleIconBtn}
+          activeOpacity={0.7}
+          onPress={() => handleAdjustQuantity(item.id, -1)}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <Ionicons name="add" size={24} color={colors.background} />
+          <MaterialIcons
+            name="remove"
+            size={22}
+            color={theme.onSurfaceVariant}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.stapleIconBtn}
+          activeOpacity={0.7}
+          onPress={() => handleAdjustQuantity(item.id, 1)}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <MaterialIcons
+            name="add"
+            size={22}
+            color={theme.onSurfaceVariant}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.stapleIconBtn}
+          onPress={() => handleDeleteItem(item.id)}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="delete-outline" size={20} color={theme.error} />
         </TouchableOpacity>
       </View>
+    </View>
+  );
 
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View style={styles.suggestWrap}>
-            <TouchableOpacity
-              style={[styles.suggestButton, (items.length === 0 || suggestLoading) && styles.suggestButtonDisabled]}
-              onPress={handleSuggestRecipes}
-              disabled={items.length === 0 || suggestLoading}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="sparkles" size={18} color={colors.background} />
-              <Text style={styles.suggestButtonText}>
-                {suggestLoading ? "Finding recipes..." : "Suggest recipes from my pantry"}
-              </Text>
-            </TouchableOpacity>
-            {suggestError ? <Text style={styles.suggestError}>{suggestError}</Text> : null}
-            {suggestions.length > 0 ? (
-              <View style={styles.suggestionList}>
-                <Text style={styles.suggestionTitle}>Suggestions</Text>
-                {suggestions.slice(0, 5).map((r, idx) => {
-                  const title =
-                    typeof r.title === "string" && r.title.trim().length > 0
-                      ? r.title
-                      : typeof r.description === "string" && r.description.trim().length > 0
-                        ? r.description
-                        : `Suggestion ${idx + 1}`;
-                  const desc = typeof r.description === "string" ? r.description : "";
-                  const pctRaw = typeof r.matchPercentage === "number" ? r.matchPercentage : r.match_percent;
-                  const pct = typeof pctRaw === "number" ? Math.round(pctRaw) : null;
-                  const key = `${title}-${idx}`;
-                  const canGenerate =
-                    (typeof r.title === "string" && r.title.trim().length > 0) ||
-                    (typeof r.description === "string" && r.description.trim().length > 0);
-                  const isGenerating = generatingKey === key;
-                  return (
-                    <TouchableOpacity
-                      key={key}
-                      style={[styles.suggestionCard, canGenerate && styles.suggestionCardPressable]}
-                      activeOpacity={0.85}
-                      disabled={!canGenerate || isGenerating}
-                      onPress={() => handleGenerateFromSuggestion(r, idx)}
-                    >
-                      <View style={styles.suggestionCardHeader}>
-                        <Text style={styles.suggestionCardTitle}>{title}</Text>
-                        {pct != null ? <Text style={styles.suggestionCardPct}>{pct}%</Text> : null}
-                      </View>
-                      {desc ? <Text style={styles.suggestionCardDesc}>{desc}</Text> : null}
-                      {canGenerate ? (
-                        <Text style={styles.suggestionCardHint}>
-                          {isGenerating ? "Generating recipe…" : "Tap to generate full recipe"}
-                        </Text>
-                      ) : null}
-                    </TouchableOpacity>
-                  );
-                })}
+  const renderSpicesGrid = () => (
+    <View style={styles.spicesGrid}>
+      {SPICE_PLACEHOLDERS.map((spice) => (
+        <View
+          key={spice.name}
+          style={[
+            styles.spiceTile,
+            { backgroundColor: theme.surfaceContainer },
+          ]}
+        >
+          <MaterialIcons name={spice.icon} size={32} color={theme.primary} />
+          <Text style={[styles.spiceName, { color: theme.onSurface }]}>
+            {spice.name}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderAddRow = () => {
+    if (addingVisible) {
+      return (
+        <View
+          style={[styles.addInputWrap, { borderColor: theme.outlineVariant }]}
+        >
+          <TextInput
+            style={[styles.addInput, { color: theme.onSurface }]}
+            placeholder="Add ingredient..."
+            placeholderTextColor={theme.onSurfaceVariant}
+            value={newItem}
+            onChangeText={setNewItem}
+            onSubmitEditing={handleAddItem}
+            returnKeyType="done"
+            autoFocus
+          />
+          <TouchableOpacity
+            style={[
+              styles.addConfirmBtn,
+              {
+                backgroundColor: newItem.trim()
+                  ? theme.primaryContainer
+                  : theme.surfaceContainer,
+              },
+            ]}
+            onPress={handleAddItem}
+            disabled={!newItem.trim() || isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={theme.onPrimaryContainer}
+              />
+            ) : (
+              <MaterialIcons
+                name="check"
+                size={20}
+                color={
+                  newItem.trim()
+                    ? theme.onPrimaryContainer
+                    : theme.onSurfaceVariant
+                }
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setAddingVisible(false);
+              setNewItem("");
+            }}
+            style={{ padding: spacing.sm }}
+          >
+            <MaterialIcons
+              name="close"
+              size={20}
+              color={theme.onSurfaceVariant}
+            />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <TouchableOpacity
+        style={[styles.addRow, { borderColor: theme.outlineVariant }]}
+        onPress={() => setAddingVisible(true)}
+        activeOpacity={0.7}
+      >
+        <MaterialIcons name="add" size={20} color={theme.onSurfaceVariant} />
+        <Text style={[styles.addRowText, { color: theme.onSurfaceVariant }]}>
+          Add New Spice
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <TopBar title="Pantry" showBack onBackPress={() => router.back()} />
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: topBarHeight + spacing.lg,
+            paddingBottom: 140 + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.maxWidthWrap}>
+          {renderHero()}
+          {renderBento()}
+          {renderRealSuggestions()}
+
+          {/* Fresh */}
+          {freshItems.length > 0 && (
+            <View style={styles.sectionBlock}>
+              {renderSectionHeader("Fresh", freshItems.length)}
+              <View style={styles.freshList}>
+                {freshItems.map((item, idx) => renderFreshItem(item, idx))}
               </View>
-            ) : null}
-          </View>
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="basket-outline" size={64} color={colors.textDisabled} />
-            <Text style={styles.emptyText}>Your pantry is empty</Text>
-            <Text style={styles.emptySubtext}>Add ingredients to get recipe suggestions</Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.itemCard}>
-            <View style={styles.itemContent}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              {item.quantity && item.unit && (
-                <Text style={styles.itemQuantity}>
-                  {item.quantity} {item.unit}
-                </Text>
-              )}
             </View>
-            <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteItem(item.id)}>
-              <Ionicons name="trash-outline" size={20} color={colors.error} />
-            </TouchableOpacity>
+          )}
+
+          {/* Pantry Staples */}
+          {pantryStaples.length > 0 && (
+            <View style={styles.sectionBlock}>
+              {renderSectionHeader("Pantry Staples", pantryStaples.length)}
+              <View style={styles.stapleList}>
+                {pantryStaples.map(renderStapleItem)}
+              </View>
+            </View>
+          )}
+
+          {/* Empty state */}
+          {items.length === 0 && (
+            <View style={styles.emptyWrap}>
+              <View
+                style={[
+                  styles.emptyIcon,
+                  { backgroundColor: theme.surfaceContainer },
+                ]}
+              >
+                <MaterialIcons
+                  name="kitchen"
+                  size={40}
+                  color={theme.onSurfaceVariant}
+                />
+              </View>
+              <Text style={[styles.emptyTitle, { color: theme.onSurface }]}>
+                Your pantry is empty
+              </Text>
+              <Text
+                style={[styles.emptyDesc, { color: theme.onSurfaceVariant }]}
+              >
+                Add ingredients to get recipe suggestions
+              </Text>
+            </View>
+          )}
+
+          {/* Spices */}
+          <View style={styles.sectionBlock}>
+            {renderSectionHeader("Spices", SPICE_PLACEHOLDERS.length)}
+            {renderSpicesGrid()}
+            {renderAddRow()}
           </View>
-        )}
-      />
+        </View>
+      </ScrollView>
+
+      <TouchableOpacity
+        style={[
+          styles.fab,
+          {
+            backgroundColor: theme.tertiary,
+            bottom: 100 + insets.bottom,
+          },
+        ]}
+        activeOpacity={0.85}
+        onPress={() => setAddingVisible(true)}
+        accessibilityLabel="Add pantry ingredient"
+      >
+        <MaterialIcons name="add" size={30} color={theme.onTertiary} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -241,166 +754,351 @@ export default function PantryScreen(props: { onOpenCookingId?: (id: string) => 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  scrollContent: {
+    paddingHorizontal: spacing.screenPadding,
   },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs / 2,
+  maxWidthWrap: {
+    maxWidth: 680,
+    width: "100%",
+    alignSelf: "center",
   },
-  subtitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
+
+  // Hero
+  heroSection: {
+    marginBottom: spacing.xxl,
   },
-  inputContainer: {
-    flexDirection: "row",
-    padding: spacing.lg,
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  eyebrow: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 10,
+    letterSpacing: 4,
+    textTransform: "uppercase",
+    marginBottom: spacing.sm,
   },
-  input: {
+  heroTitle: {
+    fontFamily: fonts.serifBold,
+    fontSize: 56,
+    lineHeight: 62,
+    letterSpacing: -1.5,
+  },
+
+  // Bento
+  bentoCard: {
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  bentoBody: {
     flex: 1,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    ...typography.body,
-    color: colors.text,
   },
-  addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  addButtonDisabled: {
-    backgroundColor: colors.textDisabled,
-  },
-  listContent: {
-    padding: spacing.lg,
-    paddingBottom: spacing.lg + 96,
-  },
-  suggestWrap: {
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  suggestButton: {
+  bentoChip: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.sm,
+    alignSelf: "flex-start",
+    gap: spacing.xs + 2,
     paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.lg,
+  },
+  bentoChipText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 10,
+    letterSpacing: 1.5,
+  },
+  bentoHeadline: {
+    fontFamily: fonts.serifBold,
+    fontSize: 30,
+    lineHeight: 38,
+    marginBottom: spacing.sm,
+    letterSpacing: -0.5,
+  },
+  bentoBodyText: {
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 26,
+    marginBottom: spacing.lg,
+    maxWidth: 420,
+  },
+  bentoSuggestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+  },
+  bentoSuggestionImg: {
+    width: 72,
+    height: 72,
     borderRadius: borderRadius.md,
+    backgroundColor: "#00000010",
+  },
+  bentoSuggestionTitle: {
+    fontFamily: fonts.sansBold,
+    fontSize: 15,
+    marginBottom: 2,
+  },
+  bentoSuggestionMeta: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  bentoImageWrap: {
+    marginTop: spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bentoImageInner: {
+    width: "85%",
+    aspectRatio: 1,
+    borderRadius: 20,
+    overflow: "hidden",
+    transform: [{ rotate: "3deg" }],
+    ...shadows.lg,
+  },
+  bentoImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  // Real suggestions
+  errorText: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    marginBottom: spacing.md,
+  },
+  suggestionsWrap: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
     ...shadows.sm,
   },
-  suggestButtonDisabled: {
-    backgroundColor: colors.textDisabled,
+  suggestionRowTitle: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 15,
+    marginBottom: 2,
   },
-  suggestButtonText: {
-    ...typography.body,
-    color: colors.background,
-    fontWeight: "600",
+  suggestionRowDesc: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
   },
-  suggestError: {
-    ...typography.caption,
-    color: colors.error,
-  },
-  suggestionList: {
-    gap: spacing.sm,
-  },
-  suggestionTitle: {
-    ...typography.h2,
-    color: colors.text,
-  },
-  suggestionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  suggestionCardPressable: {
-    borderColor: colors.primary,
-  },
-  suggestionCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  suggestionCardTitle: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: "600",
-    flex: 1,
-  },
-  suggestionCardPct: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "700",
-  },
-  suggestionCardDesc: {
-    ...typography.caption,
-    color: colors.textSecondary,
+  suggestionRowHint: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 12,
     marginTop: spacing.xs,
   },
-  suggestionCardHint: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-    fontStyle: "italic",
+  matchPct: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
   },
-  itemCard: {
+
+  // Section blocks
+  sectionBlock: {
+    marginBottom: spacing.sectionGap,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    borderBottomWidth: 1,
+    paddingBottom: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  sectionTitle: {
+    fontFamily: fonts.serif,
+    fontSize: 24,
+  },
+  sectionCount: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+  },
+
+  // Fresh items
+  freshList: {
+    gap: spacing.xxl,
+  },
+  freshCard: {
+    width: "100%",
+  },
+  freshHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  freshName: {
+    fontFamily: fonts.sansBold,
+    fontSize: 18,
+    letterSpacing: -0.3,
+  },
+  freshImage: {
+    width: "100%",
+    height: 192,
+    borderRadius: borderRadius.lg,
+    backgroundColor: "#00000010",
+  },
+
+  // Stepper
+  stepperRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.background,
-    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
     borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
-    ...shadows.sm,
-  },
-  itemContent: {
-    flex: 1,
-  },
-  itemName: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: "500",
-    marginBottom: spacing.xs / 2,
-  },
-  itemQuantity: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  deleteButton: {
-    padding: spacing.xs,
-  },
-  emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: spacing.xxl * 2,
   },
-  emptyText: {
-    ...typography.h2,
-    color: colors.text,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  emptySubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
+  stepperValue: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    minWidth: 40,
     textAlign: "center",
   },
-});
+  deleteBtn: {
+    padding: spacing.xs,
+    marginLeft: spacing.xs,
+  },
 
+  // Staples
+  stapleList: {
+    gap: spacing.md,
+  },
+  stapleCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.xl,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+  },
+  stapleName: {
+    fontFamily: fonts.sansBold,
+    fontSize: 16,
+  },
+  stapleSub: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  stapleBtns: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  stapleIconBtn: {
+    padding: spacing.sm,
+  },
+
+  // Spices grid
+  spicesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  spiceTile: {
+    width: "48%",
+    aspectRatio: 1,
+    borderRadius: borderRadius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+    gap: spacing.sm,
+    flexGrow: 1,
+  },
+  spiceName: {
+    fontFamily: fonts.sansBold,
+    fontSize: 14,
+    textAlign: "center",
+  },
+
+  // Add row
+  addRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderRadius: borderRadius.md,
+  },
+  addRowText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
+  addInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: borderRadius.xl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  addInput: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    paddingVertical: spacing.sm,
+  },
+  addConfirmBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Empty
+  emptyWrap: {
+    alignItems: "center",
+    paddingVertical: spacing.sectionGap,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.lg,
+  },
+  emptyTitle: {
+    fontFamily: fonts.serif,
+    fontSize: 20,
+    marginBottom: spacing.sm,
+  },
+  emptyDesc: {
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    textAlign: "center",
+    marginBottom: spacing.xl,
+  },
+
+  // FAB
+  fab: {
+    position: "absolute",
+    right: spacing.xl,
+    width: 60,
+    height: 60,
+    borderRadius: borderRadius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.lg,
+    zIndex: 20,
+  },
+});

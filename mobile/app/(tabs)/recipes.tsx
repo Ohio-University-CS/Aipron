@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, Text, FlatList, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { recipeApi } from "../../src/services/api";
 import { RecipeCard } from "../../src/components/RecipeCard";
-import { colors, spacing, typography, borderRadius } from "../../src/constants/DesignTokens";
+import { TopBar } from "../../src/components/TopBar";
+import { Chip } from "../../src/components/Chip";
+import { spacing, typography, borderRadius, shadows, fonts } from "../../src/constants/DesignTokens";
+import { useThemeColors } from "../../src/hooks/useThemeColors";
 import { Recipe } from "@aipron/shared";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,6 +16,7 @@ type FilterMode = "all" | "saved";
 export default function RecipesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useThemeColors();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -74,63 +78,65 @@ export default function RecipesScreen() {
     });
   }, []);
 
-  const displayedRecipes = filter === "saved"
-    ? recipes.filter((r) => r.id && savedIds.has(r.id))
-    : recipes;
+  const displayedRecipes =
+    filter === "saved"
+      ? recipes.filter((r) => r.id && savedIds.has(r.id))
+      : recipes;
 
-  const subtitleText = filter === "saved"
-    ? `${displayedRecipes.length} favorite${displayedRecipes.length !== 1 ? "s" : ""}`
-    : `${recipes.length} recipe${recipes.length !== 1 ? "s" : ""}`;
+  const subtitleText =
+    filter === "saved"
+      ? `${displayedRecipes.length} favorite${displayedRecipes.length !== 1 ? "s" : ""}`
+      : `${recipes.length} recipe${recipes.length !== 1 ? "s" : ""}`;
+
+  const styles = getStyles(theme);
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Text style={styles.title}>My Recipes</Text>
-        <Text style={styles.subtitle}>{subtitleText}</Text>
-      </View>
-
-      <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === "all" && styles.filterTabActive]}
-          onPress={() => setFilter("all")}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="grid-outline"
-            size={16}
-            color={filter === "all" ? colors.background : colors.textSecondary}
-          />
-          <Text style={[styles.filterTabText, filter === "all" && styles.filterTabTextActive]}>
-            All
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === "saved" && styles.filterTabActive]}
-          onPress={() => setFilter("saved")}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={filter === "saved" ? "heart" : "heart-outline"}
-            size={16}
-            color={filter === "saved" ? colors.background : colors.textSecondary}
-          />
-          <Text style={[styles.filterTabText, filter === "saved" && styles.filterTabTextActive]}>
-            Favorites
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <TopBar />
 
       <FlatList
         data={displayedRecipes}
         keyExtractor={(item, index) => item.id || `recipe-${index}`}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: insets.top + 56 + spacing.lg },
+        ]}
+        ListHeaderComponent={
+          <View style={styles.headerSection}>
+            <Text style={styles.eyebrow}>COLLECTION</Text>
+            <Text style={styles.title}>
+              My{" "}
+              <Text style={styles.titleAccent}>Recipes</Text>
+            </Text>
+            <Text style={styles.subtitle}>{subtitleText}</Text>
+
+            <View style={styles.filterRow}>
+              <Chip
+                label="All"
+                icon="grid-view"
+                selected={filter === "all"}
+                onPress={() => setFilter("all")}
+                variant="tonal"
+              />
+              <Chip
+                label="Favorites"
+                icon="favorite"
+                selected={filter === "saved"}
+                onPress={() => setFilter("saved")}
+                variant="tonal"
+              />
+            </View>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons
-              name={filter === "saved" ? "heart-outline" : "book-outline"}
-              size={64}
-              color={colors.textDisabled}
-            />
+            <View style={styles.emptyIconCircle}>
+              <MaterialIcons
+                name={filter === "saved" ? "favorite-border" : "restaurant"}
+                size={32}
+                color={theme.onSurfaceVariant}
+              />
+            </View>
             <Text style={styles.emptyText}>
               {filter === "saved" ? "No favorites yet" : "No recipes yet"}
             </Text>
@@ -160,72 +166,73 @@ export default function RecipesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.xs / 2,
-  },
-  subtitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  filterRow: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  filterTab: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-  },
-  filterTabActive: {
-    backgroundColor: colors.primary,
-  },
-  filterTabText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: "500",
-  },
-  filterTabTextActive: {
-    color: colors.background,
-    fontWeight: "600",
-  },
-  listContent: {
-    padding: spacing.lg,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.xxl * 2,
-  },
-  emptyText: {
-    ...typography.h2,
-    color: colors.text,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  emptySubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-});
+const getStyles = (theme: ReturnType<typeof useThemeColors>) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    listContent: {
+      paddingHorizontal: spacing.screenPadding,
+      paddingBottom: 100,
+    },
+    headerSection: {
+      marginBottom: spacing.xl,
+    },
+    eyebrow: {
+      fontFamily: fonts.sansSemiBold,
+      fontSize: 11,
+      letterSpacing: 2,
+      color: theme.tertiary,
+      textTransform: "uppercase",
+      marginBottom: spacing.sm,
+    },
+    title: {
+      fontFamily: fonts.serifBold,
+      fontSize: 36,
+      lineHeight: 44,
+      color: theme.onSurface,
+    },
+    titleAccent: {
+      fontFamily: fonts.serifBoldItalic,
+      color: theme.primary,
+    },
+    subtitle: {
+      fontFamily: fonts.sans,
+      fontSize: 15,
+      color: theme.onSurfaceVariant,
+      marginTop: spacing.xs,
+      marginBottom: spacing.xl,
+    },
+    filterRow: {
+      flexDirection: "row",
+      gap: spacing.sm,
+    },
+    emptyContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: spacing.sectionGap,
+    },
+    emptyIconCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: theme.surfaceContainer,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: spacing.lg,
+    },
+    emptyText: {
+      fontFamily: fonts.serif,
+      fontSize: 22,
+      color: theme.onSurface,
+      marginBottom: spacing.sm,
+    },
+    emptySubtext: {
+      fontFamily: fonts.sans,
+      fontSize: 15,
+      color: theme.onSurfaceVariant,
+      textAlign: "center",
+      paddingHorizontal: spacing.xxl,
+    },
+  });

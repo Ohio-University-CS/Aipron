@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aipron - Cooking Mode</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400;1,700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed": "#ffdbd0",
+                        "on-secondary-fixed": "#2c160e",
+                        "tertiary-container": "#ffbc8d",
+                        "on-tertiary-container": "#864300",
+                        "inverse-primary": "#f0c12c",
+                        "surface-dim": "#dbdad6",
+                        "primary": "#755b00",
+                        "primary-fixed": "#ffdf90",
+                        "on-secondary-fixed-variant": "#5d4037",
+                        "surface-container-highest": "#e4e2de",
+                        "on-error-container": "#93000a",
+                        "on-primary-fixed-variant": "#584400",
+                        "surface-variant": "#e4e2de",
+                        "surface": "#fbf9f5",
+                        "secondary-container": "#fed3c7",
+                        "on-primary-fixed": "#241a00",
+                        "on-primary": "#ffffff",
+                        "outline": "#807661",
+                        "background": "#fbf9f5",
+                        "surface-bright": "#fbf9f5",
+                        "secondary-fixed-dim": "#e7bdb1",
+                        "on-surface-variant": "#4e4634",
+                        "primary-container": "#f4c430",
+                        "tertiary-fixed": "#ffdcc5",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "on-primary-container": "#695200",
+                        "secondary": "#77574d",
+                        "outline-variant": "#d1c5ad",
+                        "on-tertiary-fixed": "#301400",
+                        "on-surface": "#1b1c1a",
+                        "error": "#ba1a1a",
+                        "inverse-surface": "#30312e",
+                        "tertiary-fixed-dim": "#ffb783",
+                        "surface-container-low": "#f5f3ef",
+                        "tertiary": "#944a00",
+                        "on-secondary-container": "#795950",
+                        "primary-fixed-dim": "#f0c12c",
+                        "surface-container-high": "#eae8e4",
+                        "inverse-on-surface": "#f2f0ed",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#755b00",
+                        "surface-container": "#efeeea",
+                        "on-error": "#ffffff",
+                        "on-background": "#1b1c1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .serif-text { font-family: 'Noto Serif', serif; }
+        .sans-text { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface sans-text min-h-screen flex flex-col overflow-hidden">
+<!-- TopAppBar Fragmented Execution from JSON -->
+<header class="fixed top-0 w-full z-50 bg-[#fbf9f5]/80 dark:bg-stone-900/80 backdrop-blur-xl flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="text-[#755b00] dark:text-[#f4c430] hover:bg-[#efeeea] dark:hover:bg-stone-800 transition-colors rounded-full p-2 scale-95 active:duration-150">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<h1 class="font-serif italic font-bold text-[#755b00] dark:text-[#f4c430] text-2xl tracking-tight">Aipron</h1>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex gap-8 text-[#77574d] font-sans text-[11px] font-medium tracking-wide uppercase">
+<span class="hover:text-[#755b00] cursor-pointer">Ingredients</span>
+<span class="hover:text-[#755b00] cursor-pointer">Equipment</span>
+<span class="hover:text-[#755b00] cursor-pointer">Timer</span>
+</div>
+<img alt="User Profile" class="w-10 h-10 rounded-full border-2 border-primary/10" data-alt="Professional headshot of a smiling person in a bright airy kitchen setting with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQO_l-DStYpp965ICPaKApWLsOvezHW6YezRJhn4_smpeCZLPu77yKNg1trRcTWPKeFY1oJmAaqRvFC7F5ol4OTOsEbcss0UzcF2APvGDF-Q2Dp45CGWaCmIOG7RPhcRR18DGD934p98Pc30T6I_pKA0-McHYmsXZfyp6HrZZoLQX_w9YV6QPqPgBcRXXh09RqnM_Ybg58uTaC2NH0NaeD3ojdHYQF-6_4HX8WJLe03eAxt20o8TXm5WXm13UL9oGszXygsdJ802P7"/>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col items-center justify-center pt-24 pb-32 px-6 md:px-24">
+<!-- Progress Indicator -->
+<div class="w-full max-w-4xl mb-12 flex items-center justify-between">
+<span class="text-secondary font-medium tracking-widest uppercase text-xs">Step 1 of 8</span>
+<div class="flex gap-1.5">
+<div class="h-1.5 w-12 bg-primary rounded-full"></div>
+<div class="h-1.5 w-8 bg-outline-variant/30 rounded-full"></div>
+<div class="h-1.5 w-8 bg-outline-variant/30 rounded-full"></div>
+<div class="h-1.5 w-8 bg-outline-variant/30 rounded-full"></div>
+<div class="h-1.5 w-8 bg-outline-variant/30 rounded-full"></div>
+<div class="h-1.5 w-8 bg-outline-variant/30 rounded-full"></div>
+<div class="h-1.5 w-8 bg-outline-variant/30 rounded-full"></div>
+<div class="h-1.5 w-8 bg-outline-variant/30 rounded-full"></div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center w-full max-w-6xl">
+<!-- Step Visual - Asymmetric Hero -->
+<div class="lg:col-span-5 relative">
+<div class="aspect-[4/5] rounded-tl-[4rem] rounded-br-[1rem] overflow-hidden shadow-2xl">
+<img class="w-full h-full object-cover" data-alt="Close-up of fresh ricotta cheese, organic brown eggs, and a bowl of bright yellow lemon zest on a marble countertop in morning sunlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1BhoirRdgA4pqQxpBj7lCN02IfO0AsX1sZwe8d4Ljs4rpbvw_NIzG0WCxL7nSWMtTBrxMrDrDJ5AXgFxrmKzCj1P0UrakRBKWjnWaBWh1SPvvXMiYgLPHLSGh2ki4OKaI3mcU1HGUh0FheDf3yXzcJ7IRy98ZYR2GiHjZ98ldspQtRIrjva1D74JJMsSSyq3u3JjylnKWN8Aw_hFcwuPYLDSp2Yj4thxcB0_Du9XYipnziurYdnyOusAhyCVHAvz1VtnTqeoYsT-C"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+</div>
+<!-- Mini Timer Overlay -->
+<div class="absolute -bottom-6 -right-6 bg-surface-container-lowest p-6 rounded-xl shadow-lg border border-outline-variant/10">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary" data-icon="timer">timer</span>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-wider text-secondary font-bold">Preparation</span>
+<span class="font-serif text-xl text-on-surface">02:00</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Instruction Text -->
+<div class="lg:col-span-7 flex flex-col space-y-8">
+<h2 class="text-secondary font-medium tracking-wide uppercase text-sm mb-2">Lemon Ricotta Pancakes</h2>
+<p class="font-serif text-4xl md:text-5xl lg:text-6xl text-on-surface leading-[1.15] tracking-tight">
+                    Whisk the ricotta, eggs, milk, and lemon zest <span class="italic text-primary">until smooth.</span>
+</p>
+<div class="flex items-start gap-4 p-5 bg-surface-container-low rounded-xl border border-outline-variant/5">
+<span class="material-symbols-outlined text-primary mt-1" data-icon="lightbulb">lightbulb</span>
+<p class="text-on-surface-variant text-sm leading-relaxed">
+<span class="font-bold text-on-surface">Chef's Tip:</span> Make sure your eggs are at room temperature to ensure the ricotta emulsifies perfectly without curdling.
+                    </p>
+</div>
+<!-- Voice Active Indicator -->
+<div class="flex items-center gap-4 pt-4">
+<div class="relative flex items-center justify-center">
+<div class="absolute w-8 h-8 bg-primary/20 rounded-full animate-ping"></div>
+<div class="relative w-10 h-10 bg-primary-container text-primary rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="mic" data-weight="fill" style="font-variation-settings: 'FILL' 1;">mic</span>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-primary uppercase tracking-widest">Listening...</span>
+<span class="text-sm text-secondary italic">"Say 'Next' to continue"</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Navigation Bar - Execution of BottomNavBar styles from JSON -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-[#fbf9f5]/80 dark:bg-stone-900/80 backdrop-blur-xl z-50 border-t border-[#d1c5ad]/15 shadow-[0_-4px_40px_rgba(27,28,26,0.05)]">
+<!-- Manual override for Task-focused mode: Showing Next Step instead of global nav -->
+<div class="w-full max-w-4xl flex items-center justify-between gap-6 px-4">
+<button class="flex flex-col items-center justify-center text-[#77574d] dark:text-stone-400 px-4 py-1.5 hover:text-[#755b00] transition-colors active:scale-95">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+<span class="font-sans text-[11px] font-medium tracking-wide uppercase mt-1">Back</span>
+</button>
+<!-- Primary Action Component -->
+<button class="flex-grow md:flex-none md:min-w-[300px] h-16 bg-gradient-to-r from-primary to-primary-container text-on-primary-container rounded-md flex items-center justify-center gap-3 shadow-lg active:scale-[0.98] transition-transform">
+<span class="font-bold text-lg tracking-wide uppercase">Next Step</span>
+<span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#77574d] dark:text-stone-400 px-4 py-1.5 hover:text-[#755b00] transition-colors active:scale-95">
+<span class="material-symbols-outlined" data-icon="list_alt">list_alt</span>
+<span class="font-sans text-[11px] font-medium tracking-wide uppercase mt-1">Steps</span>
+</button>
+</div>
+</nav>
+<!-- Ambient Accents -->
+<div class="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -mr-64 -mt-64"></div>
+<div class="fixed bottom-0 left-0 -z-10 w-[400px] h-[400px] bg-tertiary/5 rounded-full blur-[100px] -ml-32 -mb-32"></div>
+</body></html>

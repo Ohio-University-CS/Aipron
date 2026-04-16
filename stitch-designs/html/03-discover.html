@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3, .serif {
+            font-family: 'Noto Serif', serif;
+        }
+        ::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#eae8e4",
+                        "surface-tint": "#755b00",
+                        "on-secondary": "#ffffff",
+                        "secondary": "#77574d",
+                        "on-tertiary-container": "#864300",
+                        "primary-fixed-dim": "#f0c12c",
+                        "background": "#fbf9f5",
+                        "primary-fixed": "#ffdf90",
+                        "secondary-fixed-dim": "#e7bdb1",
+                        "primary-container": "#f4c430",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#695200",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#ffdbd0",
+                        "on-tertiary-fixed-variant": "#713700",
+                        "tertiary": "#944a00",
+                        "on-tertiary-fixed": "#301400",
+                        "tertiary-fixed-dim": "#ffb783",
+                        "surface-variant": "#e4e2de",
+                        "on-secondary-fixed-variant": "#5d4037",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#d1c5ad",
+                        "on-error": "#ffffff",
+                        "on-background": "#1b1c1a",
+                        "surface-container-low": "#f5f3ef",
+                        "surface": "#fbf9f5",
+                        "on-primary-fixed": "#241a00",
+                        "on-secondary-fixed": "#2c160e",
+                        "error-container": "#ffdad6",
+                        "error": "#ba1a1a",
+                        "surface-container": "#efeeea",
+                        "on-secondary-container": "#795950",
+                        "inverse-primary": "#f0c12c",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#ffbc8d",
+                        "surface-bright": "#fbf9f5",
+                        "surface-container-highest": "#e4e2de",
+                        "inverse-surface": "#30312e",
+                        "surface-dim": "#dbdad6",
+                        "on-primary-fixed-variant": "#584400",
+                        "on-surface": "#1b1c1a",
+                        "secondary-container": "#fed3c7",
+                        "outline": "#807661",
+                        "primary": "#755b00",
+                        "on-surface-variant": "#4e4634",
+                        "inverse-on-surface": "#f2f0ed",
+                        "tertiary-fixed": "#ffdcc5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-background selection:bg-primary-container selection:text-on-primary-container min-h-screen">
+<!-- Top Navigation Anchor -->
+<header class="bg-[#fbf9f5]/80 dark:bg-stone-950/80 backdrop-blur-xl fixed top-0 w-full z-50 flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#755b00] dark:text-[#f4c430] hover:bg-[#efeeea] dark:hover:bg-stone-800 transition-colors p-2 rounded-full cursor-pointer">menu</span>
+<h1 class="font-['Noto_Serif'] italic text-2xl text-[#755b00] dark:text-[#f4c430]">Apron</h1>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex gap-8">
+<a class="text-stone-500 dark:text-stone-400 font-['Plus_Jakarta_Sans'] text-sm tracking-wide hover:text-[#755b00] transition-colors" href="#">Discover</a>
+<a class="text-[#755b00] dark:text-[#f4c430] font-bold font-['Plus_Jakarta_Sans'] text-sm tracking-wide" href="#">Search</a>
+<a class="text-stone-500 dark:text-stone-400 font-['Plus_Jakarta_Sans'] text-sm tracking-wide hover:text-[#755b00] transition-colors" href="#">Saved</a>
+</nav>
+<div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="User profile photo" class="w-full h-full object-cover" data-alt="professional headshot of a smiling woman with a soft natural background, warm sunlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEk2QcfoMz6M56Zr1dZHbuZmEdJOVzI7LiXcgSBhCK-Ek5SpdhSQuRBAn0BeGkUTEJku_K40HZS5wYdSjbMUFbpisCPz5OnANCo07uWD0p_4IK3AbIVCuPwkMH4mRk8CkdrIb3V2_maOSaTI7O7EzjFH_K0OvJWbk4O2TFuB6TIt2qP1yyyRFRYg4qZn8qj6bgjZLRczhUp9mwigX-WL_uh2klXvlu5I3DKmkxKWVKcB6_I30d7sCV_fzWElSfnJ6EAZjEjSbk1_b6"/>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 md:px-16 max-w-7xl mx-auto">
+<!-- Editorial Header Section -->
+<section class="mb-12">
+<h2 class="text-5xl md:text-6xl font-['Noto_Serif'] font-bold text-on-background leading-tight mb-4 tracking-tight">
+                What are we <br/><span class="italic text-primary font-normal">creating</span> today?
+            </h2>
+<!-- Search Bar -->
+<div class="mt-8 relative group max-w-2xl">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-surface-container-low border-none border-b-2 border-outline-variant/20 focus:border-primary focus:ring-0 py-5 pl-14 pr-6 rounded-t-xl font-['Plus_Jakarta_Sans'] text-lg placeholder:text-stone-400 transition-all" placeholder="Ingredients, dishes, or chefs..." type="text"/>
+</div>
+</section>
+<!-- Category Horizontal Scroll -->
+<section class="mb-16 overflow-hidden -mx-6 px-6">
+<div class="flex gap-4 overflow-x-auto pb-4 scroll-smooth">
+<!-- Active Category -->
+<button class="flex-shrink-0 px-8 py-3 bg-primary-container text-on-primary-container rounded-full font-['Plus_Jakarta_Sans'] font-semibold text-sm tracking-wide shadow-sm">
+                    All Cuisines
+                </button>
+<button class="flex-shrink-0 px-8 py-3 bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full font-['Plus_Jakarta_Sans'] font-medium text-sm tracking-wide">
+                    Mediterranean
+                </button>
+<button class="flex-shrink-0 px-8 py-3 bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full font-['Plus_Jakarta_Sans'] font-medium text-sm tracking-wide">
+                    Plant-Based
+                </button>
+<button class="flex-shrink-0 px-8 py-3 bg-secondary-container text-on-secondary-container rounded-full font-['Plus_Jakarta_Sans'] font-medium text-sm tracking-wide">
+                    Chef's Pick
+                </button>
+<button class="flex-shrink-0 px-8 py-3 bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full font-['Plus_Jakarta_Sans'] font-medium text-sm tracking-wide">
+                    Quick Dinner
+                </button>
+<button class="flex-shrink-0 px-8 py-3 bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full font-['Plus_Jakarta_Sans'] font-medium text-sm tracking-wide">
+                    Nordic
+                </button>
+<button class="flex-shrink-0 px-8 py-3 bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full font-['Plus_Jakarta_Sans'] font-medium text-sm tracking-wide">
+                    Artisan Baking
+                </button>
+</div>
+</section>
+<!-- Recipe Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-16 gap-x-12">
+<!-- Recipe Card 1 (Large Editorial) -->
+<div class="group cursor-pointer lg:col-span-2 relative">
+<div class="relative overflow-hidden rounded-[2rem] rounded-br-[0.5rem] bg-surface-container-low aspect-[16/9]">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="overhead shot of a vibrant mediterranean grain bowl with roasted chickpeas, colorful vegetables and creamy dressing on a linen tablecloth" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP8Mqc_yVBls3rvJz8Se-W2-AW54zy5f4nStc4QsbYt7V_kh6GDsVMYgnAaIpcYvIPRNousQ_VF-yBKWi8p7NBYegHurHmer99huvSa4Z5MkTCiXdQgfxXdGuIuq6RjtD2xB_C_swz1u1F_8BZbAOzA2eehFxgTnipMgjlP3LK3NaeSa0RkfOAOdn-DnwSvXEeefKgiC4rhheKcUZmu2eglH8fmmIuPFUQK5x7ahEr0eEZpsW4Pm97z2fOrolSTT7wbNbknf_zhODf"/>
+<div class="absolute top-6 left-6 flex gap-2">
+<span class="bg-tertiary-container text-on-tertiary-container px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">Seasonal</span>
+</div>
+</div>
+<div class="mt-6 flex justify-between items-start">
+<div class="max-w-xl">
+<h3 class="text-3xl font-bold text-on-background leading-tight group-hover:text-primary transition-colors">Roasted Harvest Bowl with Tahini Drizzle</h3>
+<div class="flex gap-4 mt-4 text-stone-500 font-['Plus_Jakarta_Sans'] text-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">schedule</span> 25m</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">filter_vintage</span> Healthy</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">signal_cellular_alt</span> Beginner</span>
+</div>
+</div>
+<button class="p-3 rounded-full bg-surface-container-lowest shadow-sm hover:text-tertiary transition-colors">
+<span class="material-symbols-outlined" data-weight="fill">favorite</span>
+</button>
+</div>
+</div>
+<!-- Recipe Card 2 -->
+<div class="group cursor-pointer">
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low aspect-square">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="close-up of a fresh burrata salad with heirloom tomatoes, basil, and balsamic glaze on a ceramic plate, bright sunlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBODYRc58BeVCuQcjKg1HkL2ivC2Dvp_K7xSohTnydrC1SksR4OHodu2H_KXf9Lz494YBGIVcv2xXLzCPwERXoO0boH9VqKmyfSvdgiVTipXrqLWpIyQqXmEOXylfQyPsB4kmeH5UxPwzz5BVLvYArOhOLjt_pArFqw3ha5QP9uplZXGk2rxxvY7DRruizSLg1Z49kHwV2sL3ZmRrAODgw3YC4cAy5KeCtc7mfzKQhNM5ERyeU7M4IJaUwQiE04A1NzQWQQrt-f66Mg"/>
+</div>
+<div class="mt-6">
+<h3 class="text-xl font-bold text-on-background group-hover:text-primary transition-colors">Heirloom Tomato &amp; Burrata</h3>
+<div class="flex gap-4 mt-3 text-stone-500 font-['Plus_Jakarta_Sans'] text-xs">
+<span class="flex items-center gap-1">15m</span>
+<span class="flex items-center gap-1">No-Cook</span>
+</div>
+</div>
+</div>
+<!-- Recipe Card 3 -->
+<div class="group cursor-pointer">
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low aspect-square">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="shot of fresh homemade fettuccine pasta being tossed with a creamy lemon sauce and zest in a sunlit kitchen" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAd3fi1kTDjYJhYSdmrPdRteYB6mkBwGLDr335J87jx1N3i76d0t2I-aDHkwG4N1qYTmh7__W8V93fRERf_uRmVD9s6rjNbRSxmITW47FlChi_sTIJN9Eq0KwGZmOWEkuIW7wYFFlgZvfbaQkliCaMvR2ogH2_a10uK3Dh52aMDZwu72kOeSbgxIuvr1QzqBEXrWbNFsRXVYWKgyCJY__LaI6jaDZyAWyve8_bFe9ol_Psid1t-673hjc-hFPI8m2ox_K29agW63fAk"/>
+</div>
+<div class="mt-6">
+<h3 class="text-xl font-bold text-on-background group-hover:text-primary transition-colors">Lemon Zest Fettuccine Al Fresco</h3>
+<div class="flex gap-4 mt-3 text-stone-500 font-['Plus_Jakarta_Sans'] text-xs">
+<span class="flex items-center gap-1">20m</span>
+<span class="flex items-center gap-1">Artisan</span>
+</div>
+</div>
+</div>
+<!-- Recipe Card 4 -->
+<div class="group cursor-pointer">
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low aspect-square">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="warm sourdough bread toast topped with mashed avocado, chili flakes, and a perfectly poached egg, morning sunlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPQ3cvAFtFsBug9Qwz39VrLPaePikBDMi6Pn-ce1-dfM9gxuTaVRwSDSOmv1Oo5mmW6_11i5n128cUt8cjy2tnbHkwEngpEg0iX202PB5DUU78Qh-Pv5pF0U3sO6abio_fs9f5VNprVZSFISwtkKRxZX3aAU2Wfwp1Z1crt-Nzct_Vx2ql8pE1zp_c5y-IweT3XnP9tT1wKJzGVHDBQpTl9LbZnQN7-3ylW4YMopJZ-dQYqZw7L3_WS9Qv7hVhyFQnCudnKTjp4yWc"/>
+</div>
+<div class="mt-6">
+<h3 class="text-xl font-bold text-on-background group-hover:text-primary transition-colors">Sourdough Brunch Tartine</h3>
+<div class="flex gap-4 mt-3 text-stone-500 font-['Plus_Jakarta_Sans'] text-xs">
+<span class="flex items-center gap-1">10m</span>
+<span class="flex items-center gap-1">Energy Boost</span>
+</div>
+</div>
+</div>
+<!-- Recipe Card 5 (Another wide one) -->
+<div class="group cursor-pointer lg:col-span-2 relative">
+<div class="relative overflow-hidden rounded-[2rem] rounded-tl-[0.5rem] bg-surface-container-low aspect-[16/9]">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="grilled salmon fillet with asparagus and lemon slices on a dark rustic plate, dramatic side lighting from a kitchen window" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7ED_onlyESp89V4yhkqqTnrDp4kNX7u9sCqXFMX3qyzSLbDdxlIEPI2FI6YBdCMGH6P8_jkxqkuGMx9rRJ3-7y7KtJNz_JdTcbL3ApQfx0aref0BPH95Fr7hPToTwT09qtnhapmOKg8QGAg2cBlM4ByxtyBz1L2CliZBrjzeCdLPUNnL2_FnGRFVOkbsr4irwFt3Uk0_QMqhsqNm5KlD7Kcg-D1cH6MdEANIjXJp3GjYZ0n0MIHayrilBHx-vg5I4Z0mJwlS9qPsV"/>
+<div class="absolute bottom-6 right-6 flex gap-2">
+<span class="bg-primary text-on-primary px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">Editor's Choice</span>
+</div>
+</div>
+<div class="mt-6 flex justify-between items-start">
+<div class="max-w-xl">
+<h3 class="text-3xl font-bold text-on-background leading-tight group-hover:text-primary transition-colors">Cedar-Planked Atlantic Salmon</h3>
+<div class="flex gap-4 mt-4 text-stone-500 font-['Plus_Jakarta_Sans'] text-sm">
+<span class="flex items-center gap-1">45m</span>
+<span class="flex items-center gap-1">High Protein</span>
+<span class="flex items-center gap-1">Intermediate</span>
+</div>
+</div>
+<button class="p-3 rounded-full bg-surface-container-lowest shadow-sm hover:text-tertiary transition-colors">
+<span class="material-symbols-outlined">favorite</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Shell -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-[#fbf9f5]/90 dark:bg-stone-950/90 backdrop-blur-2xl z-50 rounded-t-[2rem] shadow-[0_-12px_40px_rgba(27,28,26,0.05)]">
+<a class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-5 py-2 hover:text-[#755b00] dark:hover:text-[#f4c430] transition-colors" href="#">
+<span class="material-symbols-outlined">restaurant</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold mt-1">Discover</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-[#f4c430] dark:bg-[#755b00] text-[#1b1c1a] dark:text-[#fbf9f5] rounded-xl px-5 py-2 active:scale-90 duration-300" href="#">
+<span class="material-symbols-outlined">search</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold mt-1">Search</span>
+</a>
+<a class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-5 py-2 hover:text-[#755b00] dark:hover:text-[#f4c430] transition-colors" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold mt-1">Saved</span>
+</a>
+<a class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-5 py-2 hover:text-[#755b00] dark:hover:text-[#f4c430] transition-colors" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.05em] font-semibold mt-1">Profile</span>
+</a>
+</nav>
+</body></html>
