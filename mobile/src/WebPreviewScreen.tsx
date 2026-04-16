@@ -18,7 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "./components/RecipeCard";
 import { ChatMessage } from "./components/ChatMessage";
-import { filterLocalCatalogRecipes, LOCAL_CATALOG_RECIPES } from "./data/localCatalog";
+import { IngredientRow } from "./components/IngredientRow";
+import { filterLocalCatalogRecipes, findLocalCatalogRecipeById, LOCAL_CATALOG_RECIPES } from "./data/localCatalog";
 import { useLocalCatalogSavedIds } from "./hooks/useLocalCatalogSavedIds";
 import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
@@ -148,6 +149,7 @@ export default function WebPreviewScreen() {
 
   const [activeTab, setActiveTab] = useState<MockTab>("home");
   const [cookingId, setCookingId] = useState<string | null>(null);
+  const [detailRecipeId, setDetailRecipeId] = useState<string | null>(null);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
     new Set()
   );
@@ -357,6 +359,10 @@ export default function WebPreviewScreen() {
 
   const handleUnsave = useCallback(
     async (recipeId: string) => {
+      if (recipeId.startsWith("local-")) {
+        toggleLocalCatalogSave(recipeId);
+        return;
+      }
       const previous = savedRecipes;
       setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
       try {
@@ -365,8 +371,49 @@ export default function WebPreviewScreen() {
         setSavedRecipes(previous);
       }
     },
-    [savedRecipes]
+    [savedRecipes, toggleLocalCatalogSave]
   );
+
+  const allSavedRecipes = React.useMemo(() => {
+    const localRecipes: Recipe[] = [];
+    for (const id of localCatalogSavedIds) {
+      const r = findLocalCatalogRecipeById(id);
+      if (r) localRecipes.push(r);
+    }
+    const serverIds = new Set(savedRecipes.map((r) => r.id));
+    const deduped = localRecipes.filter((r) => !serverIds.has(r.id));
+    return [...savedRecipes, ...deduped];
+  }, [savedRecipes, localCatalogSavedIds]);
+
+  const detailRecipe = React.useMemo<Recipe | null>(() => {
+    if (!detailRecipeId) return null;
+    const local = findLocalCatalogRecipeById(detailRecipeId);
+    if (local) return local;
+    const fromSaved = savedRecipes.find((r) => r.id === detailRecipeId);
+    if (fromSaved) return fromSaved;
+    return null;
+  }, [detailRecipeId, savedRecipes]);
+
+  const isDetailSaved = detailRecipeId
+    ? detailRecipeId.startsWith("local-")
+      ? localCatalogSavedIds.has(detailRecipeId)
+      : savedRecipes.some((r) => r.id === detailRecipeId)
+    : false;
+
+  const handleDetailToggleSave = useCallback(() => {
+    if (!detailRecipeId) return;
+    if (detailRecipeId.startsWith("local-")) {
+      toggleLocalCatalogSave(detailRecipeId);
+    } else {
+      const wasSaved = savedRecipes.some((r) => r.id === detailRecipeId);
+      if (wasSaved) {
+        handleUnsave(detailRecipeId);
+      } else {
+        recipeApi.save(detailRecipeId).catch(() => {});
+        loadSavedRecipes();
+      }
+    }
+  }, [detailRecipeId, savedRecipes, toggleLocalCatalogSave, handleUnsave, loadSavedRecipes]);
 
   const toggleIngredient = (id: string) => {
     const next = new Set(checkedIngredients);
@@ -426,7 +473,7 @@ export default function WebPreviewScreen() {
             </Text>
             {activeTab === "saved" && (
               <Text style={styles.headerSubtitle}>
-                {savedRecipes.length} recipe{savedRecipes.length === 1 ? "" : "s"}{" "}
+                {allSavedRecipes.length} recipe{allSavedRecipes.length === 1 ? "" : "s"}{" "}
                 saved
               </Text>
             )}
@@ -657,8 +704,10 @@ export default function WebPreviewScreen() {
                   recipe={r}
                   isSaved={!!r.id && localCatalogSavedIds.has(r.id)}
                   onToggleSave={toggleLocalCatalogSave}
-                  onPress={() => {}}
-                  disabled
+                  onPress={() => {
+                    if (r.id) setDetailRecipeId(r.id);
+                  }}
+                  disabled={!r.id}
                   loading={false}
                 />
               ))}
@@ -669,11 +718,13 @@ export default function WebPreviewScreen() {
         {activeTab === "saved" && (
           <View style={styles.savedListWrap}>
             <FlatList
-              data={savedRecipes}
+              data={allSavedRecipes}
               keyExtractor={(item) => item.id || `favorite-${item.title}`}
               contentContainerStyle={styles.savedListContent}
               refreshing={savedLoading}
-              onRefresh={loadSavedRecipes}
+              onRefresh={async () => {
+                await Promise.all([loadSavedRecipes(), reloadLocalCatalogSaved()]);
+              }}
               ListEmptyComponent={
                 <View style={styles.savedEmpty}>
                   <Ionicons
@@ -694,7 +745,9 @@ export default function WebPreviewScreen() {
                   recipe={item}
                   isSaved
                   onToggleSave={handleUnsave}
-                  onPress={() => {}}
+                  onPress={() => {
+                    if (item.id) setDetailRecipeId(item.id);
+                  }}
                 />
               )}
             />
@@ -719,6 +772,171 @@ export default function WebPreviewScreen() {
             <PantryScreen onOpenCookingId={(id) => setCookingId(id)} />
           </View>
         )}
+
+        {detailRecipeId && detailRecipe ? (
+          <View style={styles.detailOverlay}>
+            <View style={styles.detailTopBar}>
+              <TouchableOpacity
+                style={styles.detailBackBtn}
+                onPress={() => setDetailRecipeId(null)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={22} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.detailSaveBtn}
+                onPress={handleDetailToggleSave}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={isDetailSaved ? "heart" : "heart-outline"}
+                  size={22}
+                  color={isDetailSaved ? colors.error : colors.text}
+                />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.detailScroll}
+              contentContainerStyle={styles.detailScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.detailHero}>
+                <Ionicons name="restaurant" size={40} color={colors.textSecondary} />
+              </View>
+              <View style={styles.detailSection}>
+                <Text style={styles.detailTitle}>{detailRecipe.title}</Text>
+                {detailRecipe.cuisine ? (
+                  <Text style={styles.detailCuisine}>{detailRecipe.cuisine}</Text>
+                ) : null}
+                {detailRecipe.description ? (
+                  <Text style={styles.detailDesc}>{detailRecipe.description}</Text>
+                ) : null}
+              </View>
+              <View style={styles.detailMetaRow}>
+                <View style={styles.detailMetaCard}>
+                  <Ionicons name="time-outline" size={18} color={colors.primary} />
+                  <Text style={styles.detailMetaVal}>{detailRecipe.prepTime}m</Text>
+                  <Text style={styles.detailMetaLbl}>Prep</Text>
+                </View>
+                <View style={styles.detailMetaCard}>
+                  <Ionicons name="flame-outline" size={18} color={colors.primary} />
+                  <Text style={styles.detailMetaVal}>{detailRecipe.cookTime}m</Text>
+                  <Text style={styles.detailMetaLbl}>Cook</Text>
+                </View>
+                <View style={styles.detailMetaCard}>
+                  <Ionicons name="people-outline" size={18} color={colors.primary} />
+                  <Text style={styles.detailMetaVal}>{detailRecipe.servings}</Text>
+                  <Text style={styles.detailMetaLbl}>Servings</Text>
+                </View>
+                {detailRecipe.difficulty ? (
+                  <View style={styles.detailMetaCard}>
+                    <Ionicons name="star-outline" size={18} color={colors.primary} />
+                    <Text style={styles.detailMetaVal}>
+                      {detailRecipe.difficulty.charAt(0).toUpperCase() + detailRecipe.difficulty.slice(1)}
+                    </Text>
+                    <Text style={styles.detailMetaLbl}>Level</Text>
+                  </View>
+                ) : null}
+              </View>
+              {detailRecipe.dietaryTags.length > 0 && (
+                <View style={styles.detailTagsRow}>
+                  {detailRecipe.dietaryTags.map((tag) => (
+                    <View key={tag} style={styles.detailTag}>
+                      <Text style={styles.detailTagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {detailRecipe.nutrition && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Nutrition per serving</Text>
+                  <View style={styles.detailNutritionRow}>
+                    {detailRecipe.nutrition.calories != null && (
+                      <View style={styles.detailNutritionItem}>
+                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.calories}</Text>
+                        <Text style={styles.detailNutritionLbl}>kcal</Text>
+                      </View>
+                    )}
+                    {detailRecipe.nutrition.protein != null && (
+                      <View style={styles.detailNutritionItem}>
+                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.protein}g</Text>
+                        <Text style={styles.detailNutritionLbl}>Protein</Text>
+                      </View>
+                    )}
+                    {detailRecipe.nutrition.carbs != null && (
+                      <View style={styles.detailNutritionItem}>
+                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.carbs}g</Text>
+                        <Text style={styles.detailNutritionLbl}>Carbs</Text>
+                      </View>
+                    )}
+                    {detailRecipe.nutrition.fat != null && (
+                      <View style={styles.detailNutritionItem}>
+                        <Text style={styles.detailNutritionVal}>{detailRecipe.nutrition.fat}g</Text>
+                        <Text style={styles.detailNutritionLbl}>Fat</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+              {detailRecipe.ingredients.length > 0 && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>
+                    Ingredients ({detailRecipe.ingredients.length})
+                  </Text>
+                  <View style={styles.detailIngredientsCard}>
+                    {detailRecipe.ingredients.map((ing) => (
+                      <IngredientRow
+                        key={ing.id || ing.name}
+                        ingredient={ing}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+              {detailRecipe.steps.length > 0 && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>
+                    Steps ({detailRecipe.steps.length})
+                  </Text>
+                  {detailRecipe.steps.map((step) => (
+                    <View key={step.stepNumber} style={styles.detailStepRow}>
+                      <View style={styles.detailStepBadge}>
+                        <Text style={styles.detailStepBadgeText}>{step.stepNumber}</Text>
+                      </View>
+                      <View style={styles.detailStepContent}>
+                        <Text style={styles.detailStepInstruction}>{step.instruction}</Text>
+                        {step.duration ? (
+                          <View style={styles.detailStepTimerRow}>
+                            <Ionicons name="time-outline" size={12} color={colors.primary} />
+                            <Text style={styles.detailStepTimerText}>
+                              {step.duration >= 60
+                                ? `${Math.floor(step.duration / 60)}m${step.duration % 60 ? ` ${step.duration % 60}s` : ""}`
+                                : `${step.duration}s`}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <View style={{ height: 80 }} />
+            </ScrollView>
+            <View style={styles.detailBottomBar}>
+              <TouchableOpacity
+                style={styles.detailCookBtn}
+                onPress={() => {
+                  setCookingId(detailRecipeId);
+                  setDetailRecipeId(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="flame" size={20} color={colors.background} />
+                <Text style={styles.detailCookBtnText}>Start Cooking</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
 
         {cookingId ? (
           <View style={styles.cookingOverlay}>
@@ -1086,6 +1304,217 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF3C7",
     ...shadows.lg,
     overflow: "hidden",
+  },
+  detailOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 40,
+    backgroundColor: colors.background,
+  },
+  detailTopBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingTop: 36,
+    paddingBottom: spacing.sm,
+  },
+  detailBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailSaveBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailScroll: {
+    flex: 1,
+  },
+  detailScrollContent: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl,
+  },
+  detailHero: {
+    height: 160,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: spacing.lg,
+    borderRadius: borderRadius.xl,
+    marginBottom: spacing.lg,
+  },
+  detailSection: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  detailTitle: {
+    ...typography.h2,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  detailCuisine: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: spacing.sm,
+  },
+  detailDesc: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  detailMetaRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  detailMetaCard: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    gap: 2,
+  },
+  detailMetaVal: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  detailMetaLbl: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 10,
+  },
+  detailTagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+    gap: spacing.sm,
+  },
+  detailTag: {
+    backgroundColor: colors.primaryLight + "20",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  detailTagText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "500",
+    fontSize: 12,
+  },
+  detailSectionTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: "700",
+    marginBottom: spacing.md,
+  },
+  detailNutritionRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  detailNutritionItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+  },
+  detailNutritionVal: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  detailNutritionLbl: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  detailIngredientsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    overflow: "hidden",
+  },
+  detailStepRow: {
+    flexDirection: "row",
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  detailStepBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  detailStepBadgeText: {
+    ...typography.caption,
+    color: colors.background,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  detailStepContent: {
+    flex: 1,
+  },
+  detailStepInstruction: {
+    ...typography.body,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  detailStepTimerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  detailStepTimerText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "500",
+    fontSize: 12,
+  },
+  detailBottomBar: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  detailCookBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+  },
+  detailCookBtnText: {
+    ...typography.body,
+    color: colors.background,
+    fontWeight: "700",
+    fontSize: 16,
   },
   cookingOverlay: {
     position: "absolute",

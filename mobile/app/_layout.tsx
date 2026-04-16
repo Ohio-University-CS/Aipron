@@ -29,6 +29,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="recipe/[id]" options={{ presentation: "card" }} />
           <Stack.Screen name="cooking/[id]" options={{ presentation: "fullScreenModal" }} />
         </Stack>
       </SafeAreaProvider>
