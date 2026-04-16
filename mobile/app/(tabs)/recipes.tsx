@@ -154,7 +154,7 @@ export default function RecipesScreen() {
             onToggleSave={handleToggleSave}
             onPress={() => {
               if (item.id) {
-                router.push(`/cooking/${item.id}`);
+                router.push(`/recipe/${item.id}`);
               }
             }}
           />
