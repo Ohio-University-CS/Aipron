@@ -109,7 +109,7 @@ export default function SearchScreen() {
             onToggleSave={toggleSave}
             onPress={() => {
               if (item.id) {
-                router.push(`/cooking/${item.id}`);
+                router.push(`/recipe/${item.id}`);
               }
             }}
             disabled={!item.id}

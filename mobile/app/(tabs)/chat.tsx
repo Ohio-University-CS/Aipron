@@ -120,7 +120,7 @@ export default function ChatScreen() {
                 recipe={recipe}
                 onPress={() => {
                   if (recipe.id) {
-                    router.push(`/cooking/${recipe.id}`);
+                    router.push(`/recipe/${recipe.id}`);
                   }
                 }}
               />
