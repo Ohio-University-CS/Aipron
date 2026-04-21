@@ -25,10 +25,7 @@ import {
   spacing,
   typography,
 } from "../constants/DesignTokens";
-import {
-  StitchImages,
-  pickFallbackPhoto,
-} from "../constants/StitchImages";
+import { pickFallbackPhoto, recipeImageFallbackSeed } from "../constants/StitchImages";
 
 function formatClock(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
@@ -365,8 +362,7 @@ export function CookingSessionView({
 
   const heroImageUri =
     recipe.heroImage ||
-    StitchImages.cookingStepHero ||
-    pickFallbackPhoto(recipe.id ?? recipe.title);
+    pickFallbackPhoto(recipeImageFallbackSeed(recipe));
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

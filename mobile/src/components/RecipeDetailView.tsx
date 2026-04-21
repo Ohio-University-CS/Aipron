@@ -24,6 +24,7 @@ import { useThemeColors } from "../hooks/useThemeColors";
 import {
   StitchImages,
   pickFallbackPhoto,
+  recipeImageFallbackSeed,
 } from "../constants/StitchImages";
 import {
   borderRadius,
@@ -139,8 +140,7 @@ export function RecipeDetailView({
   const heroUri = useMemo(() => {
     if (!recipe) return StitchImages.recipeDetailHero;
     if (recipe.heroImage && !heroFailed) return recipe.heroImage;
-    if (!heroFailed) return StitchImages.recipeDetailHero;
-    return pickFallbackPhoto(recipe.id ?? recipe.title);
+    return pickFallbackPhoto(recipeImageFallbackSeed(recipe));
   }, [recipe, heroFailed]);
 
   const difficultyLabel = useMemo(() => {
