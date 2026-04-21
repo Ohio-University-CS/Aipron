@@ -180,7 +180,21 @@ export function RecipeDetailView({
     ...(recipe.dietaryTags ?? []).slice(0, 2),
   ].filter(Boolean) as string[];
 
-  const calories = recipe.nutrition?.calories;
+  const n = recipe.nutrition;
+  const nutritionRows: { label: string; value: string }[] = [];
+  if (typeof n?.calories === "number") {
+    nutritionRows.push({ label: "Calories", value: `${n.calories} kcal` });
+  }
+  if (typeof n?.protein === "number") {
+    nutritionRows.push({ label: "Protein", value: `${n.protein} g` });
+  }
+  if (typeof n?.carbs === "number") {
+    nutritionRows.push({ label: "Carbs", value: `${n.carbs} g` });
+  }
+  if (typeof n?.fat === "number") {
+    nutritionRows.push({ label: "Total fat", value: `${n.fat} g` });
+  }
+  const hasNutritionSection = nutritionRows.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -381,15 +395,67 @@ export function RecipeDetailView({
                 value={difficultyLabel ?? "—"}
                 theme={theme}
               />
-              {typeof calories === "number" && (
-                <StatTile
-                  icon="local-fire-department"
-                  label="Calories"
-                  value={String(calories)}
-                  theme={theme}
-                />
-              )}
             </ScrollView>
+
+            {hasNutritionSection ? (
+              <View style={styles.section}>
+                <Text
+                  style={[styles.sectionTitle, { color: theme.onSurface }]}
+                >
+                  Nutrition facts
+                </Text>
+                <Text
+                  style={[
+                    styles.nutritionSubtitle,
+                    { color: theme.onSurfaceVariant },
+                  ]}
+                >
+                  Per serving
+                </Text>
+                <View
+                  style={[
+                    styles.sectionDivider,
+                    { backgroundColor: theme.outlineVariant + "40" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.nutritionCard,
+                    { backgroundColor: theme.surfaceContainerLow },
+                  ]}
+                >
+                  {nutritionRows.map((row, i) => (
+                    <View
+                      key={row.label}
+                      style={[
+                        styles.nutritionRow,
+                        i < nutritionRows.length - 1 && {
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: theme.outlineVariant + "40",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.nutritionLabel,
+                          { color: theme.onSurfaceVariant },
+                        ]}
+                      >
+                        {row.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.nutritionValue,
+                          { color: theme.onSurface },
+                        ]}
+                      >
+                        {row.value}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
 
             {recipe.ingredients.length > 0 && (
               <View style={styles.section}>
@@ -699,6 +765,34 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serifBold,
     fontSize: 22,
     lineHeight: 26,
+  },
+  nutritionSubtitle: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  nutritionCard: {
+    borderRadius: borderRadius.xxl,
+    overflow: "hidden",
+  },
+  nutritionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  nutritionLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 15,
+    flex: 1,
+  },
+  nutritionValue: {
+    fontFamily: fonts.serifBold,
+    fontSize: 17,
+    textAlign: "right",
   },
   section: {
     marginBottom: spacing.sectionGap,
