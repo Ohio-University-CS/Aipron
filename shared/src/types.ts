@@ -69,6 +69,10 @@ export interface Recipe {
   cuisine?: string;
   difficulty?: "beginner" | "intermediate" | "advanced";
   heroImage?: string;
+  // True when this recipe was produced by the AI generation endpoint.
+  // Used to render the "AI generated" badge and to distinguish user-generated
+  // recipes from system/catalog recipes.
+  isAiGenerated?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

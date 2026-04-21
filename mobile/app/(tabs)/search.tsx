@@ -20,6 +20,7 @@ import {
   filterLocalCatalogRecipes,
   LOCAL_CATALOG_RECIPES,
 } from "../../src/data/localCatalog";
+import { recipeApi } from "../../src/services/api";
 import { useLocalCatalogSavedIds } from "../../src/hooks/useLocalCatalogSavedIds";
 import { useThemeColors } from "../../src/hooks/useThemeColors";
 import {
@@ -73,6 +74,52 @@ function applyCategoryFilter(recipes: Recipe[], category: Category): Recipe[] {
   });
 }
 
+function isLocalId(id: string | undefined | null): boolean {
+  return !!id && typeof id === "string" && id.startsWith("local-");
+}
+
+function mergeResults(local: Recipe[], server: Recipe[], query: string): Recipe[] {
+  // Dedupe by id. Server results take precedence when ids collide.
+  const byId = new Map<string, Recipe>();
+  const withoutId: Recipe[] = [];
+
+  for (const r of local) {
+    if (r.id) {
+      byId.set(r.id, r);
+    } else {
+      withoutId.push(r);
+    }
+  }
+  for (const r of server) {
+    if (r.id) {
+      byId.set(r.id, r);
+    } else {
+      withoutId.push(r);
+    }
+  }
+
+  const merged = [...byId.values(), ...withoutId];
+
+  // With an active query: surface user-generated / server-backed matches first.
+  // Without a query: preserve the existing "catalog first" empty-state feel.
+  const hasQuery = query.trim().length > 0;
+  merged.sort((a, b) => {
+    const aLocal = isLocalId(a.id);
+    const bLocal = isLocalId(b.id);
+    if (hasQuery) {
+      // AI-generated first, then other server recipes, then local catalog.
+      const aRank = a.isAiGenerated ? 0 : aLocal ? 2 : 1;
+      const bRank = b.isAiGenerated ? 0 : bLocal ? 2 : 1;
+      if (aRank !== bRank) return aRank - bRank;
+    } else {
+      if (aLocal !== bLocal) return aLocal ? -1 : 1;
+    }
+    return 0;
+  });
+
+  return merged;
+}
+
 export default function SearchScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -81,7 +128,12 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<Category>("All Cuisines");
   const [results, setResults] = useState<Recipe[]>(LOCAL_CATALOG_RECIPES);
-  const { savedIds, toggleSave, reloadSavedIds } = useLocalCatalogSavedIds();
+  const [serverSavedIds, setServerSavedIds] = useState<Set<string>>(new Set());
+  const {
+    savedIds: localSavedIds,
+    toggleSave: toggleLocalSave,
+    reloadSavedIds,
+  } = useLocalCatalogSavedIds();
 
   useFocusEffect(
     useCallback(() => {
@@ -92,13 +144,39 @@ export default function SearchScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
 
-  const runFilter = useCallback(
-    (q: string, cat: Category) => {
+  const loadServerSavedIds = useCallback(async () => {
+    try {
+      const ids = await recipeApi.getSavedIds();
+      setServerSavedIds(new Set(ids));
+    } catch {
+      // Unauthenticated or offline — leave empty.
+      setServerSavedIds(new Set());
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadServerSavedIds();
+  }, [loadServerSavedIds]);
+
+  const runSearch = useCallback(
+    async (q: string, cat: Category) => {
       const seq = ++searchSeqRef.current;
-      const bySearch = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
-      const byCat = applyCategoryFilter(bySearch, cat);
-      if (seq !== searchSeqRef.current) return;
-      setResults(byCat);
+      const localFiltered = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
+
+      // Show local results immediately for snappy UX; server results merge
+      // in when they arrive.
+      if (seq === searchSeqRef.current) {
+        setResults(applyCategoryFilter(localFiltered, cat));
+      }
+
+      try {
+        const serverResults = await recipeApi.search(q, { limit: 30 });
+        if (seq !== searchSeqRef.current) return;
+        const merged = mergeResults(localFiltered, serverResults, q);
+        setResults(applyCategoryFilter(merged, cat));
+      } catch {
+        // Network / auth failure — keep local-only results (already set above).
+      }
     },
     [],
   );
@@ -111,7 +189,7 @@ export default function SearchScreen() {
     }
 
     debounceRef.current = setTimeout(() => {
-      runFilter(q, activeFilter);
+      void runSearch(q, activeFilter);
     }, 250);
 
     return () => {
@@ -119,7 +197,47 @@ export default function SearchScreen() {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [query, activeFilter, runFilter]);
+  }, [query, activeFilter, runSearch]);
+
+  const handleToggleSave = useCallback(
+    async (recipeId: string) => {
+      if (isLocalId(recipeId)) {
+        toggleLocalSave(recipeId);
+        return;
+      }
+
+      const wasSaved = serverSavedIds.has(recipeId);
+      setServerSavedIds((prev) => {
+        const next = new Set(prev);
+        if (wasSaved) {
+          next.delete(recipeId);
+        } else {
+          next.add(recipeId);
+        }
+        return next;
+      });
+
+      try {
+        if (wasSaved) {
+          await recipeApi.unsave(recipeId);
+        } else {
+          await recipeApi.save(recipeId);
+        }
+      } catch (error) {
+        console.error("Failed to toggle save:", error);
+        setServerSavedIds((prev) => {
+          const reverted = new Set(prev);
+          if (wasSaved) {
+            reverted.add(recipeId);
+          } else {
+            reverted.delete(recipeId);
+          }
+          return reverted;
+        });
+      }
+    },
+    [serverSavedIds, toggleLocalSave],
+  );
 
   const subtitle = useMemo(() => {
     const q = query.trim();
@@ -238,27 +356,33 @@ export default function SearchScreen() {
         }
         renderItem={({ item, index }) => {
           const { variant, badge } = cardVariantFor(index);
+          const itemId = item.id;
+          const isSaved =
+            !!itemId &&
+            (isLocalId(itemId)
+              ? localSavedIds.has(itemId)
+              : serverSavedIds.has(itemId));
           return (
             <RecipeCard
               recipe={item}
               variant={variant}
               badge={badge}
-              isSaved={!!item.id && savedIds.has(item.id)}
-              onToggleSave={toggleSave}
+              isSaved={isSaved}
+              onToggleSave={handleToggleSave}
               onPress={() => {
-                if (item.id) {
-                  router.push(`/recipe/${item.id}` as any);
+                if (itemId) {
+                  router.push(`/recipe/${itemId}` as any);
                 }
               }}
-              disabled={!item.id}
+              disabled={!itemId}
               loading={false}
             />
           );
         }}
         refreshing={false}
         onRefresh={async () => {
-          await reloadSavedIds();
-          runFilter(query.trim(), activeFilter);
+          await Promise.all([reloadSavedIds(), loadServerSavedIds()]);
+          void runSearch(query.trim(), activeFilter);
         }}
       />
     </View>

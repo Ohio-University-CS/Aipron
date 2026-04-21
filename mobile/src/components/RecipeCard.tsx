@@ -99,6 +99,12 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
             />
           </TouchableOpacity>
         ) : null}
+        {recipe.isAiGenerated ? (
+          <View style={styles.aiBadge}>
+            <MaterialIcons name="auto-awesome" size={12} color={c.onPrimary} />
+            <Text style={styles.aiBadgeText}>AI generated</Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.content}>
         <View style={styles.titleRow}>
@@ -213,6 +219,26 @@ const getStyles = (c: ThemeColors, variant: CardVariant) =>
       justifyContent: "center",
       alignItems: "center",
       ...shadows.sm,
+    },
+    aiBadge: {
+      position: "absolute",
+      bottom: spacing.md,
+      left: spacing.md,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: c.primary,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.full,
+      ...shadows.sm,
+    },
+    aiBadgeText: {
+      fontFamily: fonts.sansBold,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: "uppercase",
+      color: c.onPrimary,
     },
     content: {
       paddingTop: spacing.lg,

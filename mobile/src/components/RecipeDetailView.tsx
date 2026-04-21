@@ -303,6 +303,26 @@ export function RecipeDetailView({
               </View>
             )}
 
+            {recipe.isAiGenerated ? (
+              <View
+                style={[
+                  styles.aiBadge,
+                  { backgroundColor: theme.primary },
+                ]}
+              >
+                <MaterialIcons
+                  name="auto-awesome"
+                  size={14}
+                  color={theme.onPrimary}
+                />
+                <Text
+                  style={[styles.aiBadgeText, { color: theme.onPrimary }]}
+                >
+                  AI generated
+                </Text>
+              </View>
+            ) : null}
+
             <Text style={[styles.eyebrow, { color: theme.tertiary }]}>
               {eyebrow}
             </Text>
@@ -588,6 +608,22 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.sm,
     marginBottom: spacing.md,
+  },
+  aiBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.md,
+  },
+  aiBadgeText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
   eyebrow: {
     fontFamily: fonts.sansSemiBold,
