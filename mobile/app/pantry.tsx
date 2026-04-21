@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "../src/components/LinearGradient";
 import { pantryApi, recipeApi } from "../src/services/api";
 import {
   borderRadius,

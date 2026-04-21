@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "../../src/components/LinearGradient";
 import { Recipe } from "@aipron/shared";
 import { GradientButton } from "../../src/components/GradientButton";
 import { cookingApi, recipeApi } from "../../src/services/api";

@@ -6,7 +6,7 @@ import {
   Animated,
   ViewStyle,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "./LinearGradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { gradients, borderRadius, fonts, spacing } from "../constants/DesignTokens";
 import { useThemeColors } from "../hooks/useThemeColors";

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "../src/components/LinearGradient";
 import { authApi } from "../src/services/api";
 import { useAuthStore } from "../src/store/useAuthStore";
 import { GradientButton } from "../src/components/GradientButton";

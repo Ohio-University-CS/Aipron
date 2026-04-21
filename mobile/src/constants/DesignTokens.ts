@@ -58,8 +58,12 @@ export const lightColors = {
 
   // Cooking mode
   cookingBackground: "#1A1A1A",
+  cookingSurface: "#252525",
   cookingText: "#FFFFFF",
   cookingTextSecondary: "#B0B0B0",
+
+  /** Lighter primary tint for borders/backgrounds (e.g. active timer chip) */
+  primaryLight: "#f4c430",
 
   // Semantic aliases for backward compatibility
   text: "#1b1c1a",
@@ -74,7 +78,7 @@ export const lightColors = {
   info: "#2196F3",
 } as const;
 
-export const darkColors: typeof lightColors = {
+export const darkColors = {
   primary: "#f4c430",
   onPrimary: "#3d2e00",
   primaryContainer: "#755b00",
@@ -116,8 +120,11 @@ export const darkColors: typeof lightColors = {
   inversePrimary: "#755b00",
 
   cookingBackground: "#000000",
+  cookingSurface: "#252525",
   cookingText: "#FFFFFF",
   cookingTextSecondary: "#B0B0B0",
+
+  primaryLight: "#ffd79b",
 
   text: "#e4e2de",
   textSecondary: "#d1c5ad",
@@ -129,9 +136,10 @@ export const darkColors: typeof lightColors = {
   success: "#66BB6A",
   warning: "#FFB74D",
   info: "#42A5F5",
-} as const;
+} as const satisfies { [K in keyof typeof lightColors]: string };
 
-export type ThemeColors = typeof lightColors;
+/** Light or dark palette (same keys; values differ by theme). */
+export type ThemeColors = typeof lightColors | typeof darkColors;
 
 /** Default (light) colors export for backward compatibility */
 export const colors = lightColors;
