@@ -11,7 +11,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "./LinearGradient";
-import { Recipe } from "@aipron/shared";
+import { Ingredient, Recipe, RecipeStep } from "@aipron/shared";
 import { GradientButton } from "./GradientButton";
 import { cookingApi, recipeApi } from "../services/api";
 import { findLocalCatalogRecipeById } from "../data/localCatalog";
@@ -35,6 +35,37 @@ function formatClock(totalSeconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+type FlowPhase = "mise" | "prep" | "cook";
+
+function splitPrepCookSteps(steps: RecipeStep[]): {
+  prepSteps: RecipeStep[];
+  cookSteps: RecipeStep[];
+} {
+  const sorted = [...steps].sort((a, b) => a.stepNumber - b.stepNumber);
+  const hasAnyPhase = sorted.some(
+    (s) => s.phase === "prep" || s.phase === "cook",
+  );
+  if (!hasAnyPhase) {
+    return { prepSteps: [], cookSteps: sorted };
+  }
+  const prepSteps = sorted.filter((s) => s.phase === "prep");
+  const cookSteps = sorted.filter(
+    (s) => s.phase === "cook" || s.phase == null,
+  );
+  return { prepSteps, cookSteps };
+}
+
+function formatIngredientLine(ing: Ingredient): string {
+  const measure =
+    ing.quantity != null && ing.unit
+      ? `${ing.quantity} ${ing.unit}`
+      : ing.quantity != null
+        ? String(ing.quantity)
+        : "";
+  const base = measure ? `${ing.name} — ${measure}` : ing.name;
+  return ing.notes ? `${base} (${ing.notes})` : base;
+}
+
 export type CookingSessionViewProps = {
   recipeId: string;
   onClose: () => void;
@@ -48,7 +79,8 @@ export function CookingSessionView({
   const theme = useThemeColors();
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [flow, setFlow] = useState<FlowPhase>("mise");
+  const [phaseStepIndex, setPhaseStepIndex] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [ingredientsExpanded, setIngredientsExpanded] = useState(false);
@@ -64,7 +96,8 @@ export function CookingSessionView({
   );
 
   useEffect(() => {
-    setCurrentStep(1);
+    setFlow("mise");
+    setPhaseStepIndex(1);
     loadRecipe();
     startSession();
     return () => {
@@ -98,10 +131,24 @@ export function CookingSessionView({
     }
   };
 
-  const activeStep = useMemo(
-    () => recipe?.steps.find((s) => s.stepNumber === currentStep) ?? null,
-    [recipe, currentStep],
+  const { prepSteps, cookSteps } = useMemo(
+    () => (recipe ? splitPrepCookSteps(recipe.steps) : { prepSteps: [], cookSteps: [] }),
+    [recipe],
   );
+
+  const activeStep = useMemo(() => {
+    if (!recipe || flow === "mise") return null;
+    if (flow === "prep") {
+      return prepSteps[phaseStepIndex - 1] ?? null;
+    }
+    return cookSteps[phaseStepIndex - 1] ?? null;
+  }, [recipe, flow, prepSteps, cookSteps, phaseStepIndex]);
+
+  const syncSessionStep = (globalStep: number) => {
+    if (!isLocalCatalogRecipe && sessionId && globalStep >= 1) {
+      cookingApi.updateStep(sessionId, globalStep).catch(() => {});
+    }
+  };
 
   useEffect(() => {
     if (timerRef.current) {
@@ -140,22 +187,72 @@ export function CookingSessionView({
     };
   }, [timerRunning, timerSeconds]);
 
+  const handleLeaveMise = () => {
+    if (prepSteps.length > 0) {
+      setFlow("prep");
+      setPhaseStepIndex(1);
+      syncSessionStep(1);
+    } else if (cookSteps.length > 0) {
+      setFlow("cook");
+      setPhaseStepIndex(1);
+      syncSessionStep(1);
+    }
+  };
+
   const handleNextStep = () => {
-    if (recipe && currentStep < recipe.steps.length) {
-      const next = currentStep + 1;
-      setCurrentStep(next);
-      if (!isLocalCatalogRecipe && sessionId) {
-        cookingApi.updateStep(sessionId, next).catch(() => {});
+    if (!recipe) return;
+    if (flow === "mise") {
+      handleLeaveMise();
+      return;
+    }
+    if (flow === "prep") {
+      if (phaseStepIndex < prepSteps.length) {
+        const next = phaseStepIndex + 1;
+        setPhaseStepIndex(next);
+        syncSessionStep(next);
+      } else if (cookSteps.length > 0) {
+        setFlow("cook");
+        setPhaseStepIndex(1);
+        syncSessionStep(prepSteps.length + 1);
+      } else {
+        void handleComplete();
+      }
+      return;
+    }
+    if (flow === "cook") {
+      if (phaseStepIndex < cookSteps.length) {
+        const next = phaseStepIndex + 1;
+        setPhaseStepIndex(next);
+        syncSessionStep(prepSteps.length + next);
+      } else {
+        void handleComplete();
       }
     }
   };
 
   const handlePreviousStep = () => {
-    if (currentStep > 1) {
-      const prev = currentStep - 1;
-      setCurrentStep(prev);
-      if (!isLocalCatalogRecipe && sessionId) {
-        cookingApi.updateStep(sessionId, prev).catch(() => {});
+    if (flow === "mise") return;
+    if (flow === "prep") {
+      if (phaseStepIndex > 1) {
+        const prev = phaseStepIndex - 1;
+        setPhaseStepIndex(prev);
+        syncSessionStep(prev);
+      } else {
+        setFlow("mise");
+      }
+      return;
+    }
+    if (flow === "cook") {
+      if (phaseStepIndex > 1) {
+        const prev = phaseStepIndex - 1;
+        setPhaseStepIndex(prev);
+        syncSessionStep(prepSteps.length + prev);
+      } else if (prepSteps.length > 0) {
+        setFlow("prep");
+        setPhaseStepIndex(prepSteps.length);
+        syncSessionStep(prepSteps.length);
+      } else {
+        setFlow("mise");
       }
     }
   };
@@ -193,8 +290,42 @@ export function CookingSessionView({
     );
   }
 
-  const totalSteps = recipe.steps.length;
-  const isLastStep = currentStep >= totalSteps;
+  const totalStepsInPhase =
+    flow === "prep"
+      ? prepSteps.length
+      : flow === "cook"
+        ? cookSteps.length
+        : 0;
+
+  const isLastStep =
+    flow === "cook" && cookSteps.length > 0
+      ? phaseStepIndex === cookSteps.length
+      : flow === "prep" &&
+          cookSteps.length === 0 &&
+          prepSteps.length > 0
+        ? phaseStepIndex === prepSteps.length
+        : false;
+
+  const progressHeadline =
+    flow === "mise"
+      ? "MISE EN PLACE"
+      : flow === "prep"
+        ? `PREP ${phaseStepIndex} OF ${prepSteps.length}`
+        : `COOK ${phaseStepIndex} OF ${cookSteps.length}`;
+
+  const timerPhaseLabel = flow === "prep" ? "PREP" : "COOK";
+
+  const nextButtonTitle = (() => {
+    if (flow === "mise") {
+      return prepSteps.length > 0
+        ? "Start prep"
+        : "Start cooking";
+    }
+    return isLastStep ? "Finish" : "Next Step";
+  })();
+
+  const dotCount =
+    flow === "mise" ? 1 : Math.max(1, totalStepsInPhase);
 
   const heroImageUri =
     recipe.heroImage ||
@@ -272,39 +403,61 @@ export function CookingSessionView({
           <View style={styles.progressSection}>
             <View style={styles.progressRow}>
               <Text style={[styles.stepLabel, { color: theme.secondary }]}>
-                STEP {currentStep} OF {totalSteps}
+                {progressHeadline}
               </Text>
               <Text style={[styles.stepLabelRight, { color: theme.outline }]}>
                 {recipe.totalTime ? `${recipe.totalTime} MIN TOTAL` : ""}
               </Text>
             </View>
-            <View style={styles.progressBar}>
-              {Array.from({ length: totalSteps }).map((_, i) => (
+            {flow !== "mise" && totalStepsInPhase > 0 && (
+              <View style={styles.progressBar}>
+                {Array.from({ length: totalStepsInPhase }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.progressSegment,
+                      {
+                        flex: i + 1 === phaseStepIndex ? 1.6 : 1,
+                        backgroundColor:
+                          i < phaseStepIndex
+                            ? theme.primary
+                            : theme.outlineVariant + "4D",
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+            {flow === "mise" && (
+              <View style={styles.progressBar}>
                 <View
-                  key={i}
                   style={[
                     styles.progressSegment,
                     {
-                      flex: i + 1 === currentStep ? 1.6 : 1,
-                      backgroundColor:
-                        i < currentStep
-                          ? theme.primary
-                          : theme.outlineVariant + "4D",
+                      flex: 1,
+                      backgroundColor: theme.primary,
                     },
                   ]}
                 />
-              ))}
-            </View>
+              </View>
+            )}
           </View>
 
           <Text style={[styles.recipeEyebrow, { color: theme.secondary }]}>
             {recipe.title.toUpperCase()}
           </Text>
 
-          {activeStep && (
+          {flow === "mise" ? (
             <Text style={[styles.instruction, { color: theme.onSurface }]}>
-              {activeStep.instruction}
+              Have every ingredient measured and within reach before you turn on
+              the stove.
             </Text>
+          ) : (
+            activeStep && (
+              <Text style={[styles.instruction, { color: theme.onSurface }]}>
+                {activeStep.instruction}
+              </Text>
+            )
           )}
 
           <View style={styles.heroCard}>
@@ -317,7 +470,9 @@ export function CookingSessionView({
               colors={["rgba(27,28,26,0.18)", "transparent"]}
               style={styles.heroShade}
             />
-            {timerInitial != null && timerSeconds != null && (
+            {flow !== "mise" &&
+              timerInitial != null &&
+              timerSeconds != null && (
               <View
                 style={[
                   styles.heroTimerOverlay,
@@ -327,7 +482,7 @@ export function CookingSessionView({
                 <MaterialIcons name="timer" size={18} color={theme.tertiary} />
                 <View>
                   <Text style={[styles.heroTimerLabel, { color: theme.secondary }]}>
-                    PREP
+                    {timerPhaseLabel}
                   </Text>
                   <Text style={[styles.heroTimerValue, { color: theme.onSurface }]}>
                     {formatClock(timerSeconds)}
@@ -337,7 +492,9 @@ export function CookingSessionView({
             )}
           </View>
 
-          {timerInitial != null && timerSeconds != null && (
+          {flow !== "mise" &&
+            timerInitial != null &&
+            timerSeconds != null && (
             <View
               style={[
                 styles.timerCard,
@@ -409,17 +566,37 @@ export function CookingSessionView({
                 Chef's Tip
               </Text>
               <Text style={[styles.tipBody, { color: theme.onSurfaceVariant }]}>
-                {activeStep?.timerRequired && activeStep.duration
-                  ? `Watch texture, not just time — aim for roughly ${Math.max(
-                      1,
-                      Math.round(activeStep.duration / 60),
-                    )} min and trust your senses.`
-                  : "Keep an eye on colour, aroma, and texture. Adjust heat with intention."}
+                {flow === "mise"
+                  ? "Lay out tools and bowls now so you are not hunting mid-step when something is on the heat."
+                  : activeStep?.timerRequired && activeStep.duration
+                    ? `Watch texture, not just time — aim for roughly ${Math.max(
+                        1,
+                        Math.round(activeStep.duration / 60),
+                      )} min and trust your senses.`
+                    : "Keep an eye on colour, aroma, and texture. Adjust heat with intention."}
               </Text>
             </View>
           </View>
 
-          {recipe.ingredients.length > 0 && (
+          {flow === "mise" && recipe.ingredients.length > 0 && (
+            <View style={styles.ingredientsSection}>
+              <Text
+                style={[styles.ingredientsTitle, { color: theme.onSurface }]}
+              >
+                Ingredients
+              </Text>
+              {recipe.ingredients.map((ing, idx) => (
+                <Text
+                  key={ing.id || `${ing.name}-${idx}`}
+                  style={[styles.miseIngredientLine, { color: theme.onSurface }]}
+                >
+                  {formatIngredientLine(ing)}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {flow !== "mise" && recipe.ingredients.length > 0 && (
             <View style={styles.ingredientsSection}>
               <TouchableOpacity
                 onPress={() => setIngredientsExpanded((v) => !v)}
@@ -538,10 +715,10 @@ export function CookingSessionView({
         <TouchableOpacity
           style={[
             styles.bottomTextBtn,
-            { opacity: currentStep === 1 ? 0.4 : 1 },
+            { opacity: flow === "mise" ? 0.4 : 1 },
           ]}
           onPress={handlePreviousStep}
-          disabled={currentStep === 1}
+          disabled={flow === "mise"}
           activeOpacity={0.7}
         >
           <MaterialIcons
@@ -555,9 +732,9 @@ export function CookingSessionView({
         </TouchableOpacity>
 
         <View style={styles.dotsRow}>
-          {Array.from({ length: totalSteps }).map((_, i) => {
-            const active = i + 1 === currentStep;
-            const done = i + 1 < currentStep;
+          {Array.from({ length: dotCount }).map((_, i) => {
+            const active = i + 1 === phaseStepIndex;
+            const done = i + 1 < phaseStepIndex;
             return (
               <View
                 key={i}
@@ -578,7 +755,7 @@ export function CookingSessionView({
         </View>
 
         <GradientButton
-          title={isLastStep ? "Finish" : "Next Step"}
+          title={nextButtonTitle}
           icon={isLastStep ? "check-circle" : "arrow-forward"}
           onPress={isLastStep ? handleComplete : handleNextStep}
           style={styles.nextBtn}
@@ -818,6 +995,12 @@ const styles = StyleSheet.create({
   ingChipText: {
     fontFamily: fonts.sansMedium,
     fontSize: 12,
+  },
+  miseIngredientLine: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: spacing.sm,
   },
   voiceRow: {
     flexDirection: "row",
