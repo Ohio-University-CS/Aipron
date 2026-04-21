@@ -1,6 +1,6 @@
-# AIpron Quick Start Guide
+# Aipron Quick Start Guide
 
-Get AIpron up and running in 5 minutes.
+Get Aipron up and running in 5 minutes.
 
 ## Prerequisites
 

@@ -32,6 +32,10 @@ interface ProfileScreenProps {
   onNavigateToAbout?: () => void;
   onNavigateToPantry?: () => void;
   onLogout?: () => void;
+  /** Web Preview: stay in-frame instead of router.push to Favorites tab. */
+  onSeeAllFavorites?: () => void;
+  /** Web Preview: open recipe inside preview instead of navigating away. */
+  onRecipePress?: (recipeId: string) => void;
 }
 
 const DEFAULT_DIETARY: { label: string; icon: string }[] = [
@@ -41,7 +45,7 @@ const DEFAULT_DIETARY: { label: string; icon: string }[] = [
 ];
 
 function formatJoinLabel(createdAt?: string | null): string {
-  if (!createdAt) return "CHEF SINCE 2024";
+  if (!createdAt) return "CHEF SINCE 2026";
   try {
     const d = new Date(createdAt);
     const year = d.getFullYear();
@@ -49,7 +53,7 @@ function formatJoinLabel(createdAt?: string | null): string {
   } catch {
     // fall through
   }
-  return "CHEF SINCE 2024";
+  return "CHEF SINCE 2026";
 }
 
 export default function ProfileScreen({
@@ -59,6 +63,8 @@ export default function ProfileScreen({
   onNavigateToAbout,
   onNavigateToPantry,
   onLogout,
+  onSeeAllFavorites,
+  onRecipePress,
 }: ProfileScreenProps = {}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -317,7 +323,10 @@ export default function ProfileScreen({
                   Recent Creations
                 </Text>
                 <TouchableOpacity
-                  onPress={() => router.push("/(tabs)/favorites")}
+                  onPress={() => {
+                    if (onSeeAllFavorites) onSeeAllFavorites();
+                    else router.push("/(tabs)/favorites");
+                  }}
                   activeOpacity={0.7}
                   style={styles.sectionCta}
                 >
@@ -340,7 +349,8 @@ export default function ProfileScreen({
                         recipe={r}
                         variant="standard"
                         onPress={() => {
-                          if (r.id) router.push(`/cooking/${r.id}`);
+                          if (r.id && onRecipePress) onRecipePress(r.id);
+                          else if (r.id) router.push(`/cooking/${r.id}`);
                         }}
                       />
                     </View>
@@ -431,7 +441,7 @@ export default function ProfileScreen({
             />
             <SecondaryRow
               icon="info-outline"
-              label="About AIpron"
+              label="About Aipron"
               subtitle="Version and app information"
               onPress={goAbout}
               theme={theme}
@@ -463,7 +473,7 @@ export default function ProfileScreen({
               ]}
             />
             <Text style={[styles.footerText, { color: theme.outline }]}>
-              Curating your culinary soul since 2024
+              Curating your culinary soul since 2026
             </Text>
           </View>
         </View>

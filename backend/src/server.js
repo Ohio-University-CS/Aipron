@@ -1,94 +1,9 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import dotenv from "dotenv";
-import rateLimit from "express-rate-limit";
-import { authRouter } from "./routes/auth.js";
-import { recipesRouter } from "./routes/recipes.js";
-import { pantryRouter } from "./routes/pantry.js";
-import { realtimeRouter } from "./routes/realtime.js";
-import { cookingRouter } from "./routes/cooking.js";
-import { chatRouter } from "./routes/chat.js";
-import { errorHandler } from "./middleware/errorHandler.js";
+import "./loadEnv.js";
+import { createApp } from "./app.js";
 
-dotenv.config();
-
-const app = express();
+const app = createApp();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet());
-const defaultProdOrigins = ["http://localhost:3000", "http://localhost:8081"];
-app.use(
-  cors({
-    origin(origin, callback) {
-      const allowed = process.env.ALLOWED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean);
-      if (process.env.NODE_ENV === "production") {
-        const list = allowed?.length ? allowed : defaultProdOrigins;
-        if (!origin || list.includes(origin)) {
-          return callback(null, true);
-        }
-        return callback(null, false);
-      }
-      // Development: allow localhost, IPv4/IPv6 loopback (any port), and typical LAN Expo URLs.
-      if (!origin) {
-        return callback(null, true);
-      }
-      if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin)) {
-        return callback(null, true);
-      }
-      if (/^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {
-        return callback(null, true);
-      }
-      if (/^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {
-        return callback(null, true);
-      }
-      if (/^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/i.test(origin)) {
-        return callback(null, true);
-      }
-      if (allowed?.length && allowed.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(null, false);
-    },
-    credentials: true,
-  })
-);
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-});
-app.use("/api/", limiter);
-
-// Body parsing
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// API routes
-app.use("/api/auth", authRouter);
-app.use("/api/recipes", recipesRouter);
-app.use("/api/pantry", pantryRouter);
-app.use("/api/realtime", realtimeRouter);
-app.use("/api/cooking", cookingRouter);
-app.use("/api/chat", chatRouter);
-
-// Error handling
-app.use(errorHandler);
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
-});
-
-// Bind all interfaces so LAN IPs (e.g. http://192.168.x.x:3001) work for Expo on devices.
-// Set BIND_HOST=127.0.0.1 if you must not expose the port on your network.
 const BIND_HOST = process.env.BIND_HOST || "0.0.0.0";
 app.listen(PORT, BIND_HOST, () => {
   console.log(`🚀 Server listening on ${BIND_HOST}:${PORT}`);

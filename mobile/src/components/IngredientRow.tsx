@@ -8,20 +8,23 @@ import { useThemeColors } from "../hooks/useThemeColors";
 interface IngredientRowProps {
   ingredient: Ingredient;
   onPress?: () => void;
+  /** When `showSubstitution` is true, called when the user taps "Find substitution". */
+  onSubstitutionPress?: () => void;
   loading?: boolean;
   error?: boolean;
   disabled?: boolean;
   showSubstitution?: boolean;
 }
 
-export const IngredientRow: React.FC<IngredientRowProps> = ({
-  ingredient,
-  onPress,
-  loading = false,
-  error = false,
-  disabled = false,
-  showSubstitution = false,
-}) => {
+export const IngredientRow: React.FC<IngredientRowProps> = (props) => {
+  const {
+    ingredient,
+    onPress,
+    loading = false,
+    error = false,
+    disabled = false,
+    showSubstitution = false,
+  } = props;
   const c = useThemeColors();
   const styles = useMemo(() => getStyles(c), [c]);
 
@@ -46,7 +49,12 @@ export const IngredientRow: React.FC<IngredientRowProps> = ({
         <Text style={styles.notes}>{ingredient.notes}</Text>
       )}
       {showSubstitution && (
-        <TouchableOpacity style={styles.substitutionButton}>
+        <TouchableOpacity
+          style={styles.substitutionButton}
+          onPress={() => props.onSubstitutionPress?.()}
+          activeOpacity={0.7}
+          disabled={loading || !props.onSubstitutionPress}
+        >
           <MaterialIcons name="swap-horiz" size={14} color={c.primary} />
           <Text style={styles.substitutionText}>Find substitution</Text>
         </TouchableOpacity>

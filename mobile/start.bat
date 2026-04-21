@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo AIpron Mobile App - Quick Start
+echo Aipron Mobile App - Quick Start
 echo ========================================
 echo.
 

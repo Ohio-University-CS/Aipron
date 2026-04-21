@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { GestureRootView } from "../src/components/GestureRootView";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuthStore } from "../src/store/useAuthStore";
 import {
@@ -50,7 +50,7 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <Stack
           screenOptions={{
@@ -64,6 +64,6 @@ export default function RootLayout() {
           <Stack.Screen name="cooking/[id]" options={{ presentation: "fullScreenModal" }} />
         </Stack>
       </SafeAreaProvider>
-    </GestureHandlerRootView>
+    </GestureRootView>
   );
 }

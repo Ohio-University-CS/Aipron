@@ -1,7 +1,6 @@
-import { useThemeStore } from "../store/useThemeStore";
-import { lightColors, darkColors, type ThemeColors } from "../constants/DesignTokens";
+import { lightColors, type ThemeColors } from "../constants/DesignTokens";
 
+/** Always returns the light theme; dark mode is not supported. */
 export function useThemeColors(): ThemeColors {
-  const mode = useThemeStore((s) => s.mode);
-  return mode === "dark" ? darkColors : lightColors;
+  return lightColors;
 }

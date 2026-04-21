@@ -9,7 +9,7 @@ on:
 
 jobs:
   pr-quality-checks:
-    name: Backend tests + shared build
+    name: Backend tests + shared + mobile typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -29,3 +29,6 @@ jobs:
 
       - name: Build shared package
         run: npm run build --workspace shared
+
+      - name: Mobile TypeScript (tsc --noEmit)
+        run: npm run typecheck --workspace mobile

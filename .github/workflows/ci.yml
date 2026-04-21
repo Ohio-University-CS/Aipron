@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-unit-tests:
-    name: Backend unit tests
+    name: Backend unit tests + mobile typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -25,3 +25,6 @@ jobs:
 
       - name: Run backend unit tests
         run: npm run test --workspace backend
+
+      - name: Mobile TypeScript (tsc --noEmit)
+        run: npm run typecheck --workspace mobile

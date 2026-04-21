@@ -1,5 +1,5 @@
 /**
- * Design Tokens for AIpron — "Sun-Filled Brunch" Editorial Theme
+ * Design Tokens for Aipron — "Sun-Filled Brunch" Editorial Theme
  * Extracted from Google Stitch designs. Material 3 semantic color system
  * with Noto Serif + Plus Jakarta Sans typography.
  */
@@ -58,8 +58,12 @@ export const lightColors = {
 
   // Cooking mode
   cookingBackground: "#1A1A1A",
+  cookingSurface: "#252525",
   cookingText: "#FFFFFF",
   cookingTextSecondary: "#B0B0B0",
+
+  /** Lighter primary tint for borders/backgrounds (e.g. active timer chip) */
+  primaryLight: "#f4c430",
 
   // Semantic aliases for backward compatibility
   text: "#1b1c1a",
@@ -74,63 +78,7 @@ export const lightColors = {
   info: "#2196F3",
 } as const;
 
-export const darkColors: typeof lightColors = {
-  primary: "#f4c430",
-  onPrimary: "#3d2e00",
-  primaryContainer: "#755b00",
-  onPrimaryContainer: "#ffd79b",
-
-  secondary: "#e6bdb2",
-  onSecondary: "#442a22",
-  secondaryContainer: "#5d4037",
-  onSecondaryContainer: "#fed3c7",
-
-  tertiary: "#ffb77c",
-  onTertiary: "#502400",
-  tertiaryContainer: "#723600",
-  onTertiaryContainer: "#ffddbe",
-
-  error: "#ffb4ab",
-  onError: "#690005",
-  errorContainer: "#93000a",
-
-  background: "#1b1c1a",
-  onBackground: "#e4e2de",
-  surface: "#1b1c1a",
-  onSurface: "#e4e2de",
-  onSurfaceVariant: "#d1c5ad",
-
-  surfaceContainerLowest: "#111210",
-  surfaceContainerLow: "#1e1f1c",
-  surfaceContainer: "#232420",
-  surfaceContainerHigh: "#2d2e2a",
-  surfaceContainerHighest: "#383935",
-  surfaceBright: "#3b3c38",
-  surfaceVariant: "#4e4634",
-
-  outline: "#9a8e78",
-  outlineVariant: "#4e4634",
-
-  inverseSurface: "#e4e2de",
-  inverseOnSurface: "#30312e",
-  inversePrimary: "#755b00",
-
-  cookingBackground: "#000000",
-  cookingText: "#FFFFFF",
-  cookingTextSecondary: "#B0B0B0",
-
-  text: "#e4e2de",
-  textSecondary: "#d1c5ad",
-  textDisabled: "#9a8e78",
-  border: "#4e4634",
-  card: "#232420",
-  surfaceWarm: "#2d2e2a",
-  surfaceWarmAlt: "#383935",
-  success: "#66BB6A",
-  warning: "#FFB74D",
-  info: "#42A5F5",
-} as const;
-
+/** App UI uses the light palette only (no dark mode). */
 export type ThemeColors = typeof lightColors;
 
 /** Default (light) colors export for backward compatibility */

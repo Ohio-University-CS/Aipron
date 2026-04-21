@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   FlatList,
   ScrollView,
@@ -133,6 +134,12 @@ export default function SearchScreen() {
     toggleSave: toggleLocalSave,
     reloadSavedIds,
   } = useLocalCatalogSavedIds();
+
+  useFocusEffect(
+    useCallback(() => {
+      void reloadSavedIds();
+    }, [reloadSavedIds]),
+  );
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
