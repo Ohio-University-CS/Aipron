@@ -669,8 +669,10 @@ export default function WebPreviewScreen() {
                   recipe={r}
                   isSaved={!!r.id && localCatalogSavedIds.has(r.id)}
                   onToggleSave={toggleLocalCatalogSave}
-                  onPress={() => {}}
-                  disabled
+                  onPress={() => {
+                    if (r.id) setCookingId(r.id);
+                  }}
+                  disabled={!r.id}
                   loading={false}
                 />
               ))}
@@ -706,7 +708,10 @@ export default function WebPreviewScreen() {
                   recipe={item}
                   isSaved
                   onToggleSave={handleUnsave}
-                  onPress={() => {}}
+                  onPress={() => {
+                    if (item.id) setCookingId(item.id);
+                  }}
+                  disabled={!item.id}
                 />
               )}
             />

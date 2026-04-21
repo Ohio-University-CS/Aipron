@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   ScrollView,
   Share,
@@ -42,6 +43,11 @@ export default function RecipeDetailScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [heroFailed, setHeroFailed] = useState(false);
 
+  const isLocalCatalogRecipe = useMemo(
+    () => (id ? !!findLocalCatalogRecipeById(id) : false),
+    [id]
+  );
+
   useEffect(() => {
     let cancelled = false;
     const loadRecipe = async () => {
@@ -63,6 +69,51 @@ export default function RecipeDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!recipe?.id || isLocalCatalogRecipe) return;
+    let cancelled = false;
+    recipeApi
+      .getSavedIds()
+      .then((ids) => {
+        if (!cancelled) setIsFavorite(ids.includes(recipe.id!));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [recipe?.id, isLocalCatalogRecipe]);
+
+  const handleSubstitutionPress = useCallback(
+    async (ingredientName: string) => {
+      if (!ingredientName.trim()) return;
+      try {
+        const data = (await recipeApi.getSubstitutions(
+          ingredientName.trim(),
+          recipe?.dietaryTags ?? []
+        )) as { substitutions?: unknown };
+        const subs = data?.substitutions;
+        const text = Array.isArray(subs)
+          ? subs.map((s) => String(s)).filter(Boolean).join(", ")
+          : subs != null
+            ? String(subs)
+            : "";
+        Alert.alert(
+          `Substitutions for ${ingredientName}`,
+          text.length > 0 ? text : "No suggestions returned."
+        );
+      } catch (e: unknown) {
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        Alert.alert(
+          "Substitutions",
+          status === 401
+            ? "Sign in to load substitution suggestions."
+            : "Could not load substitutions. Try again when online."
+        );
+      }
+    },
+    [recipe?.dietaryTags]
+  );
 
   const topBarHeight = insets.top + spacing.sm + 56;
 
@@ -172,7 +223,26 @@ export default function RecipeDetailScreen() {
                 { backgroundColor: theme.surfaceContainerLowest },
                 shadows.md,
               ]}
-              onPress={() => setIsFavorite((v) => !v)}
+              onPress={async () => {
+                if (!recipe.id) return;
+                if (isLocalCatalogRecipe) {
+                  setIsFavorite((v) => !v);
+                  return;
+                }
+                try {
+                  if (isFavorite) {
+                    await recipeApi.unsave(recipe.id);
+                  } else {
+                    await recipeApi.save(recipe.id);
+                  }
+                  setIsFavorite((v) => !v);
+                } catch {
+                  Alert.alert(
+                    "Favorites",
+                    "Could not update saved recipes. Sign in and try again."
+                  );
+                }
+              }}
               activeOpacity={0.8}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
@@ -316,6 +386,10 @@ export default function RecipeDetailScreen() {
                     <IngredientRow
                       key={ing.id || `${ing.name}-${idx}`}
                       ingredient={ing}
+                      showSubstitution
+                      onSubstitutionPress={() =>
+                        handleSubstitutionPress(ing.name)
+                      }
                     />
                   ))}
                 </View>
