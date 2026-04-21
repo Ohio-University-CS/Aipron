@@ -43,6 +43,8 @@ export interface IngredientSubstitution {
 export interface RecipeStep {
   stepNumber: number;
   instruction: string;
+  /** mise / chopping / measuring vs heat / finishing */
+  phase?: "prep" | "cook";
   duration?: number; // seconds
   timerRequired?: boolean;
 }

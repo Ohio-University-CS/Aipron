@@ -50,6 +50,7 @@ Pantry mode is ON but the user has no pantry items saved yet. Create a recipe fr
 - Consider dietary restrictions: ${dietaryFilters.join(", ") || "none"}
 - Appropriate for ${skillLevel} skill level
 - Serve ${servings} people
+- For each step, set "phase" to "prep" (mise, chopping, measuring, marinating, room-temp rest, cold mixing) or "cook" (heat, oven, boiling, finishing on the stove, or combining components while cooking). Order steps so all prep phases come before cook phases when possible.
 ${pantryBlock}
 
 Format your response as JSON with this structure:
@@ -57,7 +58,7 @@ Format your response as JSON with this structure:
   "title": "Recipe Title",
   "description": "Brief description",
   "ingredients": [{"name": "ingredient", "quantity": 1, "unit": "cup"}],
-  "steps": [{"stepNumber": 1, "instruction": "...", "duration": 300, "timerRequired": false}],
+  "steps": [{"stepNumber": 1, "phase": "prep", "instruction": "...", "duration": 300, "timerRequired": false}],
   "prepTime": 15,
   "cookTime": 30,
   "totalTime": 45,
