@@ -3,6 +3,7 @@ import { body, validationResult } from "express-validator";
 import { authenticateToken, optionalAuth } from "../middleware/auth.js";
 import { generateRecipe, getSubstitutions } from "../services/openai.js";
 import { supabaseAdmin } from "../db/supabase.js";
+import { ensureLegacyUserRow } from "../services/legacyUsers.js";
 
 export const recipesRouter = express.Router();
 
@@ -129,6 +130,9 @@ recipesRouter.post(
         availableIngredients,
         usePantry: Boolean(usePantry),
       });
+
+      // Self-heal legacy public.users FK. No-op once schema is migrated.
+      await ensureLegacyUserRow(req.user);
 
       const { data, error } = await req.supabase
         .from("recipes")

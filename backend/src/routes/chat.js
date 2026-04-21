@@ -1,10 +1,82 @@
 import express from "express";
-import { chatWithAssistant } from "../services/openai.js";
+import { chatWithAssistant, generateRecipe } from "../services/openai.js";
 import { authenticateToken } from "../middleware/auth.js";
 import { fetchUserContext } from "../services/userContext.js";
 import { supabaseAdmin } from "../db/supabase.js";
+import { ensureLegacyUserRow } from "../services/legacyUsers.js";
 
 export const chatRouter = express.Router();
+
+/**
+ * Factory for the create_recipe tool handler used by chatWithAssistant.
+ * Generates a full recipe, inserts it into `recipes` for the authed user
+ * (is_ai_generated=true) and upserts it into `saved_recipes` so it shows up
+ * in the Saved tab by default. Returns { id, title } for the model.
+ *
+ * Uses `req.supabase` (the per-request JWT-authenticated Supabase client)
+ * to exactly match the working POST /api/recipes/generate path.
+ */
+function buildOnCreateRecipe(req) {
+  const userId = req.user.id;
+  const db = req.supabase;
+  return async ({ description, dietaryFilters = [], servings = 4, skillLevel = "intermediate" }) => {
+    console.log(
+      `[chat.create_recipe] user=${userId} description=${JSON.stringify(description).slice(0, 120)}`
+    );
+
+    // Self-heal: this project's recipes.user_id FK still points at the
+    // legacy public.users table. Supabase-Auth users don't live there, so
+    // we shim a row before inserting. No-op once the FK is repointed to
+    // auth.users(id). See 2026-04-21_repoint_user_fk.sql migration.
+    await ensureLegacyUserRow(req.user);
+
+    const recipe = await generateRecipe(description, {
+      dietaryFilters,
+      servings,
+      skillLevel,
+    });
+
+    const { data: inserted, error: insErr } = await db
+      .from("recipes")
+      .insert({
+        user_id: userId,
+        title: recipe.title,
+        description: recipe.description,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        prep_time: recipe.prepTime,
+        cook_time: recipe.cookTime,
+        total_time: recipe.totalTime,
+        servings: recipe.servings,
+        nutrition: recipe.nutrition,
+        dietary_tags: recipe.dietaryTags,
+        cuisine: recipe.cuisine,
+        difficulty: recipe.difficulty,
+        is_ai_generated: true,
+      })
+      .select("id, title")
+      .single();
+
+    if (insErr) {
+      console.error("[chat.create_recipe] recipes insert failed:", insErr);
+      throw insErr;
+    }
+
+    const { error: saveErr } = await db
+      .from("saved_recipes")
+      .upsert(
+        { user_id: userId, recipe_id: inserted.id },
+        { onConflict: "user_id,recipe_id" }
+      );
+
+    if (saveErr) {
+      console.error("[chat.create_recipe] saved_recipes upsert failed:", saveErr);
+    }
+
+    console.log(`[chat.create_recipe] saved id=${inserted.id} title=${inserted.title}`);
+    return { id: inserted.id, title: inserted.title };
+  };
+}
 
 // Legacy stateless chat (no persistence, auth optional for user context)
 chatRouter.post("/", async (req, res, next) => {
@@ -130,7 +202,9 @@ chatRouter.post("/conversations/:id/messages", authenticateToken, async (req, re
       fetchUserContext(req.user.id),
     ]);
 
-    const reply = await chatWithAssistant(history || [], userContext, language);
+    const reply = await chatWithAssistant(history || [], userContext, language, {
+      onCreateRecipe: buildOnCreateRecipe(req),
+    });
 
     // Save assistant reply
     const { data: assistantMsg, error: insertErr } = await supabaseAdmin
