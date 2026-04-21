@@ -21,7 +21,6 @@ import {
 import { useThemeColors } from "../src/hooks/useThemeColors";
 import { TopBar } from "../src/components/TopBar";
 import { Chip } from "../src/components/Chip";
-import { useThemeStore } from "../src/store/useThemeStore";
 import { useSettingsStore, type AppLanguage } from "../src/store/useSettingsStore";
 import { useAuthStore } from "../src/store/useAuthStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,9 +38,11 @@ type SubView =
 
 interface SettingsScreenProps {
   onBack?: () => void;
+  /** Web Preview: open Chef tab in-frame instead of router.push to chat. */
+  onNavigateToChat?: () => void;
+  /** Web Preview: stay in-frame after sign-out instead of router.replace. */
+  onSignOutSuccess?: () => void;
 }
-
-type ThemeChoice = "light" | "dark" | "system";
 
 const DIETARY_OPTIONS: {
   key: keyof DietaryState;
@@ -77,11 +78,14 @@ function formatAboutVersionLine(): string {
   return build ? `Version ${v} (Build ${build})` : `Version ${v}`;
 }
 
-export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
+export default function SettingsScreen({
+  onBack,
+  onNavigateToChat,
+  onSignOutSuccess,
+}: SettingsScreenProps = {}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
-  const { mode, setMode } = useThemeStore();
   const { language: selectedLanguage, setLanguage: setSelectedLanguage } = useSettingsStore();
   const { user, logout } = useAuthStore();
 
@@ -89,7 +93,6 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   const [recipeReminders, setRecipeReminders] = useState(true);
   const [weeklyInspiration, setWeeklyInspiration] = useState(true);
   const [cookingTimerAlerts, setCookingTimerAlerts] = useState(true);
-  const [themeChoice, setThemeChoice] = useState<ThemeChoice>(mode);
   const [dietaryPrefs, setDietaryPrefs] = useState<DietaryState>({
     vegetarian: false,
     vegan: false,
@@ -105,16 +108,6 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
 
   const toggleDietaryPref = (key: keyof DietaryState) => {
     setDietaryPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const pickTheme = (choice: ThemeChoice) => {
-    setThemeChoice(choice);
-    if (choice === "system") {
-      // fallback to light; store doesn't track system yet
-      setMode("light");
-    } else {
-      setMode(choice);
-    }
   };
 
   const topBarHeight = insets.top + spacing.sm + 56;
@@ -134,7 +127,8 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
         onPress: async () => {
           try {
             await logout();
-            router.replace("/login");
+            if (onSignOutSuccess) onSignOutSuccess();
+            else router.replace("/login");
           } catch (e) {
             Alert.alert("Error", "Could not sign out. Please try again.");
           }
@@ -327,18 +321,19 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
           </View>
           <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>Help &amp; FAQ</Text>
           <Text style={[styles.centeredDescription, { color: theme.onSurfaceVariant }]}>
-            In-app support is coming soon. For now, ask AIpron directly in chat — it can walk you through most features.
+            In-app support is coming soon. For now, ask Aipron directly in chat — it can walk you through most features.
           </Text>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: theme.primary }]}
             activeOpacity={0.7}
             onPress={() => {
               setSubView(null);
-              router.push("/(tabs)/chat");
+              if (onNavigateToChat) onNavigateToChat();
+              else router.push("/(tabs)/chat");
             }}
           >
             <MaterialIcons name="chat-bubble-outline" size={20} color={theme.onPrimary} />
-            <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>Ask AIpron</Text>
+            <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>Ask Aipron</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -422,11 +417,11 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
           <Text style={[styles.docDate, { color: theme.onSurfaceVariant }]}>Effective: March 2026</Text>
           <Text style={[styles.docHeading, { color: theme.onSurface }]}>1. Acceptance of Terms</Text>
           <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
-            By using AIpron, you agree to these Terms of Service. If you do not agree, please do not use the app.
+            By using Aipron, you agree to these Terms of Service. If you do not agree, please do not use the app.
           </Text>
           <Text style={[styles.docHeading, { color: theme.onSurface }]}>2. Use of Service</Text>
           <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
-            AIpron provides AI-powered cooking assistance, recipe suggestions, and meal planning tools. The service is intended for personal, non-commercial use.
+            Aipron provides AI-powered cooking assistance, recipe suggestions, and meal planning tools. The service is intended for personal, non-commercial use.
           </Text>
           <Text style={[styles.docHeading, { color: theme.onSurface }]}>3. User Accounts</Text>
           <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
@@ -434,11 +429,11 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
           </Text>
           <Text style={[styles.docHeading, { color: theme.onSurface }]}>4. Content & Recipes</Text>
           <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
-            Recipes generated by our AI are suggestions only. Always verify ingredient safety, especially for allergies. AIpron is not liable for adverse reactions.
+            Recipes generated by our AI are suggestions only. Always verify ingredient safety, especially for allergies. Aipron is not liable for adverse reactions.
           </Text>
           <Text style={[styles.docHeading, { color: theme.onSurface }]}>5. Limitation of Liability</Text>
           <Text style={[styles.docBody, { color: theme.onSurfaceVariant }]}>
-            AIpron is provided "as is" without warranties. We are not liable for any indirect, incidental, or consequential damages arising from your use of the service.
+            Aipron is provided "as is" without warranties. We are not liable for any indirect, incidental, or consequential damages arising from your use of the service.
           </Text>
           <View style={{ height: spacing.xxl * 2 }} />
         </ScrollView>
@@ -449,12 +444,12 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   if (subView === "appVersion") {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <SubViewHeader title="About AIpron" />
+        <SubViewHeader title="About Aipron" />
         <View style={styles.centeredContent}>
           <View style={[styles.bigIconWrap, { backgroundColor: theme.primaryContainer + "40" }]}>
             <Text style={{ fontSize: 42 }}>🍳</Text>
           </View>
-          <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>AIpron</Text>
+          <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>Aipron</Text>
           <Text style={[styles.versionText, { color: theme.primary }]}>
             {formatAboutVersionLine()}
           </Text>
@@ -465,7 +460,7 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
             <InfoRow label="Platform" value="React Native / Expo" theme={theme} />
             <InfoRow label="API Version" value="v1.1" theme={theme} />
             <InfoRow label="Last Updated" value="April 2026" theme={theme} />
-            <InfoRow label="Developer" value="AIpron Team" theme={theme} last />
+            <InfoRow label="Developer" value="Aipron Team" theme={theme} last />
           </View>
         </View>
       </View>
@@ -475,7 +470,7 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
   if (subView === "rate") {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <SubViewHeader title="Rate AIpron" />
+        <SubViewHeader title="Rate Aipron" />
         <View style={styles.centeredContent}>
           <View style={[styles.bigIconWrap, { backgroundColor: theme.tertiaryContainer + "40" }]}>
             <Text style={{ fontSize: 42 }}>
@@ -483,7 +478,7 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
             </Text>
           </View>
           <Text style={[styles.centeredTitle, { color: theme.onSurface }]}>
-            {userRating > 0 ? "Thanks for rating!" : "Enjoying AIpron?"}
+            {userRating > 0 ? "Thanks for rating!" : "Enjoying Aipron?"}
           </Text>
           <Text style={[styles.centeredDescription, { color: theme.onSurfaceVariant }]}>
             {userRating > 0
@@ -600,44 +595,6 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
             />
           </View>
 
-          {/* Appearance */}
-          <SectionHeader title="Appearance" />
-          <View style={[styles.segmentedRow, { backgroundColor: theme.surfaceContainer }]}>
-            {(["light", "dark", "system"] as const).map((opt) => {
-              const active = themeChoice === opt;
-              const label = opt === "light" ? "Light" : opt === "dark" ? "Dark" : "System";
-              const icon: string =
-                opt === "light" ? "wb-sunny" : opt === "dark" ? "nightlight-round" : "settings-brightness";
-              return (
-                <TouchableOpacity
-                  key={opt}
-                  style={[
-                    styles.segmentPill,
-                    active && { backgroundColor: theme.primaryContainer },
-                  ]}
-                  onPress={() => pickTheme(opt)}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons
-                    name={icon as any}
-                    size={16}
-                    color={active ? theme.onPrimaryContainer : theme.onSurfaceVariant}
-                  />
-                  <Text
-                    style={[
-                      styles.segmentLabel,
-                      {
-                        color: active ? theme.onPrimaryContainer : theme.onSurfaceVariant,
-                      },
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
           {/* Notifications */}
           <SectionHeader title="Notifications" />
           <View style={[styles.card, { backgroundColor: theme.surfaceContainerLowest }]}>
@@ -711,7 +668,7 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps = {}) {
               "Cooking is the most ancient of the arts — and the most personal."
             </Text>
             <Text style={[styles.editorialByline, { color: theme.onSurfaceVariant }]}>
-              — the AIpron team
+              — the Aipron team
             </Text>
           </View>
         </View>
@@ -831,25 +788,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     lineHeight: 16,
-  },
-  segmentedRow: {
-    flexDirection: "row",
-    padding: 4,
-    borderRadius: borderRadius.full,
-    gap: 4,
-  },
-  segmentPill: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    gap: 6,
-  },
-  segmentLabel: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 13,
   },
   quoteCard: {
     marginTop: spacing.sectionGap,

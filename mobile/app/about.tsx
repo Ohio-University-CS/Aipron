@@ -68,7 +68,7 @@ export default function AboutScreen({ onBack }: AboutScreenProps = {}) {
           <View style={[styles.logoWrap, { backgroundColor: c.primary + "18" }]}>
             <Text style={styles.logoEmoji}>🍳</Text>
           </View>
-          <Text style={[styles.appName, { color: c.text }]}>AIpron</Text>
+          <Text style={[styles.appName, { color: c.text }]}>Aipron</Text>
           <Text style={[styles.version, { color: c.primary }]}>
             Version {Constants.expoConfig?.version ?? "1.1.0"}
           </Text>
@@ -96,19 +96,19 @@ export default function AboutScreen({ onBack }: AboutScreenProps = {}) {
           <InfoRow label="Backend" value="Node.js + Supabase" c={c} />
           <InfoRow label="AI Model" value="OpenAI GPT" c={c} />
           <InfoRow label="Last Updated" value="April 2026" c={c} />
-          <InfoRow label="Developer" value="AIpron Team" c={c} last />
+          <InfoRow label="Developer" value="Aipron Team" c={c} last />
         </View>
 
         <Text style={[styles.sectionHeader, { color: c.textSecondary }]}>LEGAL</Text>
         <View style={[styles.infoCard, { backgroundColor: c.surface, ...shadows.sm }]}>
           <View style={[styles.legalRow, { borderBottomColor: c.border }]}>
             <Text style={[styles.legalText, { color: c.textSecondary }]}>
-              AIpron generates recipe suggestions using AI. Always verify ingredient safety, especially regarding allergies and dietary restrictions. AIpron is not liable for adverse reactions to generated recipes.
+              Aipron generates recipe suggestions using AI. Always verify ingredient safety, especially regarding allergies and dietary restrictions. Aipron is not liable for adverse reactions to generated recipes.
             </Text>
           </View>
           <View style={styles.legalRow}>
             <Text style={[styles.legalText, { color: c.textSecondary }]}>
-              © 2026 AIpron. All rights reserved.
+              © 2026 Aipron. All rights reserved.
             </Text>
           </View>
         </View>

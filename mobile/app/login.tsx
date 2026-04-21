@@ -234,7 +234,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps = {}) {
               pointerEvents="none"
             />
             <View style={[styles.wordmarkPill, { backgroundColor: c.surface + "E6" }]}>
-              <Text style={[styles.wordmark, { color: c.primary }]}>AIpron</Text>
+              <Text style={[styles.wordmark, { color: c.primary }]}>Aipron</Text>
             </View>
           </View>
 
@@ -422,7 +422,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps = {}) {
 
           {/* Terms footer */}
           <Text style={[styles.terms, { color: c.onSurfaceVariant }]}>
-            By continuing you agree to AIpron's Terms of Service & Privacy Policy.
+            By continuing you agree to Aipron's Terms of Service & Privacy Policy.
           </Text>
         </View>
       </ScrollView>

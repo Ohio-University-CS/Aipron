@@ -237,7 +237,7 @@ export default function HomeScreen() {
             </Text>
             <View style={styles.tileFooter}>
               <Text style={[styles.tileCta, { color: theme.primary }]}>
-                {suggested?.id ? "View recipe" : "Ask AIpron"}
+                {suggested?.id ? "View recipe" : "Ask Aipron"}
               </Text>
               <MaterialIcons
                 name="arrow-forward"

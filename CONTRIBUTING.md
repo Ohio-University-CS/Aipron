@@ -1,6 +1,6 @@
-# Contributing to AIpron
+# Contributing to Aipron
 
-Thank you for your interest in contributing to AIpron! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Aipron! This document provides guidelines and instructions for contributing.
 
 ## Getting Started
 

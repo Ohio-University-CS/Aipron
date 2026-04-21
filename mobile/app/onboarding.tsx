@@ -30,7 +30,7 @@ const FEATURES = [
   {
     icon: "inventory-2" as const,
     title: "Smart Inventory",
-    body: "Scan your ingredients and we'll tell you exactly what you can make right now.",
+    body: "Track what you have on hand and get recipe ideas that match your pantry.",
   },
   {
     icon: "auto-awesome" as const,
@@ -38,9 +38,9 @@ const FEATURES = [
     body: "Personalized chef tips that adapt to your skill level and taste profile.",
   },
   {
-    icon: "menu-book" as const,
-    title: "Visual Journals",
-    body: "Document your culinary journey with beautiful, auto-generated food logs.",
+    icon: "restaurant" as const,
+    title: "Meal Ideas",
+    body: "Discover dishes that fit your diet, schedule, and ingredients you already bought.",
   },
 ];
 
@@ -74,14 +74,14 @@ export default function OnboardingScreen() {
           {/* Branding anchor */}
           <View style={[styles.brandAnchor, { top: insets.top + 16 }]}>
             <Text style={[styles.brandText, { color: theme.primary }]}>
-              AIpron
+              Aipron
             </Text>
           </View>
         </View>
 
         {/* Content canvas — overlaps hero */}
         <View style={styles.contentCanvas}>
-          <Chip label="Est. 2024" icon="restaurant-menu" variant="filled" size="sm" />
+          <Chip label="Est. 2026" icon="restaurant-menu" variant="filled" size="sm" />
 
           <Text style={[styles.headline, { color: theme.onBackground }]}>
             Meet your new{"\n"}
@@ -91,7 +91,7 @@ export default function OnboardingScreen() {
           </Text>
 
           <Text style={[styles.bodyText, { color: theme.onSurfaceVariant }]}>
-            AIpron helps you turn your pantry into a gourmet experience.
+            Aipron helps you turn your pantry into a gourmet experience.
             Intelligent recipes tailored to what you already have.
           </Text>
 
@@ -138,7 +138,7 @@ export default function OnboardingScreen() {
           {/* Footer */}
           <View style={styles.footerRow}>
             <Text style={[styles.footerText, { color: theme.outline }]}>
-              © 2024 AIpron Digital Curator
+              © 2026 Aipron Digital Curator
             </Text>
             <View style={styles.footerLinks}>
               <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/login")}>

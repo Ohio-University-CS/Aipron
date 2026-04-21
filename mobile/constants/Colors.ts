@@ -1,5 +1,5 @@
 /**
- * Design tokens for AIpron
+ * Design tokens for Aipron
  * Following PRD requirements: semantic tokens only, no hard-coded hex
  */
 

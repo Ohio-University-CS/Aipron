@@ -1,4 +1,4 @@
-# 👨‍🍳 AIpron
+# 👨‍🍳 Aipron
 
 **Your AI-powered cooking assistant** — get personalized recipes, step-by-step guidance, and smart kitchen help, all in one place.
 
@@ -8,9 +8,9 @@
 
 ---
 
-## 🍽️ What is AIpron?
+## 🍽️ What is Aipron?
 
-AIpron is an intelligent cooking assistant that helps home cooks and culinary enthusiasts:
+Aipron is an intelligent cooking assistant that helps home cooks and culinary enthusiasts:
 
 - Generate personalized recipes based on ingredients you already have
 - Follow step-by-step cooking guidance with real-time tips
@@ -19,14 +19,14 @@ AIpron is an intelligent cooking assistant that helps home cooks and culinary en
 - Discover meals based on dietary preferences, allergies, or cuisine style
 - **Hands-free voice guidance** powered by OpenAI Realtime API
 
-Whether you're a beginner fumbling through your first stir-fry or a seasoned cook looking for inspiration, AIpron has you covered.
+Whether you're a beginner fumbling through your first stir-fry or a seasoned cook looking for inspiration, Aipron has you covered.
 
 ---
 
 ## ✨ Features
 
 - **🧠 AI Recipe Generation** — Describe what you're craving or what's in your fridge and get a tailored recipe instantly
-- **🔄 Ingredient Substitution** — Out of an ingredient? AIpron suggests smart swaps that won't ruin the dish
+- **🔄 Ingredient Substitution** — Out of an ingredient? Aipron suggests smart swaps that won't ruin the dish
 - **📏 Serving Scaler** — Automatically adjusts ingredient quantities for any number of servings
 - **⏱️ Cooking Timers** — Built-in step timers to keep you on track
 - **🥗 Dietary Filters** — Supports vegan, vegetarian, gluten-free, keto, halal, and more
@@ -40,7 +40,7 @@ Whether you're a beginner fumbling through your first stir-fry or a seasoned coo
 
 ## 🏗️ Architecture
 
-AIpron is built as a monorepo with:
+Aipron is built as a monorepo with:
 
 - **Mobile app** (what we ship): React Native + Expo — use **Expo web** (`npx expo start --web`) for a quick **localhost** browser preview only
 - **Backend**: Node.js + Express
@@ -52,7 +52,7 @@ AIpron is built as a monorepo with:
 
 ## 🚀 Getting Started (Simple)
 
-You can run AIpron in **two modes**:
+You can run Aipron in **two modes**:
 - **Full stack** (backend + mobile app)
 - **UI only** (mobile web preview, no backend / DB required)
 
