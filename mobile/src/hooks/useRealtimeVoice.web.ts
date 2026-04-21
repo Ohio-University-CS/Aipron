@@ -34,6 +34,14 @@ export function useRealtimeVoice(
     const el = document.createElement("audio");
     el.autoplay = true;
     el.setAttribute("playsinline", "true");
+    el.setAttribute("aria-hidden", "true");
+    el.style.position = "fixed";
+    el.style.width = "1px";
+    el.style.height = "1px";
+    el.style.opacity = "0";
+    el.style.pointerEvents = "none";
+    el.style.left = "-9999px";
+    document.body.appendChild(el);
     remoteAudioRef.current = el;
     return () => {
       el.srcObject = null;
@@ -43,6 +51,9 @@ export function useRealtimeVoice(
   }, []);
 
   const handleServerEvent = useCallback((event: Record<string, unknown>) => {
+    if (typeof event.type === "string") {
+      console.log("[realtime] event:", event.type);
+    }
     switch (event.type) {
       case "input_audio_buffer.speech_started":
         setIsListening(true);
@@ -54,10 +65,14 @@ export function useRealtimeVoice(
         break;
 
       case "response.audio.started":
+      case "response.output_audio.delta":
+      case "response.audio.delta":
         setIsSpeaking(true);
         break;
 
       case "response.audio.done":
+      case "response.output_audio.done":
+      case "response.done":
         setIsSpeaking(false);
         break;
 
@@ -171,14 +186,32 @@ export function useRealtimeVoice(
       pcRef.current = pc;
 
       pc.ontrack = (ev) => {
+        console.log("[realtime] ontrack", ev.track.kind, {
+          muted: ev.track.muted,
+          readyState: ev.track.readyState,
+          streams: ev.streams?.length,
+        });
         if (ev.track.kind !== "audio") return;
         const audio = remoteAudioRef.current;
-        if (!audio) return;
-        const [stream] = ev.streams;
-        if (stream) {
-          audio.srcObject = stream;
-          void audio.play().catch(() => {});
+        if (!audio) {
+          console.warn("[realtime] audio element missing");
+          return;
         }
+        const [stream] = ev.streams;
+        const remoteStream = stream || new MediaStream([ev.track]);
+        audio.srcObject = remoteStream;
+        audio.muted = false;
+        audio.volume = 1;
+        const tryPlay = () => {
+          void audio
+            .play()
+            .then(() => console.log("[realtime] audio playback started"))
+            .catch((err) => {
+              console.warn("[realtime] audio autoplay blocked:", err);
+            });
+        };
+        tryPlay();
+        ev.track.addEventListener("unmute", tryPlay);
       };
 
       const dc = pc.createDataChannel("oai-events");

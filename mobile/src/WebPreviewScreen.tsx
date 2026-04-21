@@ -28,6 +28,7 @@ import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
 import { useThemeColors } from "./hooks/useThemeColors";
 import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
+import { useRealtimeVoice } from "./hooks/useRealtimeVoice";
 import { useSettingsStore } from "./store/useSettingsStore";
 import { RecipeDetailView } from "./components/RecipeDetailView";
 import { CookingSessionView } from "./components/CookingSessionView";
@@ -204,6 +205,41 @@ export default function WebPreviewScreen() {
     stopListening: stopChefVoiceListening,
   } = useWebSpeechToText();
 
+  const chefLiveInstructions = useMemo(
+    () =>
+      "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.",
+    []
+  );
+
+  const appendChefLiveTranscript = useCallback(
+    (text: string, role: "user" | "assistant") => {
+      setChefMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-${role}-${Math.random().toString(36).slice(2, 8)}`,
+          role,
+          content: text,
+          timestamp: new Date(),
+        },
+      ]);
+      setTimeout(() => chefScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    },
+    []
+  );
+
+  const handleChefLiveError = useCallback((err: Error) => {
+    console.warn("Chef live voice:", err.message);
+  }, []);
+
+  const chefLiveVoice = useRealtimeVoice({
+    instructions: chefLiveInstructions,
+    onTranscript: appendChefLiveTranscript,
+    onError: handleChefLiveError,
+  });
+
+  const disconnectChefLiveRef = useRef(chefLiveVoice.disconnect);
+  disconnectChefLiveRef.current = chefLiveVoice.disconnect;
+
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
     try {
@@ -259,6 +295,38 @@ export default function WebPreviewScreen() {
       loadConversations();
     }
   }, [activeTab, chefView, loadConversations]);
+
+  useEffect(() => {
+    if (activeTab !== "chef" || chefView !== "chat") {
+      disconnectChefLiveRef.current();
+    }
+  }, [activeTab, chefView]);
+
+  useEffect(() => {
+    return () => {
+      disconnectChefLiveRef.current();
+    };
+  }, []);
+
+  const handleChefLiveVoicePress = () => {
+    if (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) {
+      chefLiveVoice.disconnect();
+    } else {
+      chefLiveVoice.connect();
+    }
+  };
+
+  const chefLiveVoiceStatus = chefLiveVoice.error
+    ? chefLiveVoice.error
+    : chefLiveVoice.isConnecting
+    ? "Connecting to Chef Aipron..."
+    : chefLiveVoice.isSpeaking
+    ? "Chef Aipron is speaking..."
+    : chefLiveVoice.isListening
+    ? "Listening..."
+    : chefLiveVoice.isConnected
+    ? "Live voice connected — just talk"
+    : null;
 
   const openConversation = useCallback(async (convoId: string) => {
     setActiveConvoId(convoId);
@@ -925,6 +993,37 @@ export default function WebPreviewScreen() {
                 </View>
               )}
             </ScrollView>
+            {chefLiveVoiceStatus ? (
+              <View
+                style={[
+                  styles.chefLiveStatus,
+                  !isWeb && { bottom: 64 + insets.bottom + 64 },
+                  chefLiveVoice.error && { borderColor: colors.error + "55" },
+                ]}
+                pointerEvents="none"
+              >
+                <View
+                  style={[
+                    styles.chefLiveStatusDot,
+                    {
+                      backgroundColor: chefLiveVoice.error
+                        ? colors.error
+                        : chefLiveVoice.isSpeaking
+                        ? colors.primary
+                        : chefLiveVoice.isListening
+                        ? colors.tertiary
+                        : colors.primaryContainer,
+                    },
+                  ]}
+                />
+                <Text
+                  style={styles.chefLiveStatusText}
+                  numberOfLines={1}
+                >
+                  {chefLiveVoiceStatus}
+                </Text>
+              </View>
+            ) : null}
             <View
               style={[
                 styles.chefComposer,
@@ -933,12 +1032,54 @@ export default function WebPreviewScreen() {
             >
               <TouchableOpacity
                 style={[
+                  styles.chefLiveBtn,
+                  (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) &&
+                    styles.chefLiveBtnActive,
+                  chefLoading && styles.chefLiveBtnDisabled,
+                ]}
+                onPress={handleChefLiveVoicePress}
+                disabled={chefLoading}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  chefLiveVoice.isConnected || chefLiveVoice.isConnecting
+                    ? "Stop live voice"
+                    : "Start live voice"
+                }
+                activeOpacity={0.7}
+              >
+                {chefLiveVoice.isConnecting ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons
+                    name={
+                      chefLiveVoice.isConnected ? "stop-circle" : "pulse"
+                    }
+                    size={22}
+                    color={
+                      chefLiveVoice.isConnected
+                        ? colors.onPrimaryContainer
+                        : colors.primary
+                    }
+                  />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
                   styles.chefMicBtn,
                   chefVoiceListening && styles.chefMicBtnActive,
-                  (!chefVoiceSupported || chefLoading) && styles.chefMicBtnDisabled,
+                  (!chefVoiceSupported ||
+                    chefLoading ||
+                    chefLiveVoice.isConnected ||
+                    chefLiveVoice.isConnecting) &&
+                    styles.chefMicBtnDisabled,
                 ]}
                 onPress={handleChefVoicePress}
-                disabled={!chefVoiceSupported || chefLoading}
+                disabled={
+                  !chefVoiceSupported ||
+                  chefLoading ||
+                  chefLiveVoice.isConnected ||
+                  chefLiveVoice.isConnecting
+                }
                 accessibilityRole="button"
                 accessibilityLabel={
                   chefVoiceListening ? "Stop voice input" : "Voice input"
@@ -1964,6 +2105,50 @@ const styles = StyleSheet.create({
   },
   chefMicBtnDisabled: {
     opacity: 0.4,
+  },
+  chefLiveBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chefLiveBtnActive: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
+  },
+  chefLiveBtnDisabled: {
+    opacity: 0.4,
+  },
+  chefLiveStatus: {
+    position: "absolute",
+    left: spacing.md,
+    right: spacing.md,
+    bottom: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    ...shadows.sm,
+  },
+  chefLiveStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  chefLiveStatusText: {
+    flex: 1,
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
   },
   chefInput: {
     flex: 1,

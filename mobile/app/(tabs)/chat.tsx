@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -16,6 +16,7 @@ import { ChatMessage } from "../../src/components/ChatMessage";
 import { RecipeCard } from "../../src/components/RecipeCard";
 import { TopBar } from "../../src/components/TopBar";
 import { pantryApi, recipeApi } from "../../src/services/api";
+import { useRealtimeVoice } from "../../src/hooks/useRealtimeVoice";
 import {
   spacing,
   fonts,
@@ -148,6 +149,67 @@ export default function HomeScreen() {
   const handleVoicePress = () => {
     setIsRecording(!isRecording);
   };
+
+  const liveVoiceInstructions = useMemo(
+    () =>
+      "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.",
+    []
+  );
+
+  const appendLiveTranscript = useCallback(
+    (text: string, role: "user" | "assistant") => {
+      const entry: ChatEntry = {
+        id: `${Date.now()}-${role}-${Math.random().toString(36).slice(2, 8)}`,
+        role,
+        content: text,
+        timestamp: new Date(),
+      };
+      setChatHistory((prev) => [...prev, entry]);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    },
+    []
+  );
+
+  const handleLiveVoiceError = useCallback((err: Error) => {
+    console.warn("Live voice:", err.message);
+  }, []);
+
+  const liveVoice = useRealtimeVoice({
+    instructions: liveVoiceInstructions,
+    onTranscript: appendLiveTranscript,
+    onError: handleLiveVoiceError,
+  });
+
+  const disconnectLiveVoiceRef = useRef(liveVoice.disconnect);
+  disconnectLiveVoiceRef.current = liveVoice.disconnect;
+
+  useEffect(() => {
+    return () => {
+      disconnectLiveVoiceRef.current();
+    };
+  }, []);
+
+  const handleLiveVoicePress = () => {
+    if (liveVoice.isConnected || liveVoice.isConnecting) {
+      liveVoice.disconnect();
+    } else {
+      liveVoice.connect();
+    }
+  };
+
+  const liveVoiceStatus = liveVoice.error
+    ? liveVoice.error
+    : liveVoice.isConnecting
+    ? "Connecting to Chef Aipron..."
+    : liveVoice.isSpeaking
+    ? "Chef Aipron is speaking..."
+    : liveVoice.isListening
+    ? "Listening..."
+    : liveVoice.isConnected
+    ? "Live voice connected — just talk"
+    : null;
 
   const topBarClearance = insets.top + 56 + spacing.md;
   const composerClearance = 96 + insets.bottom + spacing.lg;
@@ -397,10 +459,45 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
+      {liveVoiceStatus ? (
+        <View
+          style={[
+            styles.liveStatus,
+            { bottom: 90 + 56, backgroundColor: theme.surfaceContainerLowest + "E6" },
+            liveVoice.error && { borderColor: theme.error + "55" },
+          ]}
+          pointerEvents="none"
+        >
+          <View
+            style={[
+              styles.liveStatusDot,
+              {
+                backgroundColor: liveVoice.error
+                  ? theme.error
+                  : liveVoice.isSpeaking
+                  ? theme.primary
+                  : liveVoice.isListening
+                  ? theme.tertiary
+                  : theme.primaryContainer,
+              },
+            ]}
+          />
+          <Text
+            style={[styles.liveStatusText, { color: theme.onSurfaceVariant }]}
+            numberOfLines={1}
+          >
+            {liveVoiceStatus}
+          </Text>
+        </View>
+      ) : null}
+
       <ChatComposer
         onSend={handleSend}
         onVoicePress={handleVoicePress}
         isRecording={isRecording}
+        onLiveVoicePress={handleLiveVoicePress}
+        liveVoiceActive={liveVoice.isConnected}
+        liveVoiceConnecting={liveVoice.isConnecting}
         isLoading={isLoading}
       />
     </KeyboardAvoidingView>
@@ -563,5 +660,30 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serif,
     fontSize: 22,
     lineHeight: 28,
+  },
+
+  liveStatus: {
+    position: "absolute",
+    left: spacing.lg,
+    right: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+  },
+  liveStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  liveStatusText: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });
