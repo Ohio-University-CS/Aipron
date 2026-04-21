@@ -27,7 +27,11 @@ import {
   spacing,
   typography,
 } from "../../src/constants/DesignTokens";
-import { StitchImages, pickFallbackPhoto } from "../../src/constants/StitchImages";
+import {
+  StitchImages,
+  pickFallbackPhoto,
+  recipeImageFallbackSeed,
+} from "../../src/constants/StitchImages";
 
 type Tab = "all" | "recent" | "chef";
 
@@ -239,8 +243,7 @@ export default function FavoritesScreen() {
                     source={{
                       uri:
                         featured.heroImage ||
-                        StitchImages.favoritesCitrusSalad ||
-                        pickFallbackPhoto(featured.id ?? featured.title),
+                        pickFallbackPhoto(recipeImageFallbackSeed(featured)),
                     }}
                     style={styles.heroImage}
                     resizeMode="cover"

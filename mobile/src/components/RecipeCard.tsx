@@ -4,7 +4,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { spacing, borderRadius, typography, shadows, fonts, type ThemeColors } from "../constants/DesignTokens";
 import { useThemeColors } from "../hooks/useThemeColors";
-import { pickFallbackPhoto } from "../constants/StitchImages";
+import { pickFallbackPhoto, recipeImageFallbackSeed } from "../constants/StitchImages";
 
 type CardVariant = "standard" | "editorial";
 
@@ -43,7 +43,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
 
   const primaryImage = recipe.heroImage && !imageFailed
     ? recipe.heroImage
-    : pickFallbackPhoto(recipe.id ?? recipe.title);
+    : pickFallbackPhoto(recipeImageFallbackSeed(recipe));
 
   const imageSource: ImageSourcePropType = { uri: primaryImage };
 

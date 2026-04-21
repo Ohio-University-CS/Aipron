@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -16,6 +17,7 @@ import { GradientButton } from "./GradientButton";
 import { cookingApi, recipeApi } from "../services/api";
 import { findLocalCatalogRecipeById } from "../data/localCatalog";
 import { useThemeColors } from "../hooks/useThemeColors";
+import { useWebSpeechToText } from "../hooks/useWebSpeechToText";
 import {
   borderRadius,
   fonts,
@@ -23,10 +25,7 @@ import {
   spacing,
   typography,
 } from "../constants/DesignTokens";
-import {
-  StitchImages,
-  pickFallbackPhoto,
-} from "../constants/StitchImages";
+import { pickFallbackPhoto, recipeImageFallbackSeed } from "../constants/StitchImages";
 
 function formatClock(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
@@ -82,8 +81,16 @@ export function CookingSessionView({
   const [flow, setFlow] = useState<FlowPhase>("mise");
   const [phaseStepIndex, setPhaseStepIndex] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isListening, setIsListening] = useState(false);
   const [ingredientsExpanded, setIngredientsExpanded] = useState(false);
+
+  const {
+    supported: voiceSupported,
+    listening: voiceListening,
+    startListening: startVoiceListening,
+    stopListening: stopVoiceListening,
+  } = useWebSpeechToText();
+
+  const voiceAdvanceRef = useRef<() => void>(() => {});
 
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const [timerInitial, setTimerInitial] = useState<number | null>(null);
@@ -105,6 +112,12 @@ export function CookingSessionView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipeId]);
+
+  useEffect(() => {
+    return () => {
+      stopVoiceListening();
+    };
+  }, [recipeId, stopVoiceListening]);
 
   const loadRecipe = async () => {
     const local = findLocalCatalogRecipeById(recipeId);
@@ -327,10 +340,29 @@ export function CookingSessionView({
   const dotCount =
     flow === "mise" ? 1 : Math.max(1, totalStepsInPhase);
 
+  voiceAdvanceRef.current = () => {
+    if (isLastStep) void handleComplete();
+    else handleNextStep();
+  };
+
+  const handleVoicePress = () => {
+    if (!voiceSupported) return;
+    if (voiceListening) {
+      stopVoiceListening();
+      return;
+    }
+    startVoiceListening((text, isFinal) => {
+      if (!isFinal) return;
+      const t = text.trim().toLowerCase();
+      if (/\b(next|continue|forward|skip|go|finish|done)\b/.test(t)) {
+        voiceAdvanceRef.current();
+      }
+    });
+  };
+
   const heroImageUri =
     recipe.heroImage ||
-    StitchImages.cookingStepHero ||
-    pickFallbackPhoto(recipe.id ?? recipe.title);
+    pickFallbackPhoto(recipeImageFallbackSeed(recipe));
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -664,14 +696,16 @@ export function CookingSessionView({
 
           <View style={styles.voiceRow}>
             <TouchableOpacity
-              onPress={() => setIsListening((v) => !v)}
+              onPress={handleVoicePress}
               activeOpacity={0.8}
+              disabled={!voiceSupported}
               style={[
                 styles.voiceButton,
                 {
-                  backgroundColor: isListening
+                  backgroundColor: voiceListening
                     ? theme.primary
                     : theme.primaryContainer,
+                  opacity: voiceSupported ? 1 : 0.45,
                 },
               ]}
             >
@@ -679,7 +713,7 @@ export function CookingSessionView({
                 name="mic"
                 size={22}
                 color={
-                  isListening ? theme.onPrimary : theme.onPrimaryContainer
+                  voiceListening ? theme.onPrimary : theme.onPrimaryContainer
                 }
               />
             </TouchableOpacity>
@@ -687,15 +721,27 @@ export function CookingSessionView({
               <Text
                 style={[
                   styles.voiceTitle,
-                  { color: isListening ? theme.primary : theme.onSurface },
+                  {
+                    color: voiceListening ? theme.primary : theme.onSurface,
+                  },
                 ]}
               >
-                {isListening ? "Listening..." : "Voice ready"}
+                {!voiceSupported
+                  ? Platform.OS === "web"
+                    ? "Voice unavailable"
+                    : "Voice on web only"
+                  : voiceListening
+                    ? "Listening..."
+                    : "Voice ready"}
               </Text>
               <Text style={[styles.voiceSub, { color: theme.secondary }]}>
-                {isListening
-                  ? `"Say 'Next' to continue"`
-                  : `Tap mic or swipe below to advance`}
+                {!voiceSupported
+                  ? Platform.OS === "web"
+                    ? "Use Chrome, Edge, or Safari, allow the mic, and use HTTPS or localhost."
+                    : "Open this recipe in the browser for hands-free “Next” commands."
+                  : voiceListening
+                    ? `Say “Next” or “Finish” (last step)`
+                    : `Tap mic, allow access, then say “Next” — or use the button below`}
               </Text>
             </View>
           </View>
