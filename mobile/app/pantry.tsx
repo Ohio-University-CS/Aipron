@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "../src/components/LinearGradient";
 import { pantryApi, recipeApi } from "../src/services/api";
 import {
   borderRadius,
@@ -61,9 +61,25 @@ function freshImageFor(index: number, id: string): string {
 }
 
 export default function PantryScreen(
-  props: { onOpenCookingId?: (id: string) => void } = {},
+  props: {
+    onOpenCookingId?: (id: string) => void;
+    /** When Pantry is embedded (e.g. Web Preview), use this instead of the router stack. */
+    onBack?: () => void;
+  } = {},
 ) {
   const router = useRouter();
+
+  const handleBack = useCallback(() => {
+    if (props.onBack) {
+      props.onBack();
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/chat");
+    }
+  }, [props.onBack, router]);
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
   const [items, setItems] = useState<PantryItem[]>([]);
@@ -661,7 +677,7 @@ export default function PantryScreen(
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Pantry" showBack onBackPress={() => router.back()} />
+      <TopBar title="Pantry" showBack onBackPress={handleBack} />
 
       <ScrollView
         contentContainerStyle={[

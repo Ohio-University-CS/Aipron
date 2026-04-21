@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   FlatList,
   ScrollView,
@@ -81,6 +82,12 @@ export default function SearchScreen() {
   const [activeFilter, setActiveFilter] = useState<Category>("All Cuisines");
   const [results, setResults] = useState<Recipe[]>(LOCAL_CATALOG_RECIPES);
   const { savedIds, toggleSave, reloadSavedIds } = useLocalCatalogSavedIds();
+
+  useFocusEffect(
+    useCallback(() => {
+      void reloadSavedIds();
+    }, [reloadSavedIds]),
+  );
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);

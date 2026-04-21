@@ -10,7 +10,7 @@ const faqs = [
   {
     question: "How does AI recipe generation work?",
     answer:
-      "AIpron uses advanced AI to create personalized recipes based on your preferences, dietary restrictions, and available ingredients. Simply describe what you'd like to cook, and our AI will generate a complete recipe with ingredients and step-by-step instructions.",
+      "Aipron uses advanced AI to create personalized recipes based on your preferences, dietary restrictions, and available ingredients. Simply describe what you'd like to cook, and our AI will generate a complete recipe with ingredients and step-by-step instructions.",
   },
   {
     question: "Can I save recipes for later?",
@@ -20,12 +20,12 @@ const faqs = [
   {
     question: "How do I manage my pantry?",
     answer:
-      "Go to the Pantry section to add ingredients you have at home. AIpron can then suggest recipes based on what's already in your pantry, reducing food waste and saving you trips to the store.",
+      "Go to the Pantry section to add ingredients you have at home. Aipron can then suggest recipes based on what's already in your pantry, reducing food waste and saving you trips to the store.",
   },
   {
     question: "What dietary preferences are supported?",
     answer:
-      "AIpron supports vegetarian, vegan, gluten-free, dairy-free, nut-free, halal, keto, and low-carb dietary preferences. You can set these in Settings > Dietary Preferences.",
+      "Aipron supports vegetarian, vegan, gluten-free, dairy-free, nut-free, halal, keto, and low-carb dietary preferences. You can set these in Settings > Dietary Preferences.",
   },
   {
     question: "How does the cooking timer work?",

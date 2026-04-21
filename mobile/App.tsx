@@ -1,5 +1,5 @@
 import React from "react";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { GestureRootView } from "./src/components/GestureRootView";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import ChatScreen from "./app/(tabs)/chat";
 
@@ -7,11 +7,11 @@ import ChatScreen from "./app/(tabs)/chat";
 // bypassing routing/auth so you can see the interface.
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ChatScreen />
       </SafeAreaProvider>
-    </GestureHandlerRootView>
+    </GestureRootView>
   );
 }
 

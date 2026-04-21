@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AIpron - AI-Powered Cooking Assistant",
+  title: "Aipron - AI-Powered Cooking Assistant",
   description: "Generate personalized recipes and get step-by-step cooking guidance",
 };
 

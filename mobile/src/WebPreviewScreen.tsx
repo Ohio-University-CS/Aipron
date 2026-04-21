@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
   View,
@@ -18,20 +18,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { RecipeCard } from "./components/RecipeCard";
 import { ChatMessage } from "./components/ChatMessage";
-import { filterLocalCatalogRecipes, LOCAL_CATALOG_RECIPES } from "./data/localCatalog";
+import {
+  filterLocalCatalogRecipes,
+  findLocalCatalogRecipeById,
+  LOCAL_CATALOG_RECIPES,
+} from "./data/localCatalog";
 import { useLocalCatalogSavedIds } from "./hooks/useLocalCatalogSavedIds";
 import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
 import { useThemeColors } from "./hooks/useThemeColors";
 import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
 import { useSettingsStore } from "./store/useSettingsStore";
+import { RecipeDetailView } from "./components/RecipeDetailView";
+import { CookingSessionView } from "./components/CookingSessionView";
 import ProfileScreen from "../app/(tabs)/profile";
 import LoginScreen from "../app/login";
 import SettingsScreen from "../app/settings";
 import HelpScreen from "../app/help";
 import AboutScreen from "../app/about";
 import PantryScreen from "../app/pantry";
-import { CookingModeFrame } from "./components/CookingModeFrame";
 
 type MockTab =
   | "home"
@@ -147,14 +152,39 @@ export default function WebPreviewScreen() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<MockTab>("home");
-  const [cookingId, setCookingId] = useState<string | null>(null);
+  /** Where Web Preview should return when leaving Pantry (home tile vs profile). */
+  const [pantryReturnTab, setPantryReturnTab] = useState<MockTab>("home");
+  /** In-frame recipe / cooking (never use router.push — it escapes the phone preview). */
+  const [previewRecipeId, setPreviewRecipeId] = useState<string | null>(null);
+  const [previewCookingId, setPreviewCookingId] = useState<string | null>(null);
+
+  const openRecipeDetail = useCallback((id: string) => {
+    setPreviewRecipeId(id);
+  }, []);
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Recipe[]>(LOCAL_CATALOG_RECIPES);
   const searchSeqRef = useRef(0);
-  const { savedIds: localCatalogSavedIds, toggleSave: toggleLocalCatalogSave, reloadSavedIds: reloadLocalCatalogSaved } =
-    useLocalCatalogSavedIds();
+  const {
+    savedIds: localCatalogSavedIds,
+    toggleSave: toggleLocalCatalogSave,
+    reloadSavedIds: reloadLocalCatalogSaved,
+  } = useLocalCatalogSavedIds();
+
+  /** API favorites + built-in catalog hearts (AsyncStorage) so Saved tab matches the heart. */
+  const mergedSavedRecipes = useMemo(() => {
+    const apiIds = new Set(
+      savedRecipes.map((r) => r.id).filter((id): id is string => !!id),
+    );
+    const merged: Recipe[] = [...savedRecipes];
+    for (const id of localCatalogSavedIds) {
+      if (apiIds.has(id)) continue;
+      const r = findLocalCatalogRecipeById(id);
+      if (r) merged.push(r);
+    }
+    return merged;
+  }, [savedRecipes, localCatalogSavedIds]);
 
   const [chefView, setChefView] = useState<"history" | "chat">("history");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -186,11 +216,16 @@ export default function WebPreviewScreen() {
     }
   }, []);
 
+  const refreshSavedTab = useCallback(async () => {
+    await loadSavedRecipes();
+    await reloadLocalCatalogSaved();
+  }, [loadSavedRecipes, reloadLocalCatalogSaved]);
+
   useEffect(() => {
     if (activeTab === "saved") {
-      loadSavedRecipes();
+      void refreshSavedTab();
     }
-  }, [activeTab, loadSavedRecipes]);
+  }, [activeTab, refreshSavedTab]);
 
   useEffect(() => {
     if (activeTab !== "search") return;
@@ -352,17 +387,26 @@ export default function WebPreviewScreen() {
     return `${days}d ago`;
   };
 
-  const handleUnsave = useCallback(
+  const handleSavedToggle = useCallback(
     async (recipeId: string) => {
-      const previous = savedRecipes;
-      setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
-      try {
-        await recipeApi.unsave(recipeId);
-      } catch {
-        setSavedRecipes(previous);
+      const inApi = savedRecipes.some((r) => r.id === recipeId);
+      const localRecipe = findLocalCatalogRecipeById(recipeId);
+      const inLocalIds = localCatalogSavedIds.has(recipeId);
+
+      if (inApi) {
+        const previous = savedRecipes;
+        setSavedRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+        try {
+          await recipeApi.unsave(recipeId);
+        } catch {
+          setSavedRecipes(previous);
+        }
+      }
+      if (localRecipe && inLocalIds) {
+        toggleLocalCatalogSave(recipeId);
       }
     },
-    [savedRecipes]
+    [savedRecipes, localCatalogSavedIds, toggleLocalCatalogSave],
   );
 
   const baseW = 390;
@@ -413,7 +457,7 @@ export default function WebPreviewScreen() {
             </Text>
             {activeTab === "saved" && (
               <Text style={styles.headerSubtitle}>
-                {savedRecipes.length} recipe{savedRecipes.length === 1 ? "" : "s"}{" "}
+                {mergedSavedRecipes.length} recipe{mergedSavedRecipes.length === 1 ? "" : "s"}{" "}
                 saved
               </Text>
             )}
@@ -485,7 +529,7 @@ export default function WebPreviewScreen() {
                     style={styles.homeTile}
                     onPress={() => {
                       if (suggested && (suggested as { id?: string }).id) {
-                        setCookingId((suggested as { id?: string }).id!);
+                        openRecipeDetail((suggested as { id?: string }).id!);
                       }
                     }}
                   >
@@ -522,7 +566,10 @@ export default function WebPreviewScreen() {
                   <TouchableOpacity
                     activeOpacity={0.85}
                     style={styles.homeTile}
-                    onPress={() => setActiveTab("pantry")}
+                    onPress={() => {
+                      setPantryReturnTab("home");
+                      setActiveTab("pantry");
+                    }}
                   >
                     <View style={styles.homeTileImageWrap}>
                       <Image
@@ -594,7 +641,7 @@ export default function WebPreviewScreen() {
                             key={r.id}
                             activeOpacity={0.85}
                             style={styles.homeMoreCard}
-                            onPress={() => r.id && setCookingId(r.id)}
+                            onPress={() => r.id && openRecipeDetail(r.id)}
                           >
                             <Image
                               source={{ uri: img }}
@@ -669,8 +716,10 @@ export default function WebPreviewScreen() {
                   recipe={r}
                   isSaved={!!r.id && localCatalogSavedIds.has(r.id)}
                   onToggleSave={toggleLocalCatalogSave}
-                  onPress={() => {}}
-                  disabled
+                  onPress={() => {
+                    if (r.id) openRecipeDetail(r.id);
+                  }}
+                  disabled={!r.id}
                   loading={false}
                 />
               ))}
@@ -681,11 +730,11 @@ export default function WebPreviewScreen() {
         {activeTab === "saved" && (
           <View style={styles.savedListWrap}>
             <FlatList
-              data={savedRecipes}
+              data={mergedSavedRecipes}
               keyExtractor={(item) => item.id || `favorite-${item.title}`}
               contentContainerStyle={styles.savedListContent}
               refreshing={savedLoading}
-              onRefresh={loadSavedRecipes}
+              onRefresh={() => void refreshSavedTab()}
               ListEmptyComponent={
                 <View style={styles.savedEmpty}>
                   <Ionicons
@@ -705,8 +754,11 @@ export default function WebPreviewScreen() {
                 <RecipeCard
                   recipe={item}
                   isSaved
-                  onToggleSave={handleUnsave}
-                  onPress={() => {}}
+                  onToggleSave={handleSavedToggle}
+                  onPress={() => {
+                    if (item.id) openRecipeDetail(item.id);
+                  }}
+                  disabled={!item.id}
                 />
               )}
             />
@@ -717,38 +769,36 @@ export default function WebPreviewScreen() {
           <View style={[styles.profileContainer, { backgroundColor: c.background }]}>
             <ProfileScreen
               onNavigateToLogin={() => setActiveTab("login")}
-              onNavigateToPantry={() => setActiveTab("pantry")}
+              onNavigateToPantry={() => {
+                setPantryReturnTab("profile");
+                setActiveTab("pantry");
+              }}
               onNavigateToSettings={() => setActiveTab("settings")}
               onNavigateToHelp={() => setActiveTab("help")}
               onNavigateToAbout={() => setActiveTab("about")}
               onLogout={() => setActiveTab("login")}
+              onSeeAllFavorites={() => setActiveTab("saved")}
+              onRecipePress={(id) => openRecipeDetail(id)}
             />
           </View>
         )}
 
         {activeTab === "pantry" && (
           <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
-            <PantryScreen onOpenCookingId={(id) => setCookingId(id)} />
+            <PantryScreen
+              onOpenCookingId={(id) => openRecipeDetail(id)}
+              onBack={() => setActiveTab(pantryReturnTab)}
+            />
           </View>
         )}
 
-        {cookingId ? (
-          <View style={styles.cookingOverlay}>
-            <CookingModeFrame
-              recipeId={cookingId}
-              onClose={() => setCookingId(null)}
-              onAskChef={() => {
-                setCookingId(null);
-                setActiveTab("chef");
-                setChefView("chat");
-              }}
-            />
-          </View>
-        ) : null}
-
         {activeTab === "settings" && (
           <View style={[styles.innerViewContainer, { backgroundColor: c.background }]}>
-            <SettingsScreen onBack={() => setActiveTab("profile")} />
+            <SettingsScreen
+              onBack={() => setActiveTab("profile")}
+              onNavigateToChat={() => setActiveTab("chef")}
+              onSignOutSuccess={() => setActiveTab("login")}
+            />
           </View>
         )}
 
@@ -938,6 +988,33 @@ export default function WebPreviewScreen() {
           </View>
         )}
 
+        {(previewCookingId || previewRecipeId) && (
+          <View
+            style={[
+              styles.previewDetailOverlay,
+              { backgroundColor: c.background },
+              !isWeb && { bottom: 64 + insets.bottom },
+            ]}
+          >
+            {previewCookingId ? (
+              <CookingSessionView
+                recipeId={previewCookingId}
+                onClose={() => setPreviewCookingId(null)}
+              />
+            ) : previewRecipeId ? (
+              <RecipeDetailView
+                recipeId={previewRecipeId}
+                onBack={() => setPreviewRecipeId(null)}
+                onStartCooking={(rid) => {
+                  setPreviewRecipeId(null);
+                  setPreviewCookingId(rid);
+                }}
+                onFavoriteChanged={refreshSavedTab}
+              />
+            ) : null}
+          </View>
+        )}
+
         {/* Bottom nav — same chrome as before; only switches in-frame tab */}
         <View
           style={[
@@ -1099,13 +1176,15 @@ const styles = StyleSheet.create({
     ...shadows.lg,
     overflow: "hidden",
   },
-  cookingOverlay: {
+  /** Full-screen layers inside the phone chrome only (not root Stack navigation). */
+  previewDetailOverlay: {
     position: "absolute",
-    top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    zIndex: 50,
+    top: 0,
+    bottom: 64,
+    zIndex: 40,
+    overflow: "hidden",
   },
   deviceFrameNative: {
     width: "100%",

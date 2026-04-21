@@ -9,7 +9,7 @@ export default async function Home() {
   return (
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mb-4 text-4xl font-bold">AIpron</h1>
+        <h1 className="mb-4 text-4xl font-bold">Aipron</h1>
         <p className="mb-8 text-lg text-gray-600">Supabase connectivity check</p>
         {error ? (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">

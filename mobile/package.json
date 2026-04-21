@@ -3,6 +3,7 @@
   "version": "1.1.0",
   "main": "expo-router/entry",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "generate:local-catalog": "node scripts/generate-local-catalog.mjs",
     "dev": "expo start",
     "dev:clear": "expo start --clear",

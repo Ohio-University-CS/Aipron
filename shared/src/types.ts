@@ -1,5 +1,5 @@
 /**
- * Shared types for AIpron
+ * Shared types for Aipron
  */
 
 export interface Profile {

@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "../../src/components/LinearGradient";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Recipe } from "@aipron/shared";
@@ -17,6 +17,8 @@ import { Chip } from "../../src/components/Chip";
 import { TopBar } from "../../src/components/TopBar";
 import { GradientButton } from "../../src/components/GradientButton";
 import { recipeApi } from "../../src/services/api";
+import { findLocalCatalogRecipeById } from "../../src/data/localCatalog";
+import { useLocalCatalogSavedIds } from "../../src/hooks/useLocalCatalogSavedIds";
 import { useThemeColors } from "../../src/hooks/useThemeColors";
 import {
   borderRadius,
@@ -52,6 +54,22 @@ export default function FavoritesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const {
+    savedIds: localCatalogSavedIds,
+    toggleSave: toggleLocalCatalogSave,
+    reloadSavedIds: reloadLocalCatalogSaved,
+  } = useLocalCatalogSavedIds();
+
+  const mergedRecipes = useMemo(() => {
+    const apiIds = new Set(recipes.map((r) => r.id).filter((id): id is string => !!id));
+    const merged: Recipe[] = [...recipes];
+    for (const id of localCatalogSavedIds) {
+      if (apiIds.has(id)) continue;
+      const r = findLocalCatalogRecipeById(id);
+      if (r) merged.push(r);
+    }
+    return merged;
+  }, [recipes, localCatalogSavedIds]);
 
   const loadFavorites = useCallback(async () => {
     setIsLoading(true);
@@ -72,20 +90,29 @@ export default function FavoritesScreen() {
 
   const handleUnsave = useCallback(
     async (recipeId: string) => {
-      const previous = recipes;
-      setRecipes((prev) => prev.filter((r) => r.id !== recipeId));
-      try {
-        await recipeApi.unsave(recipeId);
-      } catch (error) {
-        console.error("Failed to unsave recipe:", error);
-        setRecipes(previous);
+      const inApi = recipes.some((r) => r.id === recipeId);
+      const localRecipe = findLocalCatalogRecipeById(recipeId);
+      const inLocalIds = localCatalogSavedIds.has(recipeId);
+
+      if (inApi) {
+        const previous = recipes;
+        setRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+        try {
+          await recipeApi.unsave(recipeId);
+        } catch (error) {
+          console.error("Failed to unsave recipe:", error);
+          setRecipes(previous);
+        }
+      }
+      if (localRecipe && inLocalIds) {
+        toggleLocalCatalogSave(recipeId);
       }
     },
-    [recipes],
+    [recipes, localCatalogSavedIds, toggleLocalCatalogSave],
   );
 
   const visibleRecipes = useMemo(() => {
-    let list = recipes;
+    let list = mergedRecipes;
     if (activeTab === "recent") {
       list = [...list].sort((a, b) => {
         const ad = a.updatedAt ? new Date(a.updatedAt as any).getTime() : 0;
@@ -109,7 +136,7 @@ export default function FavoritesScreen() {
       });
     }
     return list;
-  }, [recipes, activeTab, activeFilter]);
+  }, [mergedRecipes, activeTab, activeFilter]);
 
   const topBarHeight = insets.top + spacing.sm + 56;
   const featured = visibleRecipes[0];
@@ -189,7 +216,7 @@ export default function FavoritesScreen() {
           </ScrollView>
 
           {/* Content */}
-          {isLoading && recipes.length === 0 ? (
+          {isLoading && mergedRecipes.length === 0 ? (
             <View style={styles.loaderCard}>
               <Text style={[styles.loaderText, { color: theme.onSurfaceVariant }]}>
                 Gathering your saved recipes…

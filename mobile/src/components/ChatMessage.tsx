@@ -1,8 +1,9 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { spacing, typography, fonts, type ThemeColors } from "../constants/DesignTokens";
+import { spacing, fonts, type ThemeColors } from "../constants/DesignTokens";
 import { useThemeColors } from "../hooks/useThemeColors";
+import { AssistantMessageBody } from "../utils/assistantMessageContent";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -27,9 +28,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             <MaterialIcons name="auto-awesome" size={16} color={c.primary} />
           </View>
         )}
-        <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
-          {content}
-        </Text>
+        {isUser ? (
+          <Text style={[styles.text, styles.userText]}>{content}</Text>
+        ) : (
+          <AssistantMessageBody content={content} theme={c} />
+        )}
         {timestamp && (
           <Text style={styles.timestamp}>
             {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -49,7 +52,7 @@ const getStyles = (c: ThemeColors) => StyleSheet.create({
     alignItems: "flex-end",
   },
   bubble: {
-    maxWidth: "80%",
+    maxWidth: "92%",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
@@ -76,9 +79,6 @@ const getStyles = (c: ThemeColors) => StyleSheet.create({
     lineHeight: 24,
   },
   userText: {
-    color: c.onSurface,
-  },
-  assistantText: {
     color: c.onSurface,
   },
   timestamp: {

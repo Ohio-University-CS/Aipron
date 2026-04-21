@@ -68,7 +68,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             {title}
           </Text>
         ) : (
-          <Text style={[styles.wordmark, { color: theme.primary }]}>AIpron</Text>
+          <Text style={[styles.wordmark, { color: theme.primary }]}>Aipron</Text>
         )}
       </View>
 

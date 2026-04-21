@@ -1,8 +1,8 @@
-# AIpron Project Summary
+# Aipron Project Summary
 
 ## Overview
 
-AIpron is a mobile-first, AI-powered cooking assistant built according to the PRD v1.1. The **shipping product is the Expo mobile app**; **web UI for developers** is **Expo web on localhost** only. The `web/` Next.js package is not a release target.
+Aipron is a mobile-first, AI-powered cooking assistant built according to the PRD v1.1. The **shipping product is the Expo mobile app**; **web UI for developers** is **Expo web on localhost** only. The `web/` Next.js package is not a release target.
 
 ## Project Structure
 

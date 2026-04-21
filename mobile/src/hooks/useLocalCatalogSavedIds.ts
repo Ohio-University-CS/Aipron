@@ -3,6 +3,19 @@ import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "@aipron/localCatalogSavedIds";
 
+/** Keeps all `useLocalCatalogSavedIds` hook instances in sync after a toggle. */
+const syncListeners = new Set<() => void>();
+
+function notifyLocalCatalogSavedSync() {
+  syncListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
 export function useLocalCatalogSavedIds() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
@@ -24,6 +37,16 @@ export function useLocalCatalogSavedIds() {
     void reload();
   }, [reload]);
 
+  useEffect(() => {
+    const listener = () => {
+      void reload();
+    };
+    syncListeners.add(listener);
+    return () => {
+      syncListeners.delete(listener);
+    };
+  }, [reload]);
+
   const toggleSave = useCallback((recipeId: string) => {
     setSavedIds((prev) => {
       const next = new Set(prev);
@@ -32,7 +55,11 @@ export function useLocalCatalogSavedIds() {
       } else {
         next.add(recipeId);
       }
-      void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
+      void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([...next])).then(
+        () => {
+          notifyLocalCatalogSavedSync();
+        },
+      );
       return next;
     });
   }, []);

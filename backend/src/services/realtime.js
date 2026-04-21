@@ -7,7 +7,7 @@ dotenv.config();
 
 const REALTIME_MODEL = "gpt-4o-realtime-preview-2024-12-17";
 
-const BASE_INSTRUCTIONS = `You are a helpful cooking assistant for AIpron. Guide users through recipes step-by-step.
+const BASE_INSTRUCTIONS = `You are a helpful cooking assistant for Aipron. Guide users through recipes step-by-step.
 You can:
 - Answer cooking questions
 - Explain techniques

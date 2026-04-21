@@ -1,4 +1,4 @@
--- AIpron Database Schema (Supabase)
+-- Aipron Database Schema (Supabase)
 --
 -- Authentication is handled by Supabase Auth (auth.users).
 -- This schema is applied via Supabase migrations, not locally.

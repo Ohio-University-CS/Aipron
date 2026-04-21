@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "../../src/components/LinearGradient";
 import { ChatComposer } from "../../src/components/ChatComposer";
 import { ChatMessage } from "../../src/components/ChatMessage";
 import { RecipeCard } from "../../src/components/RecipeCard";
@@ -237,7 +237,7 @@ export default function HomeScreen() {
             </Text>
             <View style={styles.tileFooter}>
               <Text style={[styles.tileCta, { color: theme.primary }]}>
-                {suggested?.id ? "View recipe" : "Ask AIpron"}
+                {suggested?.id ? "View recipe" : "Ask Aipron"}
               </Text>
               <MaterialIcons
                 name="arrow-forward"
