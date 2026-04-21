@@ -20,6 +20,52 @@ function getOpenAIClient() {
 }
 
 /**
+ * Local mock that mimics the shape of a gpt-4o generated recipe.
+ * Activated when AIPRON_MOCK_RECIPES=true in the environment, which lets us
+ * test the full generate -> save -> render -> search pipeline without
+ * spending OpenAI credits.
+ */
+function buildMockRecipe(prompt, opts) {
+  const { dietaryFilters = [], servings = 4, skillLevel = "intermediate" } = opts;
+  const cleanedPrompt = String(prompt || "").trim().replace(/\s+/g, " ");
+  const short = cleanedPrompt ? cleanedPrompt.slice(0, 40) : "Weeknight dinner";
+  const title = `Mock: ${short.charAt(0).toUpperCase()}${short.slice(1)}`;
+
+  return {
+    title,
+    description: `Mock recipe generated locally from prompt: "${cleanedPrompt || "(empty)"}"`,
+    ingredients: [
+      { name: "Olive oil", quantity: 2, unit: "tbsp" },
+      { name: "Garlic, minced", quantity: 3, unit: "clove" },
+      { name: "Yellow onion, diced", quantity: 1, unit: "medium" },
+      { name: "Kosher salt", quantity: 1, unit: "tsp" },
+      { name: "Black pepper", quantity: 0.5, unit: "tsp" },
+      { name: "Mock main ingredient", quantity: 1, unit: "lb" },
+    ],
+    steps: [
+      { stepNumber: 1, instruction: "Heat olive oil in a skillet over medium heat.", duration: 120, timerRequired: false },
+      { stepNumber: 2, instruction: "Add onion and cook until translucent, about 4 minutes.", duration: 240, timerRequired: true },
+      { stepNumber: 3, instruction: "Stir in garlic and cook until fragrant.", duration: 60, timerRequired: false },
+      { stepNumber: 4, instruction: "Add the main ingredient, season with salt and pepper, and cook through.", duration: 600, timerRequired: true },
+      { stepNumber: 5, instruction: "Taste, adjust seasoning, and serve.", duration: 60, timerRequired: false },
+    ],
+    prepTime: 10,
+    cookTime: 20,
+    totalTime: 30,
+    servings,
+    nutrition: { calories: 420, protein: 28, carbs: 32, fat: 18 },
+    dietaryTags: Array.isArray(dietaryFilters) ? dietaryFilters : [],
+    cuisine: "Test Kitchen",
+    difficulty: skillLevel,
+  };
+}
+
+function isMockEnabled() {
+  const v = String(process.env.AIPRON_MOCK_RECIPES || "").toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+/**
  * Generate a recipe based on user input
  */
 export async function generateRecipe(prompt, options = {}) {
@@ -30,6 +76,11 @@ export async function generateRecipe(prompt, options = {}) {
     availableIngredients = [],
     usePantry = false,
   } = options;
+
+  if (isMockEnabled()) {
+    console.log("[openai] AIPRON_MOCK_RECIPES is on — returning mock recipe");
+    return buildMockRecipe(prompt, { dietaryFilters, servings, skillLevel });
+  }
 
   let pantryBlock = "";
   if (usePantry) {
@@ -92,6 +143,14 @@ Format your response as JSON with this structure:
  * Get ingredient substitutions
  */
 export async function getSubstitutions(ingredient, dietaryFilters = []) {
+  if (isMockEnabled()) {
+    console.log("[openai] AIPRON_MOCK_RECIPES is on — returning mock substitutions");
+    return [
+      { name: `Mock substitute A for ${ingredient}`, ratio: "1:1", notes: "Works well in most dishes." },
+      { name: `Mock substitute B for ${ingredient}`, ratio: "1:1", notes: "Slightly different flavor profile." },
+    ];
+  }
+
   const prompt = `Suggest 2-3 substitutions for "${ingredient}". 
 Consider dietary restrictions: ${dietaryFilters.join(", ") || "none"}.
 Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
@@ -120,6 +179,14 @@ Return JSON array: [{"name": "substitute", "ratio": "1:1", "notes": "..."}]`;
  * Stateless cooking Q&A for web/mobile chat UIs (messages: { role, content }[]).
  */
 export async function chatWithAssistant(messages, userContext = "", language = "English") {
+  if (isMockEnabled()) {
+    console.log("[openai] AIPRON_MOCK_RECIPES is on — returning mock chat reply");
+    const last = Array.isArray(messages) ? [...messages].reverse().find((m) => m?.role === "user") : null;
+    const userText = String(last?.content ?? "").trim() || "(no message)";
+    const short = userText.length > 120 ? userText.slice(0, 117) + "..." : userText;
+    return `(Mock mode) I heard: "${short}". Recipe generation is mocked — try the Pantry tab and tap a suggestion to see the end-to-end AI-generated recipe flow with the "AI generated" badge.`;
+  }
+
   const langInstruction = language && language !== "English"
     ? ` Always respond in ${language}.`
     : "";
@@ -146,6 +213,21 @@ export async function chatWithAssistant(messages, userContext = "", language = "
 }
 
 export async function findPantryRecipes(ingredients, dietaryFilters = [], limit = 5) {
+  if (isMockEnabled()) {
+    console.log("[openai] AIPRON_MOCK_RECIPES is on — returning mock pantry suggestions");
+    const seed = Array.isArray(ingredients) && ingredients.length > 0
+      ? ingredients.slice(0, 3).join(", ")
+      : "pantry staples";
+    const base = [
+      { title: `Mock Skillet with ${seed}`, description: "A quick one-pan weeknight meal.", matchPercentage: 92 },
+      { title: `Mock Roasted ${seed}`, description: "Simple oven-roasted dinner.", matchPercentage: 84 },
+      { title: `Mock Pasta with ${seed}`, description: "Pantry pasta that comes together fast.", matchPercentage: 76 },
+      { title: `Mock Grain Bowl with ${seed}`, description: "Hearty bowl with what you have on hand.", matchPercentage: 68 },
+      { title: `Mock Soup with ${seed}`, description: "Cozy soup using your pantry.", matchPercentage: 61 },
+    ];
+    return base.slice(0, Math.max(1, Math.min(limit, base.length)));
+  }
+
   const prompt = `You are helping a cooking app suggest recipe ideas based on a user's pantry. Please suggest ${limit} recipes.
 
 Pantry ingredients: ${ingredients.join(", ")}

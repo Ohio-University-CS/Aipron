@@ -1,6 +1,6 @@
 import express from "express";
 import { body, validationResult } from "express-validator";
-import { authenticateToken } from "../middleware/auth.js";
+import { authenticateToken, optionalAuth } from "../middleware/auth.js";
 import { generateRecipe, getSubstitutions } from "../services/openai.js";
 import { supabaseAdmin } from "../db/supabase.js";
 
@@ -18,9 +18,10 @@ function buildPrefixTsQuery(input) {
     .join(" & ");
 }
 
-// Public search endpoint (public catalog only).
-// Note: favorites/saved endpoints remain authenticated.
-recipesRouter.get("/search", async (req, res, next) => {
+// Search endpoint. Unauthenticated callers see only the public catalog.
+// Authenticated callers also see their own recipes (including AI-generated).
+// Favorites/saved endpoints remain strictly authenticated.
+recipesRouter.get("/search", optionalAuth, async (req, res, next) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const dietaryTag = typeof req.query.dietaryTag === "string" ? req.query.dietaryTag.trim() : "";
@@ -31,10 +32,17 @@ recipesRouter.get("/search", async (req, res, next) => {
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 50) : 20;
     const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0;
 
-    let query = supabaseAdmin
-      .from("recipes")
-      .select("id, title, description, ingredients, steps, prep_time, cook_time, total_time, servings, nutrition, dietary_tags, cuisine, difficulty, is_public, created_at")
-      .eq("is_public", true);
+    const selectCols =
+      "id, user_id, title, description, ingredients, steps, prep_time, cook_time, total_time, servings, nutrition, dietary_tags, cuisine, difficulty, is_public, is_ai_generated, created_at";
+
+    let query = supabaseAdmin.from("recipes").select(selectCols);
+
+    if (req.user?.id) {
+      // Public catalog OR recipes owned by the signed-in caller.
+      query = query.or(`is_public.eq.true,user_id.eq.${req.user.id}`);
+    } else {
+      query = query.eq("is_public", true);
+    }
 
     if (dietaryTag) {
       query = query.contains("dietary_tags", [dietaryTag]);
@@ -138,8 +146,9 @@ recipesRouter.post(
           dietary_tags: recipe.dietaryTags,
           cuisine: recipe.cuisine,
           difficulty: recipe.difficulty,
+          is_ai_generated: true,
         })
-        .select("id, created_at")
+        .select("id, created_at, is_ai_generated")
         .single();
 
       if (error) {
@@ -150,6 +159,7 @@ recipesRouter.post(
         ...recipe,
         id: data.id,
         createdAt: data.created_at,
+        isAiGenerated: data.is_ai_generated ?? true,
       });
     } catch (error) {
       next(error);

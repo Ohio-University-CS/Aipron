@@ -67,6 +67,7 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
   const dietaryTags = recipe.dietaryTags ?? recipe.dietary_tags;
   const createdAt = recipe.createdAt ?? recipe.created_at;
   const updatedAt = recipe.updatedAt ?? recipe.updated_at;
+  const isAiGenerated = recipe.isAiGenerated ?? recipe.is_ai_generated;
 
   return {
     ...recipe,
@@ -74,6 +75,7 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
     cookTime: typeof cookTime === "number" ? cookTime : 0,
     totalTime: typeof totalTime === "number" ? totalTime : 0,
     dietaryTags: Array.isArray(dietaryTags) ? dietaryTags : [],
+    isAiGenerated: typeof isAiGenerated === "boolean" ? isAiGenerated : false,
     createdAt: createdAt ? new Date(String(createdAt)) : undefined,
     updatedAt: updatedAt ? new Date(String(updatedAt)) : undefined,
   } as Recipe;

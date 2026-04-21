@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS recipes (
   difficulty VARCHAR(20) CHECK (difficulty IN ('beginner', 'intermediate', 'advanced')),
   -- Public catalog support
   is_public BOOLEAN NOT NULL DEFAULT FALSE,
+  -- True when this recipe was produced by the AI generation endpoint
+  -- (POST /api/recipes/generate). Used to tag/verify user-generated content.
+  is_ai_generated BOOLEAN NOT NULL DEFAULT FALSE,
   -- Full-text search across key recipe fields (Postgres)
   search_vector tsvector GENERATED ALWAYS AS (
     setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
@@ -105,6 +108,7 @@ CREATE TABLE IF NOT EXISTS realtime_sessions (
 CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_dietary_tags ON recipes USING GIN(dietary_tags);
 CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
+CREATE INDEX IF NOT EXISTS idx_recipes_is_ai_generated ON recipes(is_ai_generated);
 CREATE INDEX IF NOT EXISTS idx_recipes_search_vector ON recipes USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_pantry_user_id ON pantry_items(user_id);
 CREATE INDEX IF NOT EXISTS idx_cooking_sessions_user_id ON cooking_sessions(user_id);
