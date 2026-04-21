@@ -128,48 +128,56 @@ export const LOCAL_CATALOG_RECIPES: Recipe[] = [
       {
         "stepNumber": 1,
         "instruction": "Pat the salmon very dry with paper towels (this is key for crispy skin). Season the flesh side with 1 tsp kosher salt and 1/2 tsp black pepper. Leave at room temp while you prep the sauce (5–10 minutes).",
+        "phase": "prep",
         "duration": 600,
         "timerRequired": true
       },
       {
         "stepNumber": 2,
         "instruction": "Make the lemon-dill yogurt sauce: zest the lemon (1 tsp) and juice it (2 tbsp). In a bowl, whisk together yogurt, lemon zest, lemon juice, Dijon, honey, 1/4 tsp salt, and dill. Taste and adjust: more lemon for brightness, a pinch more salt for balance. Refrigerate until serving.",
+        "phase": "prep",
         "duration": 360,
         "timerRequired": false
       },
       {
         "stepNumber": 3,
         "instruction": "Prep the green beans: trim ends. Mince the garlic. Keep beans and garlic separate so the garlic doesn’t burn.",
+        "phase": "prep",
         "duration": 240,
         "timerRequired": false
       },
       {
         "stepNumber": 4,
         "instruction": "Crisp the salmon: heat a large skillet over medium-high for 2 minutes. Add 1 tbsp oil. Place salmon skin-side down, then immediately press each fillet with a spatula for 10 seconds to prevent curling. Cook skin-side down 6–8 minutes until the skin is deeply golden and releases easily.",
+        "phase": "cook",
         "duration": 480,
         "timerRequired": true
       },
       {
         "stepNumber": 5,
         "instruction": "Flip salmon and baste: reduce heat to medium. Add butter to the pan. Once melted, tilt the pan and spoon butter over the salmon for 30 seconds. Cook 2–4 minutes more (depending on thickness) until the thickest part is just opaque and flakes easily. Transfer salmon to a plate, skin-side up.",
+        "phase": "cook",
         "duration": 240,
         "timerRequired": true
       },
       {
         "stepNumber": 6,
         "instruction": "Cook the green beans in the same skillet: keep heat at medium. Add remaining 1 tbsp oil if the pan is dry. Add beans and 1/4 tsp salt, tossing 1 minute. Add garlic and red pepper flakes (optional) and cook 30 seconds until fragrant.",
+        "phase": "cook",
         "duration": 90,
         "timerRequired": false
       },
       {
         "stepNumber": 7,
         "instruction": "Steam-finish beans: add water, cover, and steam 3–4 minutes until crisp-tender. Uncover and cook 30–60 seconds to evaporate excess water. Taste and add remaining pepper as needed.",
+        "phase": "cook",
         "duration": 270,
         "timerRequired": true
       },
       {
         "stepNumber": 8,
         "instruction": "Serve: spoon lemon-dill yogurt sauce onto plates (or dollop on salmon), add green beans, and finish with lemon wedges. Keep salmon skin facing up so it stays crisp.",
+        "phase": "cook",
         "duration": 120,
         "timerRequired": false
       }
