@@ -46,6 +46,7 @@ const recipes = PUBLIC_CATALOG_RECIPES.map((row, i) => {
     steps: (row.steps ?? []).map((s) => ({
       stepNumber: s.stepNumber,
       instruction: s.instruction,
+      ...(s.phase ? { phase: s.phase } : {}),
       ...(s.duration != null ? { duration: s.duration } : {}),
       ...(s.timerRequired != null ? { timerRequired: s.timerRequired } : {}),
     })),

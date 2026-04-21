@@ -43,6 +43,8 @@ export interface IngredientSubstitution {
 export interface RecipeStep {
   stepNumber: number;
   instruction: string;
+  /** mise / chopping / measuring vs heat / finishing */
+  phase?: "prep" | "cook";
   duration?: number; // seconds
   timerRequired?: boolean;
 }
@@ -67,6 +69,10 @@ export interface Recipe {
   cuisine?: string;
   difficulty?: "beginner" | "intermediate" | "advanced";
   heroImage?: string;
+  // True when this recipe was produced by the AI generation endpoint.
+  // Used to render the "AI generated" badge and to distinguish user-generated
+  // recipes from system/catalog recipes.
+  isAiGenerated?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

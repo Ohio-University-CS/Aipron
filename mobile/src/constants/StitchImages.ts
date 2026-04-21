@@ -135,10 +135,130 @@ export const fallbackFoodPhotos = [
   StitchImages.pantryLemonRicottaDish,
 ] as const;
 
-/** Deterministic pick from fallback photos so the same recipe always
- *  shows the same image across renders. */
+/** Build text for keyword + hash fallback when `heroImage` is missing (include title so UUID ids do not hide keywords). */
+export function recipeImageFallbackSeed(recipe: {
+  title: string;
+  id?: string;
+  cuisine?: string;
+  description?: string;
+}): string {
+  return [recipe.title, recipe.cuisine, recipe.description, recipe.id]
+    .filter((s): s is string => typeof s === "string" && s.length > 0)
+    .join(" ");
+}
+
+/**
+ * Map id/title text to a thematic editorial photo. First matching rule wins;
+ * order matters (e.g. fish before generic "bowl").
+ */
+function pickKeywordFoodPhoto(haystack: string): string | null {
+  const h = haystack.toLowerCase();
+  const rules: { keys: string[]; image: string }[] = [
+    {
+      keys: [
+        "salmon",
+        "trout",
+        "steelhead",
+        "arctic char",
+        "cod",
+        "halibut",
+        "tilapia",
+        "sea bass",
+        "mahi",
+        "tuna",
+        "shrimp",
+        "scallop",
+        "prawn",
+      ],
+      image: StitchImages.discoverSalmon,
+    },
+    {
+      keys: ["pizza", "flatbread", "margherita", "pepperoni"],
+      image: StitchImages.favoritesPizza,
+    },
+    {
+      keys: ["risotto", "arborio"],
+      image: StitchImages.favoritesGrainBowl,
+    },
+    {
+      keys: [
+        "fettuccine",
+        "spaghetti",
+        "pasta",
+        "linguine",
+        "penne",
+        "gnocchi",
+        "ravioli",
+        "lasagna",
+        "carbonara",
+        "orzo",
+      ],
+      image: StitchImages.discoverFettuccine,
+    },
+    {
+      keys: ["burrata", "caprese"],
+      image: StitchImages.discoverBurrata,
+    },
+    {
+      keys: ["tartine", "bruschetta", "crostini"],
+      image: StitchImages.discoverTartine,
+    },
+    {
+      keys: ["citrus salad", "salad bowl"],
+      image: StitchImages.favoritesCitrusSalad,
+    },
+    {
+      keys: ["donut", "doughnut"],
+      image: StitchImages.favoritesDonuts,
+    },
+    {
+      keys: ["shawarma", "grain bowl", "quinoa bowl", "chickpea"],
+      image: StitchImages.favoritesGrainBowl,
+    },
+    {
+      keys: ["pancake", "waffle"],
+      image: StitchImages.chatFeaturedDish,
+    },
+    {
+      keys: ["dal", "lentil", "tikka", "masala", "biryani"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: ["stir-fry", "stir fry", "wok"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: ["curry", "coconut curry", "thai red", "thai green"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: ["beef", "steak", "burger"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: ["chicken", "thigh", "breast", "one-pot", "one pot"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: ["mushroom"],
+      image: StitchImages.favoritesGrainBowl,
+    },
+    {
+      keys: ["tofu"],
+      image: StitchImages.discoverHeroBowl,
+    },
+  ];
+  for (const { keys, image } of rules) {
+    if (keys.some((k) => h.includes(k))) return image;
+  }
+  return null;
+}
+
+/** Fallback when heroImage is missing: prefer keyword match on id/title, then a stable hash. */
 export function pickFallbackPhoto(seed?: string): string {
   if (!seed) return fallbackFoodPhotos[0];
+  const keyword = pickKeywordFoodPhoto(seed);
+  if (keyword) return keyword;
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;

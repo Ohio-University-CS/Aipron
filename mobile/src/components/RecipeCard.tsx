@@ -4,7 +4,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Recipe } from "@aipron/shared";
 import { spacing, borderRadius, typography, shadows, fonts, type ThemeColors } from "../constants/DesignTokens";
 import { useThemeColors } from "../hooks/useThemeColors";
-import { pickFallbackPhoto } from "../constants/StitchImages";
+import { pickFallbackPhoto, recipeImageFallbackSeed } from "../constants/StitchImages";
 
 type CardVariant = "standard" | "editorial";
 
@@ -43,7 +43,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
 
   const primaryImage = recipe.heroImage && !imageFailed
     ? recipe.heroImage
-    : pickFallbackPhoto(recipe.id ?? recipe.title);
+    : pickFallbackPhoto(recipeImageFallbackSeed(recipe));
 
   const imageSource: ImageSourcePropType = { uri: primaryImage };
 
@@ -98,6 +98,12 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
               color={isSaved ? c.error : c.onSurfaceVariant}
             />
           </TouchableOpacity>
+        ) : null}
+        {recipe.isAiGenerated ? (
+          <View style={styles.aiBadge}>
+            <MaterialIcons name="auto-awesome" size={12} color={c.onPrimary} />
+            <Text style={styles.aiBadgeText}>AI generated</Text>
+          </View>
         ) : null}
       </View>
       <View style={styles.content}>
@@ -213,6 +219,26 @@ const getStyles = (c: ThemeColors, variant: CardVariant) =>
       justifyContent: "center",
       alignItems: "center",
       ...shadows.sm,
+    },
+    aiBadge: {
+      position: "absolute",
+      bottom: spacing.md,
+      left: spacing.md,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: c.primary,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: borderRadius.full,
+      ...shadows.sm,
+    },
+    aiBadgeText: {
+      fontFamily: fonts.sansBold,
+      fontSize: 10,
+      letterSpacing: 1.2,
+      textTransform: "uppercase",
+      color: c.onPrimary,
     },
     content: {
       paddingTop: spacing.lg,

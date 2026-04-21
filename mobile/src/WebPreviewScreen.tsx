@@ -415,6 +415,10 @@ export default function WebPreviewScreen() {
           timestamp: new Date(reply.created_at),
         };
         setChefMessages((prev) => [...prev, assistantEntry]);
+        // The assistant may have used the create_recipe tool to save a new
+        // recipe to the user's cookbook + favorites. Refresh the Saved tab
+        // in the background so it shows up immediately when the user opens it.
+        void refreshSavedTab();
       } else {
         const history = [...chefMessages, userEntry].map((m) => ({
           role: m.role,

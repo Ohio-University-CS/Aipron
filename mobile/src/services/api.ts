@@ -1,7 +1,6 @@
 import axios from "axios";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
-import { useAuthStore } from "../store/useAuthStore";
 import { Recipe } from "@aipron/shared";
 
 /**
@@ -46,18 +45,36 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// On 401, try refreshing the Supabase session once and replay the request.
+// We intentionally do NOT sign the user out here — stale access tokens are a
+// normal part of Supabase's refresh lifecycle, and `onAuthStateChange` in
+// useAuthStore will handle real signouts. Signing out on every 401 produced a
+// kick-loop whenever a request raced ahead of a token refresh.
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      const reqUrl = String(error.config?.url ?? "");
-      // Public catalog search does not require auth; avoid logging the user out if something else failed.
-      if (!reqUrl.includes("recipes/search")) {
-        useAuthStore.getState().logout();
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retriedAfterRefresh
+    ) {
+      originalRequest._retriedAfterRefresh = true;
+      try {
+        const { data, error: refreshError } =
+          await supabase.auth.refreshSession();
+        const newToken = data.session?.access_token;
+        if (!refreshError && newToken) {
+          originalRequest.headers = originalRequest.headers ?? {};
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api.request(originalRequest);
+        }
+      } catch {
+        // Fall through and surface the original 401.
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
@@ -67,6 +84,7 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
   const dietaryTags = recipe.dietaryTags ?? recipe.dietary_tags;
   const createdAt = recipe.createdAt ?? recipe.created_at;
   const updatedAt = recipe.updatedAt ?? recipe.updated_at;
+  const isAiGenerated = recipe.isAiGenerated ?? recipe.is_ai_generated;
 
   return {
     ...recipe,
@@ -74,6 +92,7 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
     cookTime: typeof cookTime === "number" ? cookTime : 0,
     totalTime: typeof totalTime === "number" ? totalTime : 0,
     dietaryTags: Array.isArray(dietaryTags) ? dietaryTags : [],
+    isAiGenerated: typeof isAiGenerated === "boolean" ? isAiGenerated : false,
     createdAt: createdAt ? new Date(String(createdAt)) : undefined,
     updatedAt: updatedAt ? new Date(String(updatedAt)) : undefined,
   } as Recipe;

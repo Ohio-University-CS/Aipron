@@ -24,7 +24,11 @@ import {
   shadows,
 } from "../../src/constants/DesignTokens";
 import { useThemeColors } from "../../src/hooks/useThemeColors";
-import { StitchImages, pickFallbackPhoto } from "../../src/constants/StitchImages";
+import {
+  StitchImages,
+  pickFallbackPhoto,
+  recipeImageFallbackSeed,
+} from "../../src/constants/StitchImages";
 import { Recipe } from "@aipron/shared";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -227,7 +231,9 @@ export default function HomeScreen() {
 
   const suggestedImage =
     suggested?.heroImage ||
-    (suggested ? pickFallbackPhoto(suggested.id ?? suggested.title) : StitchImages.chatFeaturedDish);
+    (suggested
+      ? pickFallbackPhoto(recipeImageFallbackSeed(suggested))
+      : StitchImages.chatFeaturedDish);
 
   const suggestedTitle = suggested?.title ?? "Lemon Ricotta Pancakes";
   const suggestedMeta = suggested
