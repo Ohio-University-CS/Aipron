@@ -30,10 +30,15 @@ function buildOnCreateRecipe(req) {
     // auth.users(id). See 2026-04-21_repoint_user_fk.sql migration.
     await ensureLegacyUserRow(req.user);
 
+    // Pass userId so generateRecipe auto-merges the caller's saved dietary
+    // preferences. Without this, chef-initiated recipe generation (via the
+    // create_recipe tool) would ignore the profile preferences even though
+    // direct /recipes/generate calls respect them.
     const recipe = await generateRecipe(description, {
       dietaryFilters,
       servings,
       skillLevel,
+      userId,
     });
 
     const { data: inserted, error: insErr } = await db

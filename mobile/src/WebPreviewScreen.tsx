@@ -30,6 +30,12 @@ import { useThemeColors } from "./hooks/useThemeColors";
 import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
 import { useRealtimeVoice } from "./hooks/useRealtimeVoice";
 import { useSettingsStore } from "./store/useSettingsStore";
+import { useUserPrefsStore } from "./store/useUserPrefsStore";
+import {
+  filterByPreferences,
+  pickPreferredRecipe,
+  recipeMatchesPreferences,
+} from "./utils/dietaryMatch";
 import { RecipeDetailView } from "./components/RecipeDetailView";
 import { CookingSessionView } from "./components/CookingSessionView";
 import ProfileScreen from "../app/(tabs)/profile";
@@ -106,7 +112,9 @@ const recipe = {
 };
 
 const HIDE_SCROLLBAR_CSS = `
-[data-hide-scrollbar] *::-webkit-scrollbar { display: none !important; }
+[data-hide-scrollbar]::-webkit-scrollbar,
+[data-hide-scrollbar] *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+[data-hide-scrollbar],
 [data-hide-scrollbar] * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
 `;
 
@@ -142,6 +150,7 @@ export default function WebPreviewScreen() {
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
   const language = useSettingsStore((s) => s.language);
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
   const { width: winW, height: winH } = useWindowDimensions();
 
   useEffect(() => {
@@ -270,13 +279,19 @@ export default function WebPreviewScreen() {
     const seq = ++searchSeqRef.current;
 
     const handle = setTimeout(() => {
-      const list = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
+      // Hide anything that doesn't satisfy every active dietary preference so
+      // the search tab never suggests a dish that conflicts with what the user
+      // selected in Settings.
+      const list = filterByPreferences(
+        filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q),
+        dietaryTags,
+      );
       if (seq !== searchSeqRef.current) return;
       setSearchResults(list);
     }, 250);
 
     return () => clearTimeout(handle);
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, dietaryTags]);
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
@@ -367,6 +382,36 @@ export default function WebPreviewScreen() {
     setChefMessages([]);
     setChefInput("");
   }, []);
+
+  /**
+   * Delete a past conversation. The row-level trash button calls this. We
+   * optimistically remove it from the list so the UI feels instant; on error
+   * we reload the list from the server to re-sync.
+   */
+  const deleteConversation = useCallback(
+    async (convoId: string, title: string) => {
+      if (typeof window !== "undefined") {
+        const ok = window.confirm(
+          `Delete "${title || "this chat"}"? This can't be undone.`
+        );
+        if (!ok) return;
+      }
+      const previous = conversations;
+      setConversations((list) => list.filter((c) => c.id !== convoId));
+      if (activeConvoId === convoId) {
+        setActiveConvoId(null);
+        setChefMessages([]);
+        setChefView("history");
+      }
+      try {
+        await chatApi.deleteConversation(convoId);
+      } catch (err) {
+        console.warn("Failed to delete conversation:", err);
+        setConversations(previous);
+      }
+    },
+    [conversations, activeConvoId]
+  );
 
   const handleChefVoicePress = () => {
     if (chefVoiceListening) {
@@ -527,12 +572,6 @@ export default function WebPreviewScreen() {
                               ? "Chef"
                               : "Home"}
             </Text>
-            {activeTab === "saved" && (
-              <Text style={styles.headerSubtitle}>
-                {mergedSavedRecipes.length} recipe{mergedSavedRecipes.length === 1 ? "" : "s"}{" "}
-                saved
-              </Text>
-            )}
           </View>
           <View style={styles.headerIcon}>
             <Text style={styles.headerIconEmoji}>
@@ -564,10 +603,21 @@ export default function WebPreviewScreen() {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.homeScrollContent}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          {...(Platform.OS === "web"
+            ? { dataSet: { hideScrollbar: "true" } }
+            : {})}
         >
           {(() => {
+            // Honor the user's active dietary preferences when choosing what
+            // to feature on the home screen. Fall back to "any saved" and then
+            // "any local catalog" so the tile never goes empty.
             const suggested: Recipe | undefined =
-              savedRecipes[0] || LOCAL_CATALOG_RECIPES[0];
+              pickPreferredRecipe(savedRecipes, dietaryTags) ??
+              pickPreferredRecipe(LOCAL_CATALOG_RECIPES, dietaryTags) ??
+              savedRecipes[0] ??
+              LOCAL_CATALOG_RECIPES[0];
             const suggestedTitle = suggested?.title ?? "A recipe for you";
             const suggestedMeta = suggested
               ? `${suggested.totalTime ?? ((suggested.prepTime ?? 0) + (suggested.cookTime ?? 0))} min · ${suggested.servings ?? 4} servings`
@@ -576,10 +626,23 @@ export default function WebPreviewScreen() {
               (suggested as unknown as { heroImage?: string; image?: string })?.heroImage ??
               (suggested as unknown as { image?: string })?.image ??
               recipe.image;
-            const moreRecipes = LOCAL_CATALOG_RECIPES.slice(
-              suggested && (suggested as { id?: string }).id === LOCAL_CATALOG_RECIPES[0]?.id ? 1 : 0,
-              4
+            // "More for you" should honor active dietary preferences too.
+            // Prefer matching recipes; if nothing (or too few) match we still
+            // fall back to the rest of the catalog so the rail never collapses.
+            const suggestedId = (suggested as { id?: string } | undefined)?.id;
+            const catalogPool = LOCAL_CATALOG_RECIPES.filter(
+              (r) => (r as { id?: string }).id !== suggestedId
             );
+            const matchingMore = catalogPool.filter((r) =>
+              recipeMatchesPreferences(r, dietaryTags)
+            );
+            const moreRecipes =
+              matchingMore.length >= 3
+                ? matchingMore.slice(0, 4)
+                : [
+                    ...matchingMore,
+                    ...catalogPool.filter((r) => !matchingMore.includes(r)),
+                  ].slice(0, 4);
 
             return (
               <>
@@ -742,6 +805,11 @@ export default function WebPreviewScreen() {
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.placeholderScroll}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+            {...(Platform.OS === "web"
+              ? { dataSet: { hideScrollbar: "true" } }
+              : {})}
           >
             <View style={styles.searchWrap}>
               <View style={styles.searchInputRow}>
@@ -807,6 +875,12 @@ export default function WebPreviewScreen() {
               contentContainerStyle={styles.savedListContent}
               refreshing={savedLoading}
               onRefresh={() => void refreshSavedTab()}
+              ListHeaderComponent={
+                <Text style={styles.savedCountHeading}>
+                  {mergedSavedRecipes.length} recipe
+                  {mergedSavedRecipes.length === 1 ? "" : "s"} saved
+                </Text>
+              }
               ListEmptyComponent={
                 <View style={styles.savedEmpty}>
                   <Ionicons
@@ -911,21 +985,30 @@ export default function WebPreviewScreen() {
                 </View>
               )}
               {conversations.map((convo) => (
-                <TouchableOpacity
-                  key={convo.id}
-                  style={styles.historyItem}
-                  activeOpacity={0.7}
-                  onPress={() => openConversation(convo.id)}
-                >
-                  <View style={styles.historyItemIcon}>
-                    <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
-                  </View>
-                  <View style={styles.historyItemContent}>
-                    <Text style={styles.historyItemTitle} numberOfLines={1}>{convo.title}</Text>
-                    <Text style={styles.historyItemTime}>{formatRelativeTime(convo.updated_at)}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
+                <View key={convo.id} style={styles.historyItem}>
+                  <TouchableOpacity
+                    style={styles.historyItemTap}
+                    activeOpacity={0.7}
+                    onPress={() => openConversation(convo.id)}
+                  >
+                    <View style={styles.historyItemIcon}>
+                      <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+                    </View>
+                    <View style={styles.historyItemContent}>
+                      <Text style={styles.historyItemTitle} numberOfLines={1}>{convo.title}</Text>
+                      <Text style={styles.historyItemTime}>{formatRelativeTime(convo.updated_at)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.historyItemDelete}
+                    onPress={() => deleteConversation(convo.id, convo.title)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={`Delete chat ${convo.title || ""}`}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
               ))}
             </ScrollView>
           </View>
@@ -1137,8 +1220,11 @@ export default function WebPreviewScreen() {
           <View
             style={[
               styles.previewDetailOverlay,
-              { backgroundColor: c.background },
-              !isWeb && { bottom: 64 + insets.bottom },
+              // When a recipe detail or cooking session is open we let it take
+              // the full phone frame — the bottom tab bar is hidden in that
+              // mode, so leaving room for it would just show the app's
+              // background underneath the page.
+              { backgroundColor: c.background, bottom: 0 },
             ]}
           >
             {previewCookingId ? (
@@ -1160,7 +1246,11 @@ export default function WebPreviewScreen() {
           </View>
         )}
 
-        {/* Bottom nav — same chrome as before; only switches in-frame tab */}
+        {/* Bottom nav — hidden while a recipe detail or cooking session is
+            open, since the only meaningful control there is the back arrow at
+            the top left. Keeping the tabs around would look clickable but do
+            nothing. */}
+        {!previewCookingId && !previewRecipeId && (
         <View
           style={[
             styles.bottomBar,
@@ -1292,6 +1382,7 @@ export default function WebPreviewScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+        )}
       </View>
     </View>
   );
@@ -1404,6 +1495,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: 80,
     flexGrow: 1,
+  },
+  savedCountHeading: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   savedEmpty: {
     alignItems: "center",
@@ -1959,11 +2055,25 @@ const styles = StyleSheet.create({
   historyItem: {
     flexDirection: "row",
     alignItems: "center",
+    paddingRight: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  historyItemTap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
     gap: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  },
+  historyItemDelete: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: spacing.xs,
   },
   historyItemIcon: {
     width: 36,

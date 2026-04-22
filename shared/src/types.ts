@@ -68,6 +68,10 @@ export interface Recipe {
   dietaryTags: DietaryFilter[];
   cuisine?: string;
   difficulty?: "beginner" | "intermediate" | "advanced";
+  /** Primary protein/ingredient this recipe centers on (e.g. "chicken", "tofu", "salmon"). */
+  mainIngredient?: string;
+  /** High-level dish category for image matching and grouping (e.g. "soup", "pasta", "stir-fry"). */
+  dishType?: string;
   heroImage?: string;
   // True when this recipe was produced by the AI generation endpoint.
   // Used to render the "AI generated" badge and to distinguish user-generated

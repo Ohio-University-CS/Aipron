@@ -26,6 +26,12 @@ export function useRealtimeVoice(
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // True while the model is mid-response. Used to gate `sendNarration` so we
+  // never trigger OpenAI's "conversation already has an active response"
+  // protocol error when a step advances while the assistant is still speaking.
+  const responseActiveRef = useRef(false);
+  const pendingNarrationRef = useRef<string | null>(null);
+
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
 
@@ -64,6 +70,10 @@ export function useRealtimeVoice(
         setIsListening(false);
         break;
 
+      case "response.created":
+        responseActiveRef.current = true;
+        break;
+
       case "response.audio.started":
       case "response.output_audio.delta":
       case "response.audio.delta":
@@ -72,8 +82,20 @@ export function useRealtimeVoice(
 
       case "response.audio.done":
       case "response.output_audio.done":
-      case "response.done":
         setIsSpeaking(false);
+        break;
+
+      case "response.done":
+      case "response.cancelled":
+      case "response.failed":
+        setIsSpeaking(false);
+        responseActiveRef.current = false;
+        // Flush any narration that arrived while the model was busy.
+        if (pendingNarrationRef.current) {
+          const queued = pendingNarrationRef.current;
+          pendingNarrationRef.current = null;
+          sendNarrationRef.current?.(queued);
+        }
         break;
 
       case "conversation.item.input_audio_transcription.completed":
@@ -109,8 +131,19 @@ export function useRealtimeVoice(
 
       case "error":
         {
-          const errObj = event.error as { message?: string } | undefined;
+          const errObj = event.error as { message?: string; code?: string } | undefined;
           const msg = errObj?.message || "Realtime API error";
+          // Non-fatal race: we asked the model to speak while a response was
+          // still in flight. We already queue narrations internally, so just
+          // log it — never surface to the user.
+          const benign =
+            /active response|already has an active response|conversation_already_has_active_response/i.test(
+              msg
+            ) || errObj?.code === "conversation_already_has_active_response";
+          if (benign) {
+            console.warn("[realtime] benign error suppressed:", msg);
+            break;
+          }
           setError(msg);
           callbacksRef.current.onError?.(new Error(msg));
         }
@@ -146,6 +179,8 @@ export function useRealtimeVoice(
     setIsConnecting(false);
     setIsListening(false);
     setIsSpeaking(false);
+    responseActiveRef.current = false;
+    pendingNarrationRef.current = null;
   }, []);
 
   const sendToolResult = useCallback((callId: string, result: unknown) => {
@@ -162,7 +197,53 @@ export function useRealtimeVoice(
         },
       })
     );
-    dc.send(JSON.stringify({ type: "response.create" }));
+    // Only request a follow-up response if the model is idle. Otherwise the
+    // model's in-flight response already counts as the reply to this tool.
+    if (!responseActiveRef.current) {
+      responseActiveRef.current = true;
+      dc.send(JSON.stringify({ type: "response.create" }));
+    }
+  }, []);
+
+  const sendNarration = useCallback((text: string) => {
+    const dc = dcRef.current;
+    const trimmed = text?.trim();
+    if (!dc || dc.readyState !== "open" || !trimmed) return;
+    // If a response is still playing, remember the latest narration and fire
+    // it after `response.done`. We keep only the most recent pending line —
+    // if the user advances two steps in a row while the model is talking, we
+    // narrate the newer one, not the stale first one.
+    if (responseActiveRef.current) {
+      pendingNarrationRef.current = trimmed;
+      return;
+    }
+    responseActiveRef.current = true;
+    dc.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+          instructions:
+            `Read the following cooking instruction aloud, clearly and at a calm pace. ` +
+            `Do not add commentary or rephrase it. Just say it:\n\n${trimmed}`,
+        },
+      })
+    );
+  }, []);
+  // Mirror latest sendNarration onto a ref so the server-event handler can
+  // flush queued narrations without depending on closure identity.
+  const sendNarrationRef = useRef(sendNarration);
+  sendNarrationRef.current = sendNarration;
+
+  const updateInstructions = useCallback((instructions: string) => {
+    const dc = dcRef.current;
+    if (!dc || dc.readyState !== "open") return;
+    dc.send(
+      JSON.stringify({
+        type: "session.update",
+        session: { instructions },
+      })
+    );
   }, []);
 
   const connect = useCallback(async () => {
@@ -293,5 +374,7 @@ export function useRealtimeVoice(
     connect,
     disconnect,
     sendToolResult,
+    sendNarration,
+    updateInstructions,
   };
 }

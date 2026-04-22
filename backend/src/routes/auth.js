@@ -119,3 +119,53 @@ authRouter.get("/me", authenticateToken, async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * Persist the signed-in user's dietary preferences chosen in Settings. We
+ * upsert the row so brand-new accounts without a populated profile still end
+ * up with a valid record.
+ */
+authRouter.put(
+  "/preferences",
+  authenticateToken,
+  [body("dietaryPreferences").isArray()],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const prefs = (req.body.dietaryPreferences || [])
+        .filter((p) => typeof p === "string" && p.trim())
+        .map((p) => p.trim());
+
+      // Use the admin client here: the user-scoped client hits RLS on INSERT
+      // for accounts that don't yet have a `profiles` row, which would cause
+      // every preference toggle to fail and revert client-side. We've already
+      // authenticated the user via `authenticateToken`, and we always write
+      // with their own `id`, so bypassing RLS is safe for this operation.
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .upsert(
+          {
+            id: req.user.id,
+            dietary_preferences: prefs,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        )
+        .select("dietary_preferences")
+        .single();
+
+      if (error) {
+        console.error("[auth/preferences] upsert failed:", error);
+        return res.status(500).json({ error: "Failed to save preferences" });
+      }
+
+      res.json({ dietary_preferences: data?.dietary_preferences ?? prefs });
+    } catch (error) {
+      next(error);
+    }
+  }
+);

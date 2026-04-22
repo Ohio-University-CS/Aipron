@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   View,
   StyleSheet,
   ScrollView,
@@ -33,6 +34,8 @@ import { Recipe } from "@aipron/shared";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../../src/store/useAuthStore";
+import { useUserPrefsStore } from "../../src/store/useUserPrefsStore";
+import { pickPreferredRecipe } from "../../src/utils/dietaryMatch";
 
 interface ChatEntry {
   id: string;
@@ -73,10 +76,14 @@ export default function HomeScreen() {
     let cancelled = false;
 
     (async () => {
+      // Prefer the user's saved recipes, then fall back to the global catalog.
+      // In either case, try to surface a recipe that matches the user's active
+      // dietary preferences so the "Suggested" tile never contradicts them.
       try {
         const saved = await recipeApi.getSaved();
-        if (!cancelled && saved.length > 0) {
-          setSuggested(saved[0]);
+        const pick = pickPreferredRecipe(saved, dietaryTags);
+        if (!cancelled && pick) {
+          setSuggested(pick);
           return;
         }
       } catch {
@@ -84,8 +91,9 @@ export default function HomeScreen() {
       }
       try {
         const all = await recipeApi.getAll();
-        if (!cancelled && all.length > 0) {
-          setSuggested(all[0]);
+        const pick = pickPreferredRecipe(all, dietaryTags);
+        if (!cancelled && pick) {
+          setSuggested(pick);
         }
       } catch {
         // ignore
@@ -106,7 +114,9 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Re-pick the suggested recipe whenever the user's dietary preferences
+    // change, so toggling a chip in settings immediately updates the home tile.
+  }, [dietaryTags]);
 
   const handleSend = async (message: string) => {
     const userMessage: ChatEntry = {
@@ -154,11 +164,44 @@ export default function HomeScreen() {
     setIsRecording(!isRecording);
   };
 
-  const liveVoiceInstructions = useMemo(
-    () =>
-      "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.",
-    []
-  );
+  const hasChatContent = chatHistory.length > 0 || recipes.length > 0;
+
+  const clearChat = useCallback(() => {
+    setChatHistory([]);
+    setRecipes([]);
+  }, []);
+
+  /**
+   * Cross-platform confirm. RN's `Alert` does not render on web, so we fall
+   * back to the browser `window.confirm` there.
+   */
+  const handleClearChatPress = useCallback(() => {
+    if (!hasChatContent) return;
+    const title = "Clear chat";
+    const message = "This will delete every message and recipe from this chat. This can't be undone.";
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`${title}\n\n${message}`)) {
+        clearChat();
+      }
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear", style: "destructive", onPress: clearChat },
+    ]);
+  }, [hasChatContent, clearChat]);
+
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
+
+  const liveVoiceInstructions = useMemo(() => {
+    const base =
+      "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.";
+    const prefsLine =
+      dietaryTags.length > 0
+        ? `\n\nThe user's current dietary preferences are: ${dietaryTags.join(", ")}. Always honor them when suggesting recipes, substitutions, or ingredients. If a request would violate these preferences, propose a compliant alternative.`
+        : "\n\nThe user has not set any dietary preferences yet; treat them as unrestricted unless they say otherwise.";
+    return base + prefsLine;
+  }, [dietaryTags]);
 
   const appendLiveTranscript = useCallback(
     (text: string, role: "user" | "assistant") => {
@@ -194,6 +237,14 @@ export default function HomeScreen() {
       disconnectLiveVoiceRef.current();
     };
   }, []);
+
+  // Keep the live session's instructions in sync with the user's preferences.
+  // If they toggle a dietary tag mid-conversation, push the updated prompt so
+  // Chef Aipron respects it on the very next turn.
+  useEffect(() => {
+    if (!liveVoice.isConnected) return;
+    liveVoice.updateInstructions(liveVoiceInstructions);
+  }, [liveVoice, liveVoiceInstructions]);
 
   const handleLiveVoicePress = () => {
     if (liveVoice.isConnected || liveVoice.isConnecting) {
@@ -402,7 +453,12 @@ export default function HomeScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={insets.bottom}
     >
-      <TopBar transparent={false} />
+      <TopBar
+        transparent={false}
+        showAvatar={!hasChatContent}
+        rightIcon={hasChatContent ? "delete-outline" : undefined}
+        onRightPress={hasChatContent ? handleClearChatPress : undefined}
+      />
 
       <ScrollView
         ref={scrollViewRef}
@@ -415,6 +471,8 @@ export default function HomeScreen() {
           },
         ]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
       >
         <View style={styles.maxWidthWrap}>
           {showHome && renderHomeDashboard()}

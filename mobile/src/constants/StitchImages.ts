@@ -135,25 +135,45 @@ export const fallbackFoodPhotos = [
   StitchImages.pantryLemonRicottaDish,
 ] as const;
 
-/** Build text for keyword + hash fallback when `heroImage` is missing (include title so UUID ids do not hide keywords). */
+/**
+ * Build text for keyword + hash fallback when `heroImage` is missing. We
+ * include the title + the explicit dish/ingredient hints FIRST so they win
+ * over a noisy description, and duplicate the title so it carries more weight
+ * in substring matches.
+ */
 export function recipeImageFallbackSeed(recipe: {
   title: string;
   id?: string;
   cuisine?: string;
   description?: string;
+  mainIngredient?: string;
+  dishType?: string;
+  dietaryTags?: readonly string[] | string[];
 }): string {
-  return [recipe.title, recipe.cuisine, recipe.description, recipe.id]
+  return [
+    recipe.mainIngredient,
+    recipe.dishType,
+    recipe.title,
+    recipe.title, // weight title twice so it outranks a rambling description
+    recipe.cuisine,
+    Array.isArray(recipe.dietaryTags) ? recipe.dietaryTags.join(" ") : "",
+    recipe.description,
+    recipe.id,
+  ]
     .filter((s): s is string => typeof s === "string" && s.length > 0)
     .join(" ");
 }
 
 /**
  * Map id/title text to a thematic editorial photo. First matching rule wins;
- * order matters (e.g. fish before generic "bowl").
+ * order matters — put the most specific rules (proteins, dish types) before
+ * the vague ones ("bowl", "chicken"). Rules cover common dishType tags the
+ * generator emits plus freeform title keywords.
  */
 function pickKeywordFoodPhoto(haystack: string): string | null {
   const h = haystack.toLowerCase();
   const rules: { keys: string[]; image: string }[] = [
+    // Seafood beats every other protein — fish photo is the most recognizable.
     {
       keys: [
         "salmon",
@@ -169,17 +189,31 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
         "shrimp",
         "scallop",
         "prawn",
+        "seafood",
+        "oyster",
+        "mussel",
+        "clam",
+        "lobster",
+        "crab",
+        "fish",
       ],
       image: StitchImages.discoverSalmon,
     },
+    // Flatbreads / pizza — strong visual match with the pizza hero.
     {
-      keys: ["pizza", "flatbread", "margherita", "pepperoni"],
+      keys: [
+        "pizza",
+        "flatbread",
+        "margherita",
+        "pepperoni",
+        "focaccia",
+        "calzone",
+        "stromboli",
+        "naan pizza",
+      ],
       image: StitchImages.favoritesPizza,
     },
-    {
-      keys: ["risotto", "arborio"],
-      image: StitchImages.favoritesGrainBowl,
-    },
+    // Pasta family (extensive) — many names roll up to the fettuccine hero.
     {
       keys: [
         "fettuccine",
@@ -187,64 +221,233 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
         "pasta",
         "linguine",
         "penne",
+        "rigatoni",
+        "rotini",
+        "fusilli",
+        "farfalle",
+        "bucatini",
+        "pappardelle",
+        "tagliatelle",
         "gnocchi",
         "ravioli",
+        "tortellini",
         "lasagna",
         "carbonara",
+        "bolognese",
+        "cacio e pepe",
+        "alfredo",
+        "pesto pasta",
+        "mac and cheese",
+        "macaroni",
         "orzo",
+        "noodle",
+        "noodles",
+        "ramen",
+        "udon",
+        "soba",
+        "pho",
+        "lo mein",
+        "pad thai",
+        "pad see ew",
       ],
       image: StitchImages.discoverFettuccine,
     },
+    // Cheese-forward appetizers.
     {
-      keys: ["burrata", "caprese"],
+      keys: ["burrata", "caprese", "mozzarella"],
       image: StitchImages.discoverBurrata,
     },
+    // Open-faced toasts / bruschetta-type.
     {
-      keys: ["tartine", "bruschetta", "crostini"],
+      keys: [
+        "tartine",
+        "bruschetta",
+        "crostini",
+        "avocado toast",
+        "toast",
+        "sandwich",
+        "panini",
+        "wrap",
+        "burrito",
+        "quesadilla",
+        "taco",
+        "enchilada",
+        "tostada",
+        "banh mi",
+      ],
       image: StitchImages.discoverTartine,
     },
+    // Salads.
     {
-      keys: ["citrus salad", "salad bowl"],
+      keys: [
+        "salad",
+        "citrus salad",
+        "caesar",
+        "cobb",
+        "nicoise",
+        "panzanella",
+        "slaw",
+        "tabbouleh",
+      ],
       image: StitchImages.favoritesCitrusSalad,
     },
+    // Sweets & baking.
     {
-      keys: ["donut", "doughnut"],
+      keys: [
+        "donut",
+        "doughnut",
+        "cookie",
+        "brownie",
+        "cake",
+        "cupcake",
+        "muffin",
+        "scone",
+        "pie",
+        "tart",
+        "cheesecake",
+        "pastry",
+        "croissant",
+        "bread pudding",
+        "pudding",
+        "ice cream",
+        "gelato",
+        "sorbet",
+      ],
       image: StitchImages.favoritesDonuts,
     },
+    // Breakfast griddle dishes.
     {
-      keys: ["shawarma", "grain bowl", "quinoa bowl", "chickpea"],
-      image: StitchImages.favoritesGrainBowl,
-    },
-    {
-      keys: ["pancake", "waffle"],
+      keys: [
+        "pancake",
+        "waffle",
+        "french toast",
+        "crepe",
+        "crêpe",
+        "dutch baby",
+      ],
       image: StitchImages.chatFeaturedDish,
     },
+    // Egg mains.
     {
-      keys: ["dal", "lentil", "tikka", "masala", "biryani"],
+      keys: ["omelette", "omelet", "frittata", "quiche", "shakshuka", "strata", "eggs benedict"],
+      image: StitchImages.discoverBurrata,
+    },
+    // Risotto / paella / grain mains.
+    {
+      keys: ["risotto", "arborio", "paella", "jambalaya"],
+      image: StitchImages.favoritesGrainBowl,
+    },
+    // Grain and legume bowls / meze.
+    {
+      keys: [
+        "grain bowl",
+        "quinoa bowl",
+        "poke bowl",
+        "buddha bowl",
+        "rice bowl",
+        "burrito bowl",
+        "shawarma",
+        "falafel",
+        "hummus",
+        "chickpea",
+        "lentil",
+        "dal",
+        "daal",
+        "bean",
+        "chili",
+        "stew",
+      ],
+      image: StitchImages.favoritesGrainBowl,
+    },
+    // Indian / South Asian / spice-forward curries.
+    {
+      keys: [
+        "tikka",
+        "masala",
+        "biryani",
+        "vindaloo",
+        "korma",
+        "curry",
+        "coconut curry",
+        "thai red",
+        "thai green",
+        "massaman",
+        "butter chicken",
+        "palak",
+        "saag",
+      ],
       image: StitchImages.discoverHeroBowl,
     },
+    // Soups / broths / chowders.
     {
-      keys: ["stir-fry", "stir fry", "wok"],
+      keys: [
+        "soup",
+        "chowder",
+        "bisque",
+        "minestrone",
+        "miso",
+        "broth",
+        "gazpacho",
+        "congee",
+        "porridge",
+      ],
       image: StitchImages.discoverHeroBowl,
     },
+    // Stir-fry family.
     {
-      keys: ["curry", "coconut curry", "thai red", "thai green"],
+      keys: ["stir-fry", "stir fry", "wok", "kung pao", "general tso", "teriyaki", "katsu"],
       image: StitchImages.discoverHeroBowl,
     },
+    // Red meat mains.
     {
-      keys: ["beef", "steak", "burger"],
+      keys: [
+        "beef",
+        "steak",
+        "brisket",
+        "ribeye",
+        "ribs",
+        "burger",
+        "bolognese meat",
+        "meatball",
+        "meatloaf",
+        "pork",
+        "pork chop",
+        "carnitas",
+        "bacon",
+        "sausage",
+        "lamb",
+      ],
       image: StitchImages.discoverHeroBowl,
     },
+    // Chicken mains — intentionally after more specific rules.
     {
-      keys: ["chicken", "thigh", "breast", "one-pot", "one pot"],
+      keys: [
+        "chicken",
+        "thigh",
+        "breast",
+        "drumstick",
+        "wings",
+        "roast chicken",
+        "one-pot",
+        "one pot",
+        "sheet pan",
+        "skillet",
+        "casserole",
+      ],
       image: StitchImages.discoverHeroBowl,
     },
+    // Vegetables + plant proteins.
     {
-      keys: ["mushroom"],
+      keys: ["mushroom", "portobello", "cremini"],
       image: StitchImages.favoritesGrainBowl,
     },
     {
-      keys: ["tofu"],
+      keys: ["tofu", "tempeh", "seitan", "jackfruit"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    // Generic "bowl" as a last catch-all before the hash fallback.
+    {
+      keys: ["bowl"],
       image: StitchImages.discoverHeroBowl,
     },
   ];

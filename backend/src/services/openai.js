@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import { fetchDietaryContext } from "./userContext.js";
 
 dotenv.config();
 
@@ -75,11 +76,20 @@ export async function generateRecipe(prompt, options = {}) {
     skillLevel = "intermediate",
     availableIngredients = [],
     usePantry = false,
+    userId = null,
   } = options;
+
+  // Merge the caller-supplied dietaryFilters with anything the user has saved
+  // in their profile, so preferences apply to every generation — even when the
+  // client does not explicitly pass them.
+  const profilePrefs = userId ? await fetchDietaryContext(userId) : [];
+  const mergedDietary = Array.from(
+    new Set([...(Array.isArray(dietaryFilters) ? dietaryFilters : []), ...profilePrefs])
+  );
 
   if (isMockEnabled()) {
     console.log("[openai] AIPRON_MOCK_RECIPES is on — returning mock recipe");
-    return buildMockRecipe(prompt, { dietaryFilters, servings, skillLevel });
+    return buildMockRecipe(prompt, { dietaryFilters: mergedDietary, servings, skillLevel });
   }
 
   let pantryBlock = "";
@@ -98,10 +108,12 @@ Pantry mode is ON but the user has no pantry items saved yet. Create a recipe fr
 - Clear and easy to follow
 - Include precise measurements
 - Provide realistic timing estimates
-- Consider dietary restrictions: ${dietaryFilters.join(", ") || "none"}
+- Strictly respect these dietary restrictions: ${mergedDietary.join(", ") || "none"}. If a restriction rules out an ingredient, swap it for a compliant alternative — never include it.
+- Include every one of those restrictions in the output "dietaryTags" array exactly as given (lowercased), plus any other tags that apply. Only emit tags the recipe actually satisfies.
 - Appropriate for ${skillLevel} skill level
 - Serve ${servings} people
 - For each step, set "phase" to "prep" (mise, chopping, measuring, marinating, room-temp rest, cold mixing) or "cook" (heat, oven, boiling, finishing on the stove, or combining components while cooking). Order steps so all prep phases come before cook phases when possible.
+- Always populate "mainIngredient" (the dish's primary protein or star ingredient, lowercased, single noun like "chicken", "tofu", "salmon", "mushroom") and "dishType" (a high-level food category, lowercased, like "soup", "pasta", "stir-fry", "salad", "sandwich", "curry", "taco", "pizza", "bowl", "roast", "stew", "pancake", "cookie"). These are used for image matching.
 ${pantryBlock}
 
 Format your response as JSON with this structure:
@@ -117,7 +129,9 @@ Format your response as JSON with this structure:
   "nutrition": {"calories": 350, "protein": 20, "carbs": 30, "fat": 15},
   "dietaryTags": ["vegetarian"],
   "cuisine": "Italian",
-  "difficulty": "intermediate"
+  "difficulty": "intermediate",
+  "mainIngredient": "chicken",
+  "dishType": "stir-fry"
 }`;
 
   try {
@@ -230,6 +244,13 @@ Recipe creation policy (critical):
     : "";
 
   return `You are a helpful professional cooking assistant for Aipron.
+
+Dietary policy (critical, non-negotiable):
+- Before you reply to anything food-related, check the "DIETARY PREFERENCES" line in the User Context below (if present).
+- Those preferences apply to EVERY response: direct recipes, quick answers, summaries, "what is X", "how is X made", comparisons, and anything you write about a dish.
+- Never describe, summarize, recommend, or suggest ingredients/steps for a dish that violates the user's preferences — even when they ask about it by name. Do not produce a "typical" or "classic" version either.
+- When the user asks about a non-compliant dish, reply in this shape: one short sentence noting it doesn't fit their preferences, then immediately offer one compliant alternative (name it) and ask if they'd like you to create/save it. Example for a vegan user asking about "beef tacos": "Beef doesn't fit your vegan preference. I can make you lentil-walnut tacos with the same seasoning profile — want me to save that recipe?"
+- The only exception is if the user explicitly says in the current turn to ignore their preferences.
 
 Response format (follow closely):
 - Use plain text only. Do not use markdown symbols: no # headings, no **bold**, no __underscores__, no backticks.

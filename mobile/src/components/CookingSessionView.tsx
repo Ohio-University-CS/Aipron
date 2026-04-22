@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,7 +17,8 @@ import { GradientButton } from "./GradientButton";
 import { cookingApi, recipeApi } from "../services/api";
 import { findLocalCatalogRecipeById } from "../data/localCatalog";
 import { useThemeColors } from "../hooks/useThemeColors";
-import { useWebSpeechToText } from "../hooks/useWebSpeechToText";
+import { useRealtimeVoice, type RealtimeToolCall } from "../hooks/useRealtimeVoice";
+import { useUserPrefsStore } from "../store/useUserPrefsStore";
 import {
   borderRadius,
   fonts,
@@ -76,26 +77,25 @@ export function CookingSessionView({
 }: CookingSessionViewProps) {
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [flow, setFlow] = useState<FlowPhase>("mise");
   const [phaseStepIndex, setPhaseStepIndex] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [ingredientsExpanded, setIngredientsExpanded] = useState(false);
-
-  const {
-    supported: voiceSupported,
-    listening: voiceListening,
-    startListening: startVoiceListening,
-    stopListening: stopVoiceListening,
-  } = useWebSpeechToText();
-
-  const voiceAdvanceRef = useRef<() => void>(() => {});
+  const [lastSubstitutionNote, setLastSubstitutionNote] = useState<string | null>(null);
 
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const [timerInitial, setTimerInitial] = useState<number | null>(null);
   const [timerRunning, setTimerRunning] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Refs so tool-call handlers (registered once on connect) can always read
+  // live flow state without re-registering handlers on every step change.
+  const recipeRef = useRef<Recipe | null>(null);
+  const flowRef = useRef<FlowPhase>("mise");
+  const phaseIndexRef = useRef<number>(1);
 
   const isLocalCatalogRecipe = useMemo(
     () => !!findLocalCatalogRecipeById(recipeId),
@@ -115,9 +115,10 @@ export function CookingSessionView({
 
   useEffect(() => {
     return () => {
-      stopVoiceListening();
+      voice.disconnect();
     };
-  }, [recipeId, stopVoiceListening]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipeId]);
 
   const loadRecipe = async () => {
     const local = findLocalCatalogRecipeById(recipeId);
@@ -284,6 +285,163 @@ export function CookingSessionView({
     }
   };
 
+  // Keep refs in sync so Realtime tool-call handlers (see onToolCall below)
+  // always see the latest flow state without re-subscribing.
+  useEffect(() => {
+    recipeRef.current = recipe;
+  }, [recipe]);
+  useEffect(() => {
+    flowRef.current = flow;
+  }, [flow]);
+  useEffect(() => {
+    phaseIndexRef.current = phaseStepIndex;
+  }, [phaseStepIndex]);
+
+  const getCurrentStepInstruction = useCallback((): string | null => {
+    const r = recipeRef.current;
+    if (!r) return null;
+    const { prepSteps: ps, cookSteps: cs } = splitPrepCookSteps(r.steps);
+    if (flowRef.current === "mise") {
+      return "Get everything measured and within reach before starting the stove.";
+    }
+    const list = flowRef.current === "prep" ? ps : cs;
+    const step = list[phaseIndexRef.current - 1];
+    return step?.instruction ?? null;
+  }, []);
+
+  // Stable ref to the advance handler so the onToolCall callback (registered
+  // once on connect) can trigger the latest behavior on each invocation.
+  const nextStepRef = useRef<() => void>(() => {});
+
+  const handleToolCall = useCallback(
+    (toolCall: RealtimeToolCall) => {
+      const respond = (result: unknown) => {
+        // sendToolResult is captured below via the hook's return value, so we
+        // set it on a ref to avoid a forward-declaration cycle with the hook.
+        sendToolResultRef.current?.(toolCall.callId, result);
+      };
+
+      switch (toolCall.name) {
+        case "next_step": {
+          nextStepRef.current();
+          respond({ ok: true });
+          return;
+        }
+        case "repeat_step": {
+          const instruction = getCurrentStepInstruction();
+          if (instruction) {
+            // The narration helper re-uses the same response channel, so just
+            // echo the text back through the tool result — the model will
+            // speak it as part of its confirmation.
+            respond({ ok: true, instruction });
+          } else {
+            respond({ ok: false, error: "no active step" });
+          }
+          return;
+        }
+        case "start_timer": {
+          const duration = Number(toolCall.args?.duration);
+          if (Number.isFinite(duration) && duration > 0) {
+            setTimerInitial(duration);
+            setTimerSeconds(duration);
+            setTimerRunning(true);
+            respond({ ok: true, duration });
+          } else {
+            respond({ ok: false, error: "invalid duration" });
+          }
+          return;
+        }
+        case "ingredient_substitution": {
+          const ingredient = String(toolCall.args?.ingredient ?? "").trim();
+          if (!ingredient) {
+            respond({ ok: false, error: "missing ingredient" });
+            return;
+          }
+          recipeApi
+            .getSubstitutions(ingredient)
+            .then((result) => {
+              const subs = (result as { substitutions?: unknown[] })?.substitutions ?? [];
+              const topThree = Array.isArray(subs) ? subs.slice(0, 3) : [];
+              if (topThree.length > 0) {
+                setLastSubstitutionNote(
+                  `Substitutions for ${ingredient}: ${topThree
+                    .map((s) => (s as { name?: string })?.name)
+                    .filter(Boolean)
+                    .join(", ")}`
+                );
+              }
+              respond({ ok: true, ingredient, substitutions: topThree });
+            })
+            .catch(() => respond({ ok: false, error: "lookup failed" }));
+          return;
+        }
+        default:
+          respond({ ok: false, error: "unknown tool" });
+      }
+    },
+    [getCurrentStepInstruction]
+  );
+
+  // Ref used inside handleToolCall to call sendToolResult without creating a
+  // circular dependency on the hook's return value.
+  const sendToolResultRef = useRef<
+    ((callId: string, result: unknown) => void) | null
+  >(null);
+
+  const voice = useRealtimeVoice({
+    onToolCall: handleToolCall,
+    onError: (err) => console.warn("[cooking] realtime error:", err.message),
+  });
+  sendToolResultRef.current = voice.sendToolResult;
+
+  // Narration gate — tracked here (not after the loading-guard return) so the
+  // hooks order stays consistent across the pre- and post-recipe-load renders.
+  const lastNarratedRef = useRef<string>("");
+
+  // Narrate each step (including Mise en Place) as the user advances. Gated on
+  // `(flow, phaseStepIndex)` signature so unrelated re-renders do not retrigger.
+  useEffect(() => {
+    if (!voice.isConnected || !recipe) return;
+    const signature = `${flow}-${phaseStepIndex}`;
+    if (lastNarratedRef.current === signature) return;
+    const instruction = getCurrentStepInstruction();
+    if (instruction) {
+      voice.sendNarration(instruction);
+      lastNarratedRef.current = signature;
+    }
+  }, [voice, flow, phaseStepIndex, recipe, getCurrentStepInstruction]);
+
+  // Refresh session instructions with the current recipe, tool-use policy,
+  // AND the user's live dietary preferences, so toggling a pref mid-cook (or
+  // reconnecting after a change) immediately affects spoken suggestions and
+  // substitutions.
+  useEffect(() => {
+    if (!voice.isConnected || !recipe) return;
+    const stepsSummary = recipe.steps
+      .map((s) => `${s.stepNumber}. ${s.instruction}`)
+      .join("\n");
+    const ingredientsSummary = recipe.ingredients
+      .map((i) => formatIngredientLine(i))
+      .join("\n");
+    const prefsLine =
+      dietaryTags.length > 0
+        ? `\nDIETARY PREFERENCES (must respect): ${dietaryTags.join(", ")}. If the user asks for a substitution, only suggest ingredients that comply with these preferences.\n`
+        : "\nDIETARY PREFERENCES: none set.\n";
+    voice.updateInstructions(
+      `You are the user's voice-guided cooking companion for "${recipe.title}".\n\n` +
+        `INGREDIENTS:\n${ingredientsSummary}\n\n` +
+        `STEPS:\n${stepsSummary}\n` +
+        prefsLine +
+        `\nGuidance:\n` +
+        `- When the user says "next", "continue", "move on", or similar, CALL the next_step tool.\n` +
+        `- When they say "repeat", "what was that", or "say it again", CALL the repeat_step tool.\n` +
+        `- When they ask to start a timer or when a step needs one, CALL the start_timer tool.\n` +
+        `- When they ask for a substitute for an ingredient, CALL the ingredient_substitution tool.\n` +
+        `- Do NOT read the whole recipe unprompted; narrate one step at a time, only when the UI asks you (via a narration request) or the user asks to repeat.\n` +
+        `- Keep spoken replies short and calm. Never apologize for pausing — this is a hands-busy cooking flow.`
+    );
+  }, [voice, recipe, dietaryTags]);
+
   const topBarHeight = insets.top + 56;
 
   if (!recipe) {
@@ -340,25 +498,23 @@ export function CookingSessionView({
   const dotCount =
     flow === "mise" ? 1 : Math.max(1, totalStepsInPhase);
 
-  voiceAdvanceRef.current = () => {
+  // Keep the tool-call handler pointing at the current state. This is a plain
+  // ref assignment (not a hook), so it is safe after the `if (!recipe)` guard.
+  nextStepRef.current = () => {
     if (isLastStep) void handleComplete();
     else handleNextStep();
   };
 
   const handleVoicePress = () => {
-    if (!voiceSupported) return;
-    if (voiceListening) {
-      stopVoiceListening();
-      return;
+    if (voice.isConnecting) return;
+    if (voice.isConnected) {
+      voice.disconnect();
+    } else {
+      void voice.connect();
     }
-    startVoiceListening((text, isFinal) => {
-      if (!isFinal) return;
-      const t = text.trim().toLowerCase();
-      if (/\b(next|continue|forward|skip|go|finish|done)\b/.test(t)) {
-        voiceAdvanceRef.current();
-      }
-    });
   };
+
+  const voiceSupported = true;
 
   const heroImageUri =
     recipe.heroImage ||
@@ -698,50 +854,55 @@ export function CookingSessionView({
             <TouchableOpacity
               onPress={handleVoicePress}
               activeOpacity={0.8}
-              disabled={!voiceSupported}
+              disabled={!voiceSupported || voice.isConnecting}
               style={[
                 styles.voiceButton,
                 {
-                  backgroundColor: voiceListening
+                  backgroundColor: voice.isConnected
                     ? theme.primary
                     : theme.primaryContainer,
                   opacity: voiceSupported ? 1 : 0.45,
                 },
               ]}
             >
-              <MaterialIcons
-                name="mic"
-                size={22}
-                color={
-                  voiceListening ? theme.onPrimary : theme.onPrimaryContainer
-                }
-              />
+              {voice.isConnecting ? (
+                <ActivityIndicator color={theme.onPrimaryContainer} />
+              ) : (
+                <MaterialIcons
+                  name={voice.isConnected ? "stop" : "mic"}
+                  size={22}
+                  color={
+                    voice.isConnected ? theme.onPrimary : theme.onPrimaryContainer
+                  }
+                />
+              )}
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text
                 style={[
                   styles.voiceTitle,
                   {
-                    color: voiceListening ? theme.primary : theme.onSurface,
+                    color: voice.isConnected ? theme.primary : theme.onSurface,
                   },
                 ]}
               >
-                {!voiceSupported
-                  ? Platform.OS === "web"
-                    ? "Voice unavailable"
-                    : "Voice on web only"
-                  : voiceListening
-                    ? "Listening..."
-                    : "Voice ready"}
+                {voice.isConnecting
+                  ? "Connecting..."
+                  : voice.isSpeaking
+                    ? "Speaking..."
+                    : voice.isListening
+                      ? "Listening..."
+                      : voice.isConnected
+                        ? "Hands-free on"
+                        : "Tap to start voice mode"}
               </Text>
               <Text style={[styles.voiceSub, { color: theme.secondary }]}>
-                {!voiceSupported
-                  ? Platform.OS === "web"
-                    ? "Use Chrome, Edge, or Safari, allow the mic, and use HTTPS or localhost."
-                    : "Open this recipe in the browser for hands-free “Next” commands."
-                  : voiceListening
-                    ? `Say “Next” or “Finish” (last step)`
-                    : `Tap mic, allow access, then say “Next” — or use the button below`}
+                {voice.error
+                  ? voice.error
+                  : voice.isConnected
+                    ? lastSubstitutionNote ||
+                      `Say "next", "repeat", "start the timer", or "what can I use instead of..."`
+                    : `Connect to have the chef read each step aloud and respond when you say "next".`}
               </Text>
             </View>
           </View>
