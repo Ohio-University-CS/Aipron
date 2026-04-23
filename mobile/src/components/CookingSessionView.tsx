@@ -12,7 +12,12 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "./LinearGradient";
-import { Ingredient, Recipe, RecipeStep } from "@aipron/shared";
+import {
+  Ingredient,
+  normalizeRecipeStepDurations,
+  Recipe,
+  RecipeStep,
+} from "@aipron/shared";
 import { GradientButton } from "./GradientButton";
 import { cookingApi, recipeApi } from "../services/api";
 import { findLocalCatalogRecipeById } from "../data/localCatalog";
@@ -123,12 +128,18 @@ export function CookingSessionView({
   const loadRecipe = async () => {
     const local = findLocalCatalogRecipeById(recipeId);
     if (local) {
-      setRecipe(local);
+      setRecipe({
+        ...local,
+        steps: normalizeRecipeStepDurations(local.steps),
+      });
       return;
     }
     try {
       const data = await recipeApi.getById(recipeId);
-      setRecipe(data);
+      setRecipe({
+        ...data,
+        steps: normalizeRecipeStepDurations(data.steps ?? []),
+      });
     } catch (error) {
       console.error("Failed to load recipe:", error);
     }

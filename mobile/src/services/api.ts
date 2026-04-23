@@ -1,7 +1,7 @@
 import axios from "axios";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
-import { Recipe } from "@aipron/shared";
+import { Ingredient, Recipe } from "@aipron/shared";
 
 /**
  * Expo Web: localhost is fine. Android emulator: localhost is the emulator itself — use 10.0.2.2.
@@ -77,6 +77,33 @@ api.interceptors.response.use(
   },
 );
 
+function normalizeIngredients(raw: unknown): Ingredient[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Ingredient[] = [];
+  for (const item of raw) {
+    if (typeof item === "string") {
+      const name = item.trim();
+      if (name) out.push({ name, quantity: 0, unit: "" });
+      continue;
+    }
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const nameRaw = o.name ?? o.ingredient ?? o.item ?? o.Name ?? o.Ingredient;
+    const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+    if (!name) continue;
+    const q = o.quantity;
+    const quantity = typeof q === "number" ? q : Number(q);
+    const unitRaw = o.unit;
+    const unit = typeof unitRaw === "string" ? unitRaw : "";
+    out.push({
+      name,
+      quantity: Number.isFinite(quantity) ? quantity : 0,
+      unit,
+    });
+  }
+  return out;
+}
+
 const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
   const prepTime = recipe.prepTime ?? recipe.prep_time;
   const cookTime = recipe.cookTime ?? recipe.cook_time;
@@ -90,6 +117,7 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
 
   return {
     ...recipe,
+    ingredients: normalizeIngredients(recipe.ingredients),
     prepTime: typeof prepTime === "number" ? prepTime : 0,
     cookTime: typeof cookTime === "number" ? cookTime : 0,
     totalTime: typeof totalTime === "number" ? totalTime : 0,

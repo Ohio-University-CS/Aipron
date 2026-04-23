@@ -11,8 +11,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const catalogUrl = pathToFileURL(
   join(__dirname, "../../backend/src/db/catalog/publicRecipes.js")
 ).href;
+const heroUrl = pathToFileURL(
+  join(__dirname, "../../backend/src/db/catalog/catalogHeroImages.js")
+).href;
 
 const { PUBLIC_CATALOG_RECIPES } = await import(catalogUrl);
+const { CATALOG_HERO_IMAGES } = await import(heroUrl);
 
 function slugTitle(title) {
   return title
@@ -24,10 +28,12 @@ function slugTitle(title) {
 
 const recipes = PUBLIC_CATALOG_RECIPES.map((row, i) => {
   const id = `local-${slugTitle(row.title) || `recipe-${i + 1}`}`;
+  const heroFromCatalog = CATALOG_HERO_IMAGES[row.title];
   return {
     id,
     title: row.title,
     description: row.description,
+    ...(heroFromCatalog ? { heroImage: heroFromCatalog } : {}),
     prepTime: row.prep_time,
     cookTime: row.cook_time,
     totalTime: row.total_time,

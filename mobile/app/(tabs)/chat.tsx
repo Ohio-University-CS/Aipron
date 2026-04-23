@@ -30,6 +30,7 @@ import {
   pickFallbackPhoto,
   recipeImageFallbackSeed,
 } from "../../src/constants/StitchImages";
+import { localRecipeHeroUris } from "../../src/constants/localRecipeHeroImages";
 import { Recipe } from "@aipron/shared";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -71,6 +72,7 @@ export default function HomeScreen() {
     user?.email?.split("@")[0] ||
     "chef";
   const greeting = getGreeting(new Date().getHours());
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,8 +193,6 @@ export default function HomeScreen() {
     ]);
   }, [hasChatContent, clearChat]);
 
-  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
-
   const liveVoiceInstructions = useMemo(() => {
     const base =
       "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.";
@@ -284,7 +284,7 @@ export default function HomeScreen() {
     suggested?.heroImage ||
     (suggested
       ? pickFallbackPhoto(recipeImageFallbackSeed(suggested))
-      : StitchImages.chatFeaturedDish);
+      : localRecipeHeroUris.pancakes);
 
   const suggestedTitle = suggested?.title ?? "Lemon Ricotta Pancakes";
   const suggestedMeta = suggested

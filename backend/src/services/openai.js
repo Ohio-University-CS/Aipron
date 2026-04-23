@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import { normalizeRecipeStepDurations } from "../utils/normalizeRecipeStepDurations.js";
 import { fetchDietaryContext } from "./userContext.js";
 
 dotenv.config();
@@ -113,6 +114,7 @@ Pantry mode is ON but the user has no pantry items saved yet. Create a recipe fr
 - Appropriate for ${skillLevel} skill level
 - Serve ${servings} people
 - For each step, set "phase" to "prep" (mise, chopping, measuring, marinating, room-temp rest, cold mixing) or "cook" (heat, oven, boiling, finishing on the stove, or combining components while cooking). Order steps so all prep phases come before cook phases when possible.
+- For each step, "duration" is ALWAYS in seconds (integer). prepTime, cookTime, and totalTime are in minutes, but step durations are never in minutes: 1 minute = 60, 5 minutes = 300, 30 minutes = 1800, 90 seconds = 90. When timerRequired is true, duration must match the time described in that step's instruction.
 - Always populate "mainIngredient" (the dish's primary protein or star ingredient, lowercased, single noun like "chicken", "tofu", "salmon", "mushroom") and "dishType" (a high-level food category, lowercased, like "soup", "pasta", "stir-fry", "salad", "sandwich", "curry", "taco", "pizza", "bowl", "roast", "stew", "pancake", "cookie"). These are used for image matching.
 ${pantryBlock}
 
@@ -147,6 +149,9 @@ Format your response as JSON with this structure:
     });
 
     const recipe = JSON.parse(completion.choices[0].message.content);
+    if (recipe && Array.isArray(recipe.steps)) {
+      recipe.steps = normalizeRecipeStepDurations(recipe.steps);
+    }
     return recipe;
   } catch (error) {
     console.error("OpenAI API error:", error);

@@ -394,7 +394,7 @@ export default function SearchScreen() {
         refreshing={false}
         onRefresh={async () => {
           await Promise.all([reloadSavedIds(), loadServerSavedIds()]);
-          void runSearch(query.trim(), activeFilter);
+          void runSearch(query.trim(), activeFilter, dietaryTags);
         }}
       />
     </View>

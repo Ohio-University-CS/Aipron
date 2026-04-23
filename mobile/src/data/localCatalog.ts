@@ -1,7 +1,14 @@
 import type { Recipe } from "@aipron/shared";
-import { LOCAL_CATALOG_RECIPES } from "./generatedLocalCatalog";
+import { localRecipeHeroUris } from "../constants/localRecipeHeroImages";
+import { LOCAL_CATALOG_RECIPES as _generatedLocalCatalog } from "./generatedLocalCatalog";
 
-export { LOCAL_CATALOG_RECIPES };
+const ONE_POT_CHICKEN_ID = "local-one-pot-lemon-herb-chicken-thighs-with-rice-45-minutes";
+
+export const LOCAL_CATALOG_RECIPES: Recipe[] = _generatedLocalCatalog.map((r) =>
+  r.id === ONE_POT_CHICKEN_ID
+    ? { ...r, heroImage: localRecipeHeroUris.chickenMain }
+    : r
+);
 
 export function filterLocalCatalogRecipes(recipes: Recipe[], q: string): Recipe[] {
   const t = q.trim().toLowerCase();
