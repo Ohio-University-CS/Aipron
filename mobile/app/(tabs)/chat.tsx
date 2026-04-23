@@ -17,7 +17,7 @@ import { ChatMessage } from "../../src/components/ChatMessage";
 import { RecipeCard } from "../../src/components/RecipeCard";
 import { TopBar } from "../../src/components/TopBar";
 import { pantryApi, recipeApi } from "../../src/services/api";
-import { useRealtimeVoice } from "../../src/hooks/useRealtimeVoice";
+import { useRealtimeVoice, type RealtimeToolCall } from "../../src/hooks/useRealtimeVoice";
 import {
   spacing,
   fonts,
@@ -194,13 +194,18 @@ export default function HomeScreen() {
   const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
 
   const liveVoiceInstructions = useMemo(() => {
-    const base =
-      "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.";
     const prefsLine =
       dietaryTags.length > 0
-        ? `\n\nThe user's current dietary preferences are: ${dietaryTags.join(", ")}. Always honor them when suggesting recipes, substitutions, or ingredients. If a request would violate these preferences, propose a compliant alternative.`
-        : "\n\nThe user has not set any dietary preferences yet; treat them as unrestricted unless they say otherwise.";
-    return base + prefsLine;
+        ? `\n\nDIETARY PREFERENCES (strict): ${dietaryTags.join(", ")}. Always honor them. Never suggest, describe, or generate a recipe that violates them — offer a compliant alternative instead.`
+        : "\n\nThe user has not set any dietary preferences; treat them as unrestricted unless they say otherwise.";
+    return (
+      `You are Chef Aipron, a warm and concise voice cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.\n\n` +
+      `Recipe creation policy (critical):\n` +
+      `- NEVER speak a full recipe aloud (no ingredient lists with measurements, no numbered steps).\n` +
+      `- When the user asks for a recipe or wants to save / cook a specific dish, CALL the create_recipe tool immediately. Do not describe the recipe before or after — just say something short like "Got it, saving that now" or "On it!". The app will display the full recipe card.\n` +
+      `- Quick cooking questions (techniques, substitutions, timing) can be answered directly without calling the tool.` +
+      prefsLine
+    );
   }, [dietaryTags]);
 
   const appendLiveTranscript = useCallback(
@@ -223,11 +228,77 @@ export default function HomeScreen() {
     console.warn("Live voice:", err.message);
   }, []);
 
+  // Refs so the tool-call handler can reach sendToolResult / sendNarration
+  // without a circular dependency on the hook's return value.
+  const liveVoiceSendToolResultRef = useRef<
+    ((callId: string, result: unknown) => void) | null
+  >(null);
+  const liveVoiceSendNarrationRef = useRef<((text: string) => void) | null>(null);
+
+  const handleLiveVoiceToolCall = useCallback(
+    async (toolCall: RealtimeToolCall) => {
+      const respond = (result: unknown) =>
+        liveVoiceSendToolResultRef.current?.(toolCall.callId, result);
+
+      if (toolCall.name === "create_recipe") {
+        const description = String(toolCall.args?.description ?? "").trim();
+        const servings = Number.isFinite(Number(toolCall.args?.servings))
+          ? Number(toolCall.args?.servings)
+          : 4;
+        const skillLevel = (["beginner", "intermediate", "advanced"] as const).includes(
+          toolCall.args?.skillLevel as never
+        )
+          ? (toolCall.args?.skillLevel as "beginner" | "intermediate" | "advanced")
+          : "intermediate";
+
+        if (!description) {
+          respond({ ok: false, error: "No recipe description provided" });
+          return;
+        }
+
+        // Speak immediately so the user isn't met with silence while the
+        // recipe generates (which can take 5-10 seconds). sendNarration
+        // queues correctly even if the model is still wrapping up its
+        // previous turn.
+        liveVoiceSendNarrationRef.current?.(
+          "On it! Just give me a moment while I put that recipe together for you."
+        );
+
+        try {
+          const recipe = await recipeApi.generate(description, {
+            servings,
+            skillLevel,
+            dietaryFilters: dietaryTags,
+          });
+          // /recipes/generate already auto-saves to saved_recipes on the
+          // backend — surface the card in the chat transcript too.
+          setRecipes((prev) => [...prev, recipe]);
+          // Respond to the tool call. If the "working on it" narration is
+          // still playing, pendingResponseCreate fires response.create after
+          // it finishes so the model can say "Done! [title] is in your
+          // Saved tab."
+          respond({ ok: true, title: recipe.title, id: recipe.id });
+        } catch (err) {
+          console.error("[liveVoice] create_recipe failed:", err);
+          respond({ ok: false, error: "Failed to generate recipe" });
+        }
+        return;
+      }
+
+      // Unknown tool — acknowledge so the model's turn can close.
+      respond({ ok: false, error: "unknown tool" });
+    },
+    [dietaryTags]
+  );
+
   const liveVoice = useRealtimeVoice({
     instructions: liveVoiceInstructions,
     onTranscript: appendLiveTranscript,
     onError: handleLiveVoiceError,
+    onToolCall: handleLiveVoiceToolCall,
   });
+  liveVoiceSendToolResultRef.current = liveVoice.sendToolResult;
+  liveVoiceSendNarrationRef.current = liveVoice.sendNarration;
 
   const disconnectLiveVoiceRef = useRef(liveVoice.disconnect);
   disconnectLiveVoiceRef.current = liveVoice.disconnect;

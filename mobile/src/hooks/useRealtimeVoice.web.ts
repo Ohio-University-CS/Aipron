@@ -31,6 +31,10 @@ export function useRealtimeVoice(
   // protocol error when a step advances while the assistant is still speaking.
   const responseActiveRef = useRef(false);
   const pendingNarrationRef = useRef<string | null>(null);
+  // True when a tool result was submitted while a response was already active.
+  // On response.done we fire a response.create so the model can speak its
+  // confirmation (e.g. "Done! Your recipe has been saved.").
+  const pendingResponseCreateRef = useRef(false);
 
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
@@ -90,6 +94,15 @@ export function useRealtimeVoice(
       case "response.failed":
         setIsSpeaking(false);
         responseActiveRef.current = false;
+        // A tool result was submitted while a response was in-flight (e.g.
+        // a "working on it" narration was playing while the recipe generated).
+        // Now that the response is done, ask the model to speak its follow-up.
+        if (pendingResponseCreateRef.current) {
+          pendingResponseCreateRef.current = false;
+          responseActiveRef.current = true;
+          dcRef.current?.send(JSON.stringify({ type: "response.create" }));
+          break;
+        }
         // Flush any narration that arrived while the model was busy.
         if (pendingNarrationRef.current) {
           const queued = pendingNarrationRef.current;
@@ -181,6 +194,7 @@ export function useRealtimeVoice(
     setIsSpeaking(false);
     responseActiveRef.current = false;
     pendingNarrationRef.current = null;
+    pendingResponseCreateRef.current = false;
   }, []);
 
   const sendToolResult = useCallback((callId: string, result: unknown) => {
@@ -197,11 +211,14 @@ export function useRealtimeVoice(
         },
       })
     );
-    // Only request a follow-up response if the model is idle. Otherwise the
-    // model's in-flight response already counts as the reply to this tool.
+    // Only request a follow-up response if the model is idle.
+    // If a narration is currently playing (e.g. "Working on it...") we park
+    // a flag so response.done fires the response.create instead.
     if (!responseActiveRef.current) {
       responseActiveRef.current = true;
       dc.send(JSON.stringify({ type: "response.create" }));
+    } else {
+      pendingResponseCreateRef.current = true;
     }
   }, []);
 
@@ -223,9 +240,15 @@ export function useRealtimeVoice(
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
+          // Strict verbatim prompt: the model must NOT add preamble ("Sure!",
+          // "Of course", "Step N:"), paraphrase, summarise, or add anything
+          // before or after the instruction text. This stops partial reads and
+          // double-reads caused by the model embellishing.
           instructions:
-            `Read the following cooking instruction aloud, clearly and at a calm pace. ` +
-            `Do not add commentary or rephrase it. Just say it:\n\n${trimmed}`,
+            `Say ONLY the following text, word for word, at a clear and calm pace. ` +
+            `Do not add any introduction, confirmation, rephrasing, or follow-up. ` +
+            `Do not say "Sure", "Of course", "Step", or anything else. ` +
+            `Start speaking the text immediately:\n\n${trimmed}`,
         },
       })
     );
@@ -324,7 +347,15 @@ export function useRealtimeVoice(
       });
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        // Explicit echo cancellation + noise suppression are critical: without
+        // them the mic picks up the assistant's own audio through the
+        // speakers and server VAD treats it as user speech, cutting the
+        // narration off mid-sentence.
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: false,
       });
       localStreamRef.current = stream;
