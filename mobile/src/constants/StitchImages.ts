@@ -8,6 +8,8 @@
  * downloaded local assets (see stitch-designs/).
  */
 
+import { localRecipeHeroUris } from "./localRecipeHeroImages";
+
 const base = "https://lh3.googleusercontent.com/aida-public/";
 
 export const StitchImages = {
@@ -119,8 +121,28 @@ export const StitchImages = {
     "AB6AXuBGnB0bmWFcA2QY8kKksdMiuXmx_J6HOYI9KswrePg70f04vYZsDevpoFwuTpAx3FFcVxQK03wjYk3xwdIrjeVbDptUyzVVz05r3ESgxDyw7n9K5Q7uvhT1x-4XT1IPzBqTsqCA0lMnJ1ZKvXe_awLLvzGSQzLx97e9eVuIT4660dDLbpghto0QpJL3w9XcX0qYjyqzaIeePLj2AivqrCuezreGjHCtc0vZ6LGxx6VEF2hZd34QW05gqJ5ZinN6XOuQfccp_d7ErIjb",
 } as const;
 
+/**
+ * Unsplash (free) — not part of the Stitch set; use when we need a category we don’t have editorial for (e.g. layer cake) so
+ * a dessert never hashes onto a “bowl of pasta” or chicken image.
+ * Verified: HTTP 200 with `w=1200`.
+ */
+export const UnsplashCategoryHeroes = {
+  /** Layered cake / party cake — for baking, desserts, celebratory bakes */
+  layerCake:
+    "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=1200&auto=format&fit=crop",
+  /** Poultry mains — baked-in asset (see `localRecipeHeroImages.ts`) */
+  chickenMain: localRecipeHeroUris.chickenMain,
+  /** Wok / stir-fry */
+  wokVeggies:
+    "https://images.unsplash.com/photo-1551218808-94e220e084d2?w=1200&auto=format&fit=crop",
+  /** Generic beautiful plated meal (hash tie-break) */
+  platedMeal:
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&auto=format&fit=crop",
+} as const;
+
 /** Fallback food photos cycle through these when heroImage is not provided. */
 export const fallbackFoodPhotos = [
+  UnsplashCategoryHeroes.layerCake,
   StitchImages.discoverHeroBowl,
   StitchImages.discoverBurrata,
   StitchImages.discoverFettuccine,
@@ -131,54 +153,219 @@ export const fallbackFoodPhotos = [
   StitchImages.favoritesGrainBowl,
   StitchImages.favoritesDonuts,
   StitchImages.favoritesPasta,
-  StitchImages.chatFeaturedDish,
+  localRecipeHeroUris.pancakes,
   StitchImages.pantryLemonRicottaDish,
+  UnsplashCategoryHeroes.chickenMain,
 ] as const;
 
-/** Build text for keyword + hash fallback when `heroImage` is missing (include title so UUID ids do not hide keywords). */
+/** Build text for keyword + hash fallback when `heroImage` is missing. Include ingredients so “cake”/“salmon” win over a random hash. */
 export function recipeImageFallbackSeed(recipe: {
-  title: string;
+  title?: string;
   id?: string;
   cuisine?: string;
   description?: string;
+  ingredients?: unknown;
+  steps?: unknown;
 }): string {
-  return [recipe.title, recipe.cuisine, recipe.description, recipe.id]
-    .filter((s): s is string => typeof s === "string" && s.length > 0)
+  const r = recipe as Record<string, unknown>;
+  const title = pickStr(recipe.title, r.title);
+  const cuisine = pickStr(recipe.cuisine, r.cuisine);
+  const description = pickStr(recipe.description, r.description);
+  const id = pickStr(recipe.id, r.id);
+
+  const rawIng = recipe.ingredients ?? r.ingredients;
+  const ingLines: string[] = [];
+  if (Array.isArray(rawIng)) {
+    for (const item of rawIng) {
+      if (typeof item === "string" && item.trim()) {
+        ingLines.push(item);
+        continue;
+      }
+      if (item && typeof item === "object") {
+        const o = item as Record<string, unknown>;
+        const line = [o.name, o.ingredient, o.item, o.Name, o.Ingredient].find(
+          (x): x is string => typeof x === "string" && x.length > 0,
+        );
+        if (line) ingLines.push(line);
+      }
+    }
+  }
+  const ing = ingLines.join(" ");
+
+  const rawSteps = recipe.steps ?? r.steps;
+  let stepBlob = "";
+  if (Array.isArray(rawSteps)) {
+    stepBlob = rawSteps
+      .map((s) => {
+        if (!s || typeof s !== "object") return "";
+        const o = s as Record<string, unknown>;
+        const line = [o.instruction, o.Instruction].find(
+          (x) => typeof x === "string" && x.length > 0,
+        );
+        return line ?? "";
+      })
+      .join(" ");
+  }
+
+  return [title, cuisine, description, ing, stepBlob, id]
+    .filter((s) => s.length > 0)
     .join(" ");
 }
 
+function pickStr(...candidates: unknown[]): string {
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length > 0) return c;
+  }
+  return "";
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Remove chicken broth/stock phrases so a main that lists both breast and broth still reads as poultry. */
+function stripChickenBrothPhrases(s: string): string {
+  return s
+    .replace(/\b(?:low[- ]sodium )?chicken (stock|broth|bone broth|base|powder|bouillon|concentrate)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mentionsChickenProtein(h: string): boolean {
+  const r = stripChickenBrothPhrases(h).toLowerCase();
+  return (
+    r.includes("chicken") ||
+    r.includes("cornish hen") ||
+    (r.includes("drumstick") && !h.includes("ice cream")) ||
+    r.includes(" chicken ")
+  );
+}
+
 /**
- * Map id/title text to a thematic editorial photo. First matching rule wins;
- * order matters (e.g. fish before generic "bowl").
+ * Map title + ingredients text to a thematic photo. **Order matters** — desserts and baking
+ * must run before any generic "bowl" or "chicken" heuristics so a chocolate cake is never
+ * paired with a stock chicken shot.
  */
+type KeywordRule = {
+  keys: string[];
+  image: string;
+  /** Match with word boundaries only (avoids “icing” in “dicing”, “flan” in “flank”, “crumble” in “crumbled”). */
+  wholeWordKeys?: string[];
+};
+
 function pickKeywordFoodPhoto(haystack: string): string | null {
   const h = haystack.toLowerCase();
-  const rules: { keys: string[]; image: string }[] = [
+  const rules: KeywordRule[] = [
     {
       keys: [
-        "salmon",
-        "trout",
-        "steelhead",
-        "arctic char",
-        "cod",
-        "halibut",
-        "tilapia",
-        "sea bass",
-        "mahi",
-        "tuna",
-        "shrimp",
-        "scallop",
-        "prawn",
+        "chocolate cake",
+        "birthday cake",
+        "wedding cake",
+        "sponge cake",
+        "pound cake",
+        "red velvet",
+        "carrot cake",
+        " layer cake",
+        "cupcake",
+        " bundt",
+        " coffee cake",
+        " angel food",
+        " sheet cake",
+        "gateau",
+        "gâteau",
+        "chocolate souffle",
+        "chocolate soufflé",
+        "raspberry souffle",
+        "lemon souffle",
+        "mango souffle",
+        "dessert souffle",
+        "dessert soufflé",
       ],
-      image: StitchImages.discoverSalmon,
+      image: UnsplashCategoryHeroes.layerCake,
     },
     {
-      keys: ["pizza", "flatbread", "margherita", "pepperoni"],
+      keys: ["cheese soufflé", "cheese souffle", "souffle aux", "savory souffle"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    // Breakfast before the broad “sweet bakery” block — otherwise “baking powder” / “muffin” / “cinnamon roll”
+    // in pancakes, waffles, or english muffins incorrectly maps to the layer-cake hero.
+    {
+      keys: ["pancake", "waffle", "french toast", "cinnamon roll", "cinnamon bun"],
+      image: localRecipeHeroUris.pancakes,
+    },
+    {
+      keys: [
+        "cheesecake",
+        "frosting",
+        "buttercream",
+        "butter cream",
+        "ganache",
+        "buttercream",
+        "eclair",
+        "éclair",
+        "cannoli",
+        "mousse",
+        "tiramisu",
+        "panna cotta",
+        "pudding",
+        "creme brulee",
+        "crème brûlée",
+        "pavlova",
+        "trifle",
+        "parfait",
+        "sorbet",
+        "gelato",
+        "fudge",
+        "blondie",
+        "biscotti",
+        "scone",
+        " danish",
+        "croissant",
+        "dessert",
+        "pastry cream",
+        "choux",
+        "babka",
+        "cake pop",
+        "churro",
+        "macaron",
+        "meringue",
+        "funnel cake",
+        "cobbler",
+        "apple crisp",
+        "fruit crisp",
+        "berry crisp",
+        "peach crisp",
+        "pear crisp",
+        "rhubarb crisp",
+        "pie crust",
+        "pumpkin pie",
+        "pecan pie",
+        "key lime",
+        "apple pie",
+        "cherry pie",
+        "apple galette",
+        "peach galette",
+        "berry galette",
+        "fruit galette",
+        "cookie",
+        "brownie",
+        "shortbread",
+        "sugar cookie",
+        "chocolate chip",
+        "oreo",
+      ],
+      wholeWordKeys: ["icing", "flan", "crumble"],
+      image: h.includes("donut") || h.includes("doughnut")
+        ? StitchImages.favoritesDonuts
+        : UnsplashCategoryHeroes.layerCake,
+    },
+    {
+      keys: ["burrata", "caprese"],
+      image: StitchImages.discoverBurrata,
+    },
+    {
+      keys: ["pizza", "flatbread", "margherita", "pepperoni", "calzone", "stromboli", "focaccia"],
       image: StitchImages.favoritesPizza,
-    },
-    {
-      keys: ["risotto", "arborio"],
-      image: StitchImages.favoritesGrainBowl,
     },
     {
       keys: [
@@ -192,19 +379,71 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
         "lasagna",
         "carbonara",
         "orzo",
+        "tagliatelle",
+        "bucatini",
+        "rigatoni",
+        "cacio e pepe",
+        "pesto",
+        "vodka sauce",
+        "bolognese",
       ],
       image: StitchImages.discoverFettuccine,
     },
     {
-      keys: ["burrata", "caprese"],
-      image: StitchImages.discoverBurrata,
+      keys: [
+        "salmon",
+        "trout",
+        "steelhead",
+        "arctic char",
+        "cod",
+        "halibut",
+        "tilapia",
+        "sea bass",
+        "branzino",
+        "mahi",
+        "tuna",
+        "swordfish",
+        "snapper",
+        "octopus",
+        "calamari",
+        "shrimp",
+        "scallop",
+        "prawn",
+        "lobster",
+        "mussel",
+        "clam",
+        "ceviche",
+        "poke",
+        "sushi",
+        "nigiri",
+        "maki",
+        "sashimi",
+        "fish taco",
+        "gravadlax",
+        "lox",
+      ],
+      image: StitchImages.discoverSalmon,
     },
     {
-      keys: ["tartine", "bruschetta", "crostini"],
-      image: StitchImages.discoverTartine,
+      keys: ["risotto", "arborio", "mushroom risotto", "milanese"],
+      image: StitchImages.favoritesGrainBowl,
     },
     {
-      keys: ["citrus salad", "salad bowl"],
+      keys: [
+        "citrus salad",
+        "greek salad",
+        "caesar salad",
+        "cobb salad",
+        "garden salad",
+        "arugula salad",
+        "spinach salad",
+        "caprese salad",
+        "kale salad",
+        "fattoush",
+        "tabouli",
+        "tabbouleh",
+        "macedoine",
+      ],
       image: StitchImages.favoritesCitrusSalad,
     },
     {
@@ -212,51 +451,168 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
       image: StitchImages.favoritesDonuts,
     },
     {
-      keys: ["shawarma", "grain bowl", "quinoa bowl", "chickpea"],
+      keys: [
+        "tartine",
+        "bruschetta",
+        "crostini",
+        "open-faced",
+        "fruit tart",
+        "lemon tart",
+        "savory tart",
+        "caramelized onion tart",
+        "french onion tart",
+        "french galette",
+        "mushroom galette",
+      ],
+      image: StitchImages.discoverTartine,
+    },
+    {
+      keys: [
+        "shawarma",
+        "falafel",
+        "kebab",
+        "kofte",
+        "fattoush",
+        "hummus",
+        "mezze",
+        "grain bowl",
+        "buddha bowl",
+        "quinoa bowl",
+        "buddha",
+      ],
       image: StitchImages.favoritesGrainBowl,
     },
     {
-      keys: ["pancake", "waffle"],
+      keys: ["chickpea", "ceci", "hummus", "falafel", "baba ghanouj", "baba ghanoush", "foul"],
+      image: StitchImages.favoritesGrainBowl,
+    },
+    {
+      keys: ["biryani", "dal", "dahl", "dhal", "lentil", "urad", "chana", "garam masala", "dosa", "idli", "samos"],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: ["stir-fry", "stir fry", "wok", "kung pao", "kungpao", "moo shu", "chop suey", "pad kee", "yakisoba", "yaki udon", "teriyaki", "hunan", "szech", "sichuan", "korean bbq", "gochujang", "miso glaze"],
+      image: UnsplashCategoryHeroes.wokVeggies,
+    },
+    {
+      keys: [
+        "curry",
+        "coconut curry",
+        "thai red",
+        "thai green",
+        "massaman",
+        "panang",
+        "vindaloo",
+        "korma",
+        "jalfrezi",
+        "tikka masala",
+        "gaeng",
+        "pho",
+        "ramen",
+        "laksa",
+        "miso soup",
+        "miso",
+        "hot pot",
+        "shabu",
+        "bibimbap",
+        "dumpling",
+        "gyoza",
+        "potsticker",
+        "dim sum",
+        "banh mi",
+        "spring roll",
+        "summer roll",
+      ],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: [
+        "soup",
+        "stew",
+        "gumbo",
+        "jambalaya",
+        "chili con",
+        "chili",
+        "chowder",
+        "bisque",
+        "gazpacho",
+        "borscht",
+        "goulash",
+        "cassoulet",
+        "ratatouille",
+        "pot roast",
+        "stuffed pepper",
+        "moussaka",
+      ],
+      image: StitchImages.discoverHeroBowl,
+    },
+    {
+      keys: ["beef", "steak", "brisket", "short rib", "prime rib", "pulled pork", "carnitas", "chorizo", "bacon", "pork ", "lamb", "lambchop", "lamb ", "mutton", "ribeye", "sirloin", "tenderloin", "burger", "meatloaf", "bolognese", "cottage pie", "sloppy", "bangers", "kielbasa", "schnitzel", "cordon bleu", "cabbage roll"],
+      image: h.includes("stir") || h.includes("wok") || h.includes("stir-fry")
+        ? UnsplashCategoryHeroes.wokVeggies
+        : UnsplashCategoryHeroes.platedMeal,
+    },
+    {
+      keys: [
+        "frittata",
+        "omelette",
+        "omelet",
+        "quiche",
+        "strata",
+        "shakshuka",
+        "benedict",
+        "scramble",
+        "egg in",
+        "chilaquiles",
+        "huevos",
+        "coddled",
+      ],
       image: StitchImages.chatFeaturedDish,
     },
     {
-      keys: ["dal", "lentil", "tikka", "masala", "biryani"],
+      keys: [
+        "tofu",
+        "tempeh",
+        "seitan",
+        "plant-based",
+        "vegan",
+        "jackfruit",
+        "impossible",
+        " beyond ",
+      ],
       image: StitchImages.discoverHeroBowl,
     },
     {
-      keys: ["stir-fry", "stir fry", "wok"],
-      image: StitchImages.discoverHeroBowl,
-    },
-    {
-      keys: ["curry", "coconut curry", "thai red", "thai green"],
-      image: StitchImages.discoverHeroBowl,
-    },
-    {
-      keys: ["beef", "steak", "burger"],
-      image: StitchImages.discoverHeroBowl,
-    },
-    {
-      keys: ["chicken", "thigh", "breast", "one-pot", "one pot"],
-      image: StitchImages.discoverHeroBowl,
-    },
-    {
-      keys: ["mushroom"],
+      keys: ["mushroom", "porcini", "shiitake", "maitake", "cremini", "fungi"],
       image: StitchImages.favoritesGrainBowl,
     },
-    {
-      keys: ["tofu"],
-      image: StitchImages.discoverHeroBowl,
-    },
   ];
-  for (const { keys, image } of rules) {
+
+  for (const { keys, image, wholeWordKeys } of rules) {
     if (keys.some((k) => h.includes(k))) return image;
+    if (
+      wholeWordKeys?.some((w) =>
+        new RegExp(`\\b${escapeRegExp(w.toLowerCase())}\\b`).test(h),
+      )
+    ) {
+      return image;
+    }
   }
+
+  if (mentionsChickenProtein(h) || h.includes("turkey") || h.includes("duck") || h.includes("goose") || h.includes(" game hen")) {
+    return UnsplashCategoryHeroes.chickenMain;
+  }
+  if (h.includes("one-pot") || h.includes("one pot") || h.includes("sheet pan") || h.includes("sheet-pan") || h.includes("skillet ")) {
+    return StitchImages.discoverHeroBowl;
+  }
+
   return null;
 }
 
 /** Fallback when heroImage is missing: prefer keyword match on id/title, then a stable hash. */
 export function pickFallbackPhoto(seed?: string): string {
-  if (!seed) return fallbackFoodPhotos[0];
+  // Avoid defaulting to layerCake ([0]) when the seed is missing — reads as “everything is chocolate cake”.
+  if (!seed) return UnsplashCategoryHeroes.platedMeal;
   const keyword = pickKeywordFoodPhoto(seed);
   if (keyword) return keyword;
   let hash = 0;
