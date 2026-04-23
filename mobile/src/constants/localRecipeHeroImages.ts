@@ -2,6 +2,10 @@ import { Image, Platform } from "react-native";
 
 const pancakesBerries = require("../../assets/images/recipe-heroes/pancakes-berries-maple.png");
 const chickenThighsLemon = require("../../assets/images/recipe-heroes/chicken-thighs-lemon-skillet.png");
+const beefBroccoliStirFry = require("../../assets/images/recipe-heroes/beef-broccoli-stir-fry.png");
+const thaiRedCoconutCurry = require("../../assets/images/recipe-heroes/thai-red-coconut-curry.png");
+const mushroomRisotto = require("../../assets/images/recipe-heroes/mushroom-risotto.png");
+const chocolateChipCookies = require("../../assets/images/recipe-heroes/chocolate-chip-cookies.png");
 
 /**
  * Metro: native `require()` is a number (resolved via `Image.resolveAssetSource`); on web, Expo
@@ -31,4 +35,8 @@ function localAssetToUri(asset: unknown): string {
 export const localRecipeHeroUris = {
   pancakes: localAssetToUri(pancakesBerries),
   chickenMain: localAssetToUri(chickenThighsLemon),
+  beefBroccoli: localAssetToUri(beefBroccoliStirFry),
+  thaiRedCurry: localAssetToUri(thaiRedCoconutCurry),
+  mushroomRisotto: localAssetToUri(mushroomRisotto),
+  chocolateChipCookies: localAssetToUri(chocolateChipCookies),
 } as const;
