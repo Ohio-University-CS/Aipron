@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   View,
   StyleSheet,
   ScrollView,
@@ -16,6 +17,7 @@ import { ChatMessage } from "../../src/components/ChatMessage";
 import { RecipeCard } from "../../src/components/RecipeCard";
 import { TopBar } from "../../src/components/TopBar";
 import { pantryApi, recipeApi } from "../../src/services/api";
+import { useRealtimeVoice } from "../../src/hooks/useRealtimeVoice";
 import {
   spacing,
   fonts,
@@ -33,6 +35,8 @@ import { Recipe } from "@aipron/shared";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../../src/store/useAuthStore";
+import { useUserPrefsStore } from "../../src/store/useUserPrefsStore";
+import { pickPreferredRecipe } from "../../src/utils/dietaryMatch";
 
 interface ChatEntry {
   id: string;
@@ -68,15 +72,20 @@ export default function HomeScreen() {
     user?.email?.split("@")[0] ||
     "chef";
   const greeting = getGreeting(new Date().getHours());
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
+      // Prefer the user's saved recipes, then fall back to the global catalog.
+      // In either case, try to surface a recipe that matches the user's active
+      // dietary preferences so the "Suggested" tile never contradicts them.
       try {
         const saved = await recipeApi.getSaved();
-        if (!cancelled && saved.length > 0) {
-          setSuggested(saved[0]);
+        const pick = pickPreferredRecipe(saved, dietaryTags);
+        if (!cancelled && pick) {
+          setSuggested(pick);
           return;
         }
       } catch {
@@ -84,8 +93,9 @@ export default function HomeScreen() {
       }
       try {
         const all = await recipeApi.getAll();
-        if (!cancelled && all.length > 0) {
-          setSuggested(all[0]);
+        const pick = pickPreferredRecipe(all, dietaryTags);
+        if (!cancelled && pick) {
+          setSuggested(pick);
         }
       } catch {
         // ignore
@@ -106,7 +116,9 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Re-pick the suggested recipe whenever the user's dietary preferences
+    // change, so toggling a chip in settings immediately updates the home tile.
+  }, [dietaryTags]);
 
   const handleSend = async (message: string) => {
     const userMessage: ChatEntry = {
@@ -153,6 +165,106 @@ export default function HomeScreen() {
   const handleVoicePress = () => {
     setIsRecording(!isRecording);
   };
+
+  const hasChatContent = chatHistory.length > 0 || recipes.length > 0;
+
+  const clearChat = useCallback(() => {
+    setChatHistory([]);
+    setRecipes([]);
+  }, []);
+
+  /**
+   * Cross-platform confirm. RN's `Alert` does not render on web, so we fall
+   * back to the browser `window.confirm` there.
+   */
+  const handleClearChatPress = useCallback(() => {
+    if (!hasChatContent) return;
+    const title = "Clear chat";
+    const message = "This will delete every message and recipe from this chat. This can't be undone.";
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`${title}\n\n${message}`)) {
+        clearChat();
+      }
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear", style: "destructive", onPress: clearChat },
+    ]);
+  }, [hasChatContent, clearChat]);
+
+  const liveVoiceInstructions = useMemo(() => {
+    const base =
+      "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.";
+    const prefsLine =
+      dietaryTags.length > 0
+        ? `\n\nThe user's current dietary preferences are: ${dietaryTags.join(", ")}. Always honor them when suggesting recipes, substitutions, or ingredients. If a request would violate these preferences, propose a compliant alternative.`
+        : "\n\nThe user has not set any dietary preferences yet; treat them as unrestricted unless they say otherwise.";
+    return base + prefsLine;
+  }, [dietaryTags]);
+
+  const appendLiveTranscript = useCallback(
+    (text: string, role: "user" | "assistant") => {
+      const entry: ChatEntry = {
+        id: `${Date.now()}-${role}-${Math.random().toString(36).slice(2, 8)}`,
+        role,
+        content: text,
+        timestamp: new Date(),
+      };
+      setChatHistory((prev) => [...prev, entry]);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    },
+    []
+  );
+
+  const handleLiveVoiceError = useCallback((err: Error) => {
+    console.warn("Live voice:", err.message);
+  }, []);
+
+  const liveVoice = useRealtimeVoice({
+    instructions: liveVoiceInstructions,
+    onTranscript: appendLiveTranscript,
+    onError: handleLiveVoiceError,
+  });
+
+  const disconnectLiveVoiceRef = useRef(liveVoice.disconnect);
+  disconnectLiveVoiceRef.current = liveVoice.disconnect;
+
+  useEffect(() => {
+    return () => {
+      disconnectLiveVoiceRef.current();
+    };
+  }, []);
+
+  // Keep the live session's instructions in sync with the user's preferences.
+  // If they toggle a dietary tag mid-conversation, push the updated prompt so
+  // Chef Aipron respects it on the very next turn.
+  useEffect(() => {
+    if (!liveVoice.isConnected) return;
+    liveVoice.updateInstructions(liveVoiceInstructions);
+  }, [liveVoice, liveVoiceInstructions]);
+
+  const handleLiveVoicePress = () => {
+    if (liveVoice.isConnected || liveVoice.isConnecting) {
+      liveVoice.disconnect();
+    } else {
+      liveVoice.connect();
+    }
+  };
+
+  const liveVoiceStatus = liveVoice.error
+    ? liveVoice.error
+    : liveVoice.isConnecting
+    ? "Connecting to Chef Aipron..."
+    : liveVoice.isSpeaking
+    ? "Chef Aipron is speaking..."
+    : liveVoice.isListening
+    ? "Listening..."
+    : liveVoice.isConnected
+    ? "Live voice connected — just talk"
+    : null;
 
   const topBarClearance = insets.top + 56 + spacing.md;
   const composerClearance = 96 + insets.bottom + spacing.lg;
@@ -341,7 +453,12 @@ export default function HomeScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={insets.bottom}
     >
-      <TopBar transparent={false} />
+      <TopBar
+        transparent={false}
+        showAvatar={!hasChatContent}
+        rightIcon={hasChatContent ? "delete-outline" : undefined}
+        onRightPress={hasChatContent ? handleClearChatPress : undefined}
+      />
 
       <ScrollView
         ref={scrollViewRef}
@@ -354,6 +471,8 @@ export default function HomeScreen() {
           },
         ]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
       >
         <View style={styles.maxWidthWrap}>
           {showHome && renderHomeDashboard()}
@@ -404,10 +523,45 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
+      {liveVoiceStatus ? (
+        <View
+          style={[
+            styles.liveStatus,
+            { bottom: 90 + 56, backgroundColor: theme.surfaceContainerLowest + "E6" },
+            liveVoice.error && { borderColor: theme.error + "55" },
+          ]}
+          pointerEvents="none"
+        >
+          <View
+            style={[
+              styles.liveStatusDot,
+              {
+                backgroundColor: liveVoice.error
+                  ? theme.error
+                  : liveVoice.isSpeaking
+                  ? theme.primary
+                  : liveVoice.isListening
+                  ? theme.tertiary
+                  : theme.primaryContainer,
+              },
+            ]}
+          />
+          <Text
+            style={[styles.liveStatusText, { color: theme.onSurfaceVariant }]}
+            numberOfLines={1}
+          >
+            {liveVoiceStatus}
+          </Text>
+        </View>
+      ) : null}
+
       <ChatComposer
         onSend={handleSend}
         onVoicePress={handleVoicePress}
         isRecording={isRecording}
+        onLiveVoicePress={handleLiveVoicePress}
+        liveVoiceActive={liveVoice.isConnected}
+        liveVoiceConnecting={liveVoice.isConnecting}
         isLoading={isLoading}
       />
     </KeyboardAvoidingView>
@@ -570,5 +724,30 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serif,
     fontSize: 22,
     lineHeight: 28,
+  },
+
+  liveStatus: {
+    position: "absolute",
+    left: spacing.lg,
+    right: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+  },
+  liveStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  liveStatusText: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

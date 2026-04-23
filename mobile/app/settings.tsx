@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import { TopBar } from "../src/components/TopBar";
 import { Chip } from "../src/components/Chip";
 import { useSettingsStore, type AppLanguage } from "../src/store/useSettingsStore";
 import { useAuthStore } from "../src/store/useAuthStore";
+import { useUserPrefsStore } from "../src/store/useUserPrefsStore";
+import { DIETARY_OPTIONS } from "../src/constants/DietaryOptions";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type SubView =
@@ -44,32 +46,6 @@ interface SettingsScreenProps {
   onSignOutSuccess?: () => void;
 }
 
-const DIETARY_OPTIONS: {
-  key: keyof DietaryState;
-  label: string;
-  icon: string;
-}[] = [
-  { key: "vegetarian", label: "Vegetarian", icon: "eco" },
-  { key: "vegan", label: "Vegan", icon: "spa" },
-  { key: "glutenFree", label: "Gluten-Free", icon: "grain" },
-  { key: "dairyFree", label: "Dairy-Free", icon: "water-drop" },
-  { key: "nutFree", label: "Nut-Free", icon: "block" },
-  { key: "halal", label: "Halal", icon: "check-circle" },
-  { key: "keto", label: "Keto", icon: "local-fire-department" },
-  { key: "lowCarb", label: "Low Carb", icon: "trending-down" },
-];
-
-interface DietaryState {
-  vegetarian: boolean;
-  vegan: boolean;
-  glutenFree: boolean;
-  dairyFree: boolean;
-  nutFree: boolean;
-  halal: boolean;
-  keto: boolean;
-  lowCarb: boolean;
-}
-
 function formatAboutVersionLine(): string {
   const v = Constants.expoConfig?.version ?? "1.1.0";
   const iosBuild = Constants.expoConfig?.ios?.buildNumber;
@@ -88,27 +64,24 @@ export default function SettingsScreen({
   const theme = useThemeColors();
   const { language: selectedLanguage, setLanguage: setSelectedLanguage } = useSettingsStore();
   const { user, logout } = useAuthStore();
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
+  const toggleDietaryTag = useUserPrefsStore((s) => s.toggle);
+  const hydrateDietary = useUserPrefsStore((s) => s.hydrateFromServer);
 
   const [subView, setSubView] = useState<SubView>(null);
   const [recipeReminders, setRecipeReminders] = useState(true);
   const [weeklyInspiration, setWeeklyInspiration] = useState(true);
   const [cookingTimerAlerts, setCookingTimerAlerts] = useState(true);
-  const [dietaryPrefs, setDietaryPrefs] = useState<DietaryState>({
-    vegetarian: false,
-    vegan: false,
-    glutenFree: false,
-    dairyFree: false,
-    nutFree: false,
-    halal: false,
-    keto: false,
-    lowCarb: false,
-  });
   const [userRating, setUserRating] = useState(0);
   const [cacheCleared, setCacheCleared] = useState(false);
 
-  const toggleDietaryPref = (key: keyof DietaryState) => {
-    setDietaryPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  useEffect(() => {
+    if (user?.id) {
+      hydrateDietary();
+    }
+  }, [user?.id, hydrateDietary]);
+
+  const isDietaryActive = (tag: string) => dietaryTags.includes(tag);
 
   const topBarHeight = insets.top + spacing.sm + 56;
 
@@ -295,16 +268,19 @@ export default function SettingsScreen({
         </Text>
         <ScrollView style={styles.scroll} contentContainerStyle={{ paddingHorizontal: spacing.screenPadding }} showsVerticalScrollIndicator={false}>
           <View style={styles.chipWrap}>
-            {DIETARY_OPTIONS.map((p) => (
-              <Chip
-                key={p.key}
-                label={p.label}
-                selected={dietaryPrefs[p.key]}
-                variant={dietaryPrefs[p.key] ? "filled" : "outlined"}
-                icon={dietaryPrefs[p.key] ? "check" : undefined}
-                onPress={() => toggleDietaryPref(p.key)}
-              />
-            ))}
+            {DIETARY_OPTIONS.map((p) => {
+              const active = isDietaryActive(p.tag);
+              return (
+                <Chip
+                  key={p.tag}
+                  label={p.label}
+                  selected={active}
+                  variant={active ? "filled" : "outlined"}
+                  icon={active ? "check" : undefined}
+                  onPress={() => toggleDietaryTag(p.tag)}
+                />
+              );
+            })}
           </View>
         </ScrollView>
       </View>
@@ -513,7 +489,7 @@ export default function SettingsScreen({
   }
 
   // --- Main settings view ---
-  const activeDietaryCount = Object.values(dietaryPrefs).filter(Boolean).length;
+  const activeDietaryCount = dietaryTags.length;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -574,16 +550,19 @@ export default function SettingsScreen({
             Tap a chip to toggle your default filters for recipe discovery.
           </Text>
           <View style={styles.chipWrap}>
-            {DIETARY_OPTIONS.map((p) => (
-              <Chip
-                key={p.key}
-                label={p.label}
-                selected={dietaryPrefs[p.key]}
-                variant={dietaryPrefs[p.key] ? "filled" : "outlined"}
-                icon={dietaryPrefs[p.key] ? "check" : undefined}
-                onPress={() => toggleDietaryPref(p.key)}
-              />
-            ))}
+            {DIETARY_OPTIONS.map((p) => {
+              const active = isDietaryActive(p.tag);
+              return (
+                <Chip
+                  key={p.tag}
+                  label={p.label}
+                  selected={active}
+                  variant={active ? "filled" : "outlined"}
+                  icon={active ? "check" : undefined}
+                  onPress={() => toggleDietaryTag(p.tag)}
+                />
+              );
+            })}
           </View>
           <View style={[styles.card, { backgroundColor: theme.surfaceContainerLowest, marginTop: spacing.lg }]}>
             <NavRow

@@ -22,6 +22,8 @@ import {
 } from "../../src/data/localCatalog";
 import { recipeApi } from "../../src/services/api";
 import { useLocalCatalogSavedIds } from "../../src/hooks/useLocalCatalogSavedIds";
+import { useUserPrefsStore } from "../../src/store/useUserPrefsStore";
+import { filterByPreferences } from "../../src/utils/dietaryMatch";
 import { useThemeColors } from "../../src/hooks/useThemeColors";
 import {
   borderRadius,
@@ -127,7 +129,10 @@ export default function SearchScreen() {
 
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<Category>("All Cuisines");
-  const [results, setResults] = useState<Recipe[]>(LOCAL_CATALOG_RECIPES);
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
+  const [results, setResults] = useState<Recipe[]>(() =>
+    filterByPreferences(LOCAL_CATALOG_RECIPES, dietaryTags),
+  );
   const [serverSavedIds, setServerSavedIds] = useState<Set<string>>(new Set());
   const {
     savedIds: localSavedIds,
@@ -159,21 +164,26 @@ export default function SearchScreen() {
   }, [loadServerSavedIds]);
 
   const runSearch = useCallback(
-    async (q: string, cat: Category) => {
+    async (q: string, cat: Category, prefs: readonly string[]) => {
       const seq = ++searchSeqRef.current;
       const localFiltered = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
 
       // Show local results immediately for snappy UX; server results merge
-      // in when they arrive.
+      // in when they arrive. Apply the user's active dietary preferences last
+      // so anything that doesn't match every selected restriction is hidden.
       if (seq === searchSeqRef.current) {
-        setResults(applyCategoryFilter(localFiltered, cat));
+        setResults(
+          filterByPreferences(applyCategoryFilter(localFiltered, cat), prefs),
+        );
       }
 
       try {
         const serverResults = await recipeApi.search(q, { limit: 30 });
         if (seq !== searchSeqRef.current) return;
         const merged = mergeResults(localFiltered, serverResults, q);
-        setResults(applyCategoryFilter(merged, cat));
+        setResults(
+          filterByPreferences(applyCategoryFilter(merged, cat), prefs),
+        );
       } catch {
         // Network / auth failure — keep local-only results (already set above).
       }
@@ -189,7 +199,7 @@ export default function SearchScreen() {
     }
 
     debounceRef.current = setTimeout(() => {
-      void runSearch(q, activeFilter);
+      void runSearch(q, activeFilter, dietaryTags);
     }, 250);
 
     return () => {
@@ -197,7 +207,7 @@ export default function SearchScreen() {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [query, activeFilter, runSearch]);
+  }, [query, activeFilter, dietaryTags, runSearch]);
 
   const handleToggleSave = useCallback(
     async (recipeId: string) => {
@@ -350,7 +360,9 @@ export default function SearchScreen() {
             <Text
               style={[styles.emptySubtext, { color: theme.onSurfaceVariant }]}
             >
-              Try different keywords like ingredients, cuisine, or dietary tags.
+              {dietaryTags.length > 0
+                ? `Nothing matches your active preferences (${dietaryTags.join(", ")}). Try removing a chip in Settings or search different keywords.`
+                : "Try different keywords like ingredients, cuisine, or dietary tags."}
             </Text>
           </View>
         }
@@ -382,7 +394,7 @@ export default function SearchScreen() {
         refreshing={false}
         onRefresh={async () => {
           await Promise.all([reloadSavedIds(), loadServerSavedIds()]);
-          void runSearch(query.trim(), activeFilter);
+          void runSearch(query.trim(), activeFilter, dietaryTags);
         }}
       />
     </View>

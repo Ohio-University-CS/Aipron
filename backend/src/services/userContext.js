@@ -1,6 +1,28 @@
 import { supabaseAdmin } from "../db/supabase.js";
 
 /**
+ * Fetch just the user's dietary preferences (lightweight — single row lookup)
+ * for the recipe generation system prompt. Returns an array of string tags,
+ * or [] if the user has none / is unauthenticated / an error occurs.
+ */
+export async function fetchDietaryContext(userId) {
+  if (!userId) return [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("dietary_preferences")
+      .eq("id", userId)
+      .single();
+    if (error) return [];
+    const prefs = data?.dietary_preferences;
+    return Array.isArray(prefs) ? prefs.filter((p) => typeof p === "string" && p) : [];
+  } catch (error) {
+    console.error("Failed to fetch dietary context:", error);
+    return [];
+  }
+}
+
+/**
  * Fetch personalized context for a user (profile, pantry, saved recipes)
  * to inject into AI system prompts. Returns an empty string if nothing is found.
  */
@@ -30,7 +52,15 @@ export async function fetchUserContext(userId) {
       parts.push(`The user's name is ${profile.name}. Address them by name occasionally.`);
     }
     if (profile?.dietary_preferences?.length) {
-      parts.push(`Dietary preferences: ${JSON.stringify(profile.dietary_preferences)}. Keep these in mind when suggesting recipes or substitutions.`);
+      const prefsList = profile.dietary_preferences
+        .filter((p) => typeof p === "string" && p.trim())
+        .join(", ");
+      parts.push(
+        `DIETARY PREFERENCES (STRICT, non-negotiable): ${prefsList}. ` +
+          `Treat these like allergies — never describe, summarize, suggest, recommend, or generate a recipe (or parts of one, including ingredient lists, step overviews, or "typical" versions) that violates any of them. ` +
+          `If the user asks about a non-compliant dish (for example asking about a beef recipe when they are vegan), do NOT summarize the non-compliant dish. Briefly acknowledge the conflict in one sentence and immediately offer one compliant alternative that respects every preference above. ` +
+          `Only change this behavior if the user explicitly says, in the current turn, to ignore their preferences.`
+      );
     }
 
     if (pantryResult.data?.length) {

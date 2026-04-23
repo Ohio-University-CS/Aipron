@@ -2,6 +2,7 @@ import express from "express";
 import { body, validationResult } from "express-validator";
 import { authenticateToken } from "../middleware/auth.js";
 import { findPantryRecipes } from "../services/openai.js";
+import { fetchDietaryContext } from "../services/userContext.js";
 
 export const pantryRouter = express.Router();
 
@@ -110,7 +111,17 @@ pantryRouter.post(
         return res.json([]);
       }
 
-      const recipes = await findPantryRecipes(ingredients, dietaryFilters, 5);
+      // Always respect the user's saved dietary preferences, merged with
+      // whatever filters the client explicitly passed in.
+      const profilePrefs = await fetchDietaryContext(req.user.id);
+      const mergedDietary = Array.from(
+        new Set([
+          ...(Array.isArray(dietaryFilters) ? dietaryFilters : []),
+          ...profilePrefs,
+        ])
+      );
+
+      const recipes = await findPantryRecipes(ingredients, mergedDietary, 5);
 
       res.json(recipes);
     } catch (error) {

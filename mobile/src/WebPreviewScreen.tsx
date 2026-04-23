@@ -28,7 +28,14 @@ import { recipeApi, chatApi, Conversation } from "./services/api";
 import { colors, spacing, typography, borderRadius, shadows } from "./constants/DesignTokens";
 import { useThemeColors } from "./hooks/useThemeColors";
 import { useWebSpeechToText } from "./hooks/useWebSpeechToText";
+import { useRealtimeVoice } from "./hooks/useRealtimeVoice";
 import { useSettingsStore } from "./store/useSettingsStore";
+import { useUserPrefsStore } from "./store/useUserPrefsStore";
+import {
+  filterByPreferences,
+  pickPreferredRecipe,
+  recipeMatchesPreferences,
+} from "./utils/dietaryMatch";
 import { RecipeDetailView } from "./components/RecipeDetailView";
 import { CookingSessionView } from "./components/CookingSessionView";
 import ProfileScreen from "../app/(tabs)/profile";
@@ -105,7 +112,9 @@ const recipe = {
 };
 
 const HIDE_SCROLLBAR_CSS = `
-[data-hide-scrollbar] *::-webkit-scrollbar { display: none !important; }
+[data-hide-scrollbar]::-webkit-scrollbar,
+[data-hide-scrollbar] *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+[data-hide-scrollbar],
 [data-hide-scrollbar] * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
 `;
 
@@ -141,6 +150,7 @@ export default function WebPreviewScreen() {
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
   const language = useSettingsStore((s) => s.language);
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
   const { width: winW, height: winH } = useWindowDimensions();
 
   useEffect(() => {
@@ -204,6 +214,41 @@ export default function WebPreviewScreen() {
     stopListening: stopChefVoiceListening,
   } = useWebSpeechToText();
 
+  const chefLiveInstructions = useMemo(
+    () =>
+      "You are Chef Aipron, a warm and concise cooking assistant. Help with recipes, substitutions, techniques, and meal ideas. Keep spoken replies brief and friendly.",
+    []
+  );
+
+  const appendChefLiveTranscript = useCallback(
+    (text: string, role: "user" | "assistant") => {
+      setChefMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-${role}-${Math.random().toString(36).slice(2, 8)}`,
+          role,
+          content: text,
+          timestamp: new Date(),
+        },
+      ]);
+      setTimeout(() => chefScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    },
+    []
+  );
+
+  const handleChefLiveError = useCallback((err: Error) => {
+    console.warn("Chef live voice:", err.message);
+  }, []);
+
+  const chefLiveVoice = useRealtimeVoice({
+    instructions: chefLiveInstructions,
+    onTranscript: appendChefLiveTranscript,
+    onError: handleChefLiveError,
+  });
+
+  const disconnectChefLiveRef = useRef(chefLiveVoice.disconnect);
+  disconnectChefLiveRef.current = chefLiveVoice.disconnect;
+
   const loadSavedRecipes = useCallback(async () => {
     setSavedLoading(true);
     try {
@@ -234,13 +279,19 @@ export default function WebPreviewScreen() {
     const seq = ++searchSeqRef.current;
 
     const handle = setTimeout(() => {
-      const list = filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q);
+      // Hide anything that doesn't satisfy every active dietary preference so
+      // the search tab never suggests a dish that conflicts with what the user
+      // selected in Settings.
+      const list = filterByPreferences(
+        filterLocalCatalogRecipes(LOCAL_CATALOG_RECIPES, q),
+        dietaryTags,
+      );
       if (seq !== searchSeqRef.current) return;
       setSearchResults(list);
     }, 250);
 
     return () => clearTimeout(handle);
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, dietaryTags]);
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
@@ -259,6 +310,38 @@ export default function WebPreviewScreen() {
       loadConversations();
     }
   }, [activeTab, chefView, loadConversations]);
+
+  useEffect(() => {
+    if (activeTab !== "chef" || chefView !== "chat") {
+      disconnectChefLiveRef.current();
+    }
+  }, [activeTab, chefView]);
+
+  useEffect(() => {
+    return () => {
+      disconnectChefLiveRef.current();
+    };
+  }, []);
+
+  const handleChefLiveVoicePress = () => {
+    if (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) {
+      chefLiveVoice.disconnect();
+    } else {
+      chefLiveVoice.connect();
+    }
+  };
+
+  const chefLiveVoiceStatus = chefLiveVoice.error
+    ? chefLiveVoice.error
+    : chefLiveVoice.isConnecting
+    ? "Connecting to Chef Aipron..."
+    : chefLiveVoice.isSpeaking
+    ? "Chef Aipron is speaking..."
+    : chefLiveVoice.isListening
+    ? "Listening..."
+    : chefLiveVoice.isConnected
+    ? "Live voice connected — just talk"
+    : null;
 
   const openConversation = useCallback(async (convoId: string) => {
     setActiveConvoId(convoId);
@@ -299,6 +382,36 @@ export default function WebPreviewScreen() {
     setChefMessages([]);
     setChefInput("");
   }, []);
+
+  /**
+   * Delete a past conversation. The row-level trash button calls this. We
+   * optimistically remove it from the list so the UI feels instant; on error
+   * we reload the list from the server to re-sync.
+   */
+  const deleteConversation = useCallback(
+    async (convoId: string, title: string) => {
+      if (typeof window !== "undefined") {
+        const ok = window.confirm(
+          `Delete "${title || "this chat"}"? This can't be undone.`
+        );
+        if (!ok) return;
+      }
+      const previous = conversations;
+      setConversations((list) => list.filter((c) => c.id !== convoId));
+      if (activeConvoId === convoId) {
+        setActiveConvoId(null);
+        setChefMessages([]);
+        setChefView("history");
+      }
+      try {
+        await chatApi.deleteConversation(convoId);
+      } catch (err) {
+        console.warn("Failed to delete conversation:", err);
+        setConversations(previous);
+      }
+    },
+    [conversations, activeConvoId]
+  );
 
   const handleChefVoicePress = () => {
     if (chefVoiceListening) {
@@ -459,12 +572,6 @@ export default function WebPreviewScreen() {
                               ? "Chef"
                               : "Home"}
             </Text>
-            {activeTab === "saved" && (
-              <Text style={styles.headerSubtitle}>
-                {mergedSavedRecipes.length} recipe{mergedSavedRecipes.length === 1 ? "" : "s"}{" "}
-                saved
-              </Text>
-            )}
           </View>
           <View style={styles.headerIcon}>
             <Text style={styles.headerIconEmoji}>
@@ -496,10 +603,21 @@ export default function WebPreviewScreen() {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.homeScrollContent}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          {...(Platform.OS === "web"
+            ? { dataSet: { hideScrollbar: "true" } }
+            : {})}
         >
           {(() => {
+            // Honor the user's active dietary preferences when choosing what
+            // to feature on the home screen. Fall back to "any saved" and then
+            // "any local catalog" so the tile never goes empty.
             const suggested: Recipe | undefined =
-              savedRecipes[0] || LOCAL_CATALOG_RECIPES[0];
+              pickPreferredRecipe(savedRecipes, dietaryTags) ??
+              pickPreferredRecipe(LOCAL_CATALOG_RECIPES, dietaryTags) ??
+              savedRecipes[0] ??
+              LOCAL_CATALOG_RECIPES[0];
             const suggestedTitle = suggested?.title ?? "A recipe for you";
             const suggestedMeta = suggested
               ? `${suggested.totalTime ?? ((suggested.prepTime ?? 0) + (suggested.cookTime ?? 0))} min · ${suggested.servings ?? 4} servings`
@@ -508,10 +626,23 @@ export default function WebPreviewScreen() {
               (suggested as unknown as { heroImage?: string; image?: string })?.heroImage ??
               (suggested as unknown as { image?: string })?.image ??
               recipe.image;
-            const moreRecipes = LOCAL_CATALOG_RECIPES.slice(
-              suggested && (suggested as { id?: string }).id === LOCAL_CATALOG_RECIPES[0]?.id ? 1 : 0,
-              4
+            // "More for you" should honor active dietary preferences too.
+            // Prefer matching recipes; if nothing (or too few) match we still
+            // fall back to the rest of the catalog so the rail never collapses.
+            const suggestedId = (suggested as { id?: string } | undefined)?.id;
+            const catalogPool = LOCAL_CATALOG_RECIPES.filter(
+              (r) => (r as { id?: string }).id !== suggestedId
             );
+            const matchingMore = catalogPool.filter((r) =>
+              recipeMatchesPreferences(r, dietaryTags)
+            );
+            const moreRecipes =
+              matchingMore.length >= 3
+                ? matchingMore.slice(0, 4)
+                : [
+                    ...matchingMore,
+                    ...catalogPool.filter((r) => !matchingMore.includes(r)),
+                  ].slice(0, 4);
 
             return (
               <>
@@ -674,6 +805,11 @@ export default function WebPreviewScreen() {
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.placeholderScroll}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
+            {...(Platform.OS === "web"
+              ? { dataSet: { hideScrollbar: "true" } }
+              : {})}
           >
             <View style={styles.searchWrap}>
               <View style={styles.searchInputRow}>
@@ -739,6 +875,12 @@ export default function WebPreviewScreen() {
               contentContainerStyle={styles.savedListContent}
               refreshing={savedLoading}
               onRefresh={() => void refreshSavedTab()}
+              ListHeaderComponent={
+                <Text style={styles.savedCountHeading}>
+                  {mergedSavedRecipes.length} recipe
+                  {mergedSavedRecipes.length === 1 ? "" : "s"} saved
+                </Text>
+              }
               ListEmptyComponent={
                 <View style={styles.savedEmpty}>
                   <Ionicons
@@ -843,21 +985,30 @@ export default function WebPreviewScreen() {
                 </View>
               )}
               {conversations.map((convo) => (
-                <TouchableOpacity
-                  key={convo.id}
-                  style={styles.historyItem}
-                  activeOpacity={0.7}
-                  onPress={() => openConversation(convo.id)}
-                >
-                  <View style={styles.historyItemIcon}>
-                    <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
-                  </View>
-                  <View style={styles.historyItemContent}>
-                    <Text style={styles.historyItemTitle} numberOfLines={1}>{convo.title}</Text>
-                    <Text style={styles.historyItemTime}>{formatRelativeTime(convo.updated_at)}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
+                <View key={convo.id} style={styles.historyItem}>
+                  <TouchableOpacity
+                    style={styles.historyItemTap}
+                    activeOpacity={0.7}
+                    onPress={() => openConversation(convo.id)}
+                  >
+                    <View style={styles.historyItemIcon}>
+                      <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+                    </View>
+                    <View style={styles.historyItemContent}>
+                      <Text style={styles.historyItemTitle} numberOfLines={1}>{convo.title}</Text>
+                      <Text style={styles.historyItemTime}>{formatRelativeTime(convo.updated_at)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.historyItemDelete}
+                    onPress={() => deleteConversation(convo.id, convo.title)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={`Delete chat ${convo.title || ""}`}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
               ))}
             </ScrollView>
           </View>
@@ -929,6 +1080,37 @@ export default function WebPreviewScreen() {
                 </View>
               )}
             </ScrollView>
+            {chefLiveVoiceStatus ? (
+              <View
+                style={[
+                  styles.chefLiveStatus,
+                  !isWeb && { bottom: 64 + insets.bottom + 64 },
+                  chefLiveVoice.error && { borderColor: colors.error + "55" },
+                ]}
+                pointerEvents="none"
+              >
+                <View
+                  style={[
+                    styles.chefLiveStatusDot,
+                    {
+                      backgroundColor: chefLiveVoice.error
+                        ? colors.error
+                        : chefLiveVoice.isSpeaking
+                        ? colors.primary
+                        : chefLiveVoice.isListening
+                        ? colors.tertiary
+                        : colors.primaryContainer,
+                    },
+                  ]}
+                />
+                <Text
+                  style={styles.chefLiveStatusText}
+                  numberOfLines={1}
+                >
+                  {chefLiveVoiceStatus}
+                </Text>
+              </View>
+            ) : null}
             <View
               style={[
                 styles.chefComposer,
@@ -937,12 +1119,54 @@ export default function WebPreviewScreen() {
             >
               <TouchableOpacity
                 style={[
+                  styles.chefLiveBtn,
+                  (chefLiveVoice.isConnected || chefLiveVoice.isConnecting) &&
+                    styles.chefLiveBtnActive,
+                  chefLoading && styles.chefLiveBtnDisabled,
+                ]}
+                onPress={handleChefLiveVoicePress}
+                disabled={chefLoading}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  chefLiveVoice.isConnected || chefLiveVoice.isConnecting
+                    ? "Stop live voice"
+                    : "Start live voice"
+                }
+                activeOpacity={0.7}
+              >
+                {chefLiveVoice.isConnecting ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons
+                    name={
+                      chefLiveVoice.isConnected ? "stop-circle" : "pulse"
+                    }
+                    size={22}
+                    color={
+                      chefLiveVoice.isConnected
+                        ? colors.onPrimaryContainer
+                        : colors.primary
+                    }
+                  />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
                   styles.chefMicBtn,
                   chefVoiceListening && styles.chefMicBtnActive,
-                  (!chefVoiceSupported || chefLoading) && styles.chefMicBtnDisabled,
+                  (!chefVoiceSupported ||
+                    chefLoading ||
+                    chefLiveVoice.isConnected ||
+                    chefLiveVoice.isConnecting) &&
+                    styles.chefMicBtnDisabled,
                 ]}
                 onPress={handleChefVoicePress}
-                disabled={!chefVoiceSupported || chefLoading}
+                disabled={
+                  !chefVoiceSupported ||
+                  chefLoading ||
+                  chefLiveVoice.isConnected ||
+                  chefLiveVoice.isConnecting
+                }
                 accessibilityRole="button"
                 accessibilityLabel={
                   chefVoiceListening ? "Stop voice input" : "Voice input"
@@ -996,8 +1220,11 @@ export default function WebPreviewScreen() {
           <View
             style={[
               styles.previewDetailOverlay,
-              { backgroundColor: c.background },
-              !isWeb && { bottom: 64 + insets.bottom },
+              // When a recipe detail or cooking session is open we let it take
+              // the full phone frame — the bottom tab bar is hidden in that
+              // mode, so leaving room for it would just show the app's
+              // background underneath the page.
+              { backgroundColor: c.background, bottom: 0 },
             ]}
           >
             {previewCookingId ? (
@@ -1019,7 +1246,11 @@ export default function WebPreviewScreen() {
           </View>
         )}
 
-        {/* Bottom nav — same chrome as before; only switches in-frame tab */}
+        {/* Bottom nav — hidden while a recipe detail or cooking session is
+            open, since the only meaningful control there is the back arrow at
+            the top left. Keeping the tabs around would look clickable but do
+            nothing. */}
+        {!previewCookingId && !previewRecipeId && (
         <View
           style={[
             styles.bottomBar,
@@ -1151,6 +1382,7 @@ export default function WebPreviewScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+        )}
       </View>
     </View>
   );
@@ -1263,6 +1495,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: 80,
     flexGrow: 1,
+  },
+  savedCountHeading: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   savedEmpty: {
     alignItems: "center",
@@ -1818,11 +2055,25 @@ const styles = StyleSheet.create({
   historyItem: {
     flexDirection: "row",
     alignItems: "center",
+    paddingRight: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  historyItemTap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
     gap: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  },
+  historyItemDelete: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: spacing.xs,
   },
   historyItemIcon: {
     width: 36,
@@ -1968,6 +2219,50 @@ const styles = StyleSheet.create({
   },
   chefMicBtnDisabled: {
     opacity: 0.4,
+  },
+  chefLiveBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chefLiveBtnActive: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
+  },
+  chefLiveBtnDisabled: {
+    opacity: 0.4,
+  },
+  chefLiveStatus: {
+    position: "absolute",
+    left: spacing.md,
+    right: spacing.md,
+    bottom: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    ...shadows.sm,
+  },
+  chefLiveStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  chefLiveStatusText: {
+    flex: 1,
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
   },
   chefInput: {
     flex: 1,

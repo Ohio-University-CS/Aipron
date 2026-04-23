@@ -158,20 +158,32 @@ export const fallbackFoodPhotos = [
   UnsplashCategoryHeroes.chickenMain,
 ] as const;
 
-/** Build text for keyword + hash fallback when `heroImage` is missing. Include ingredients so “cake”/“salmon” win over a random hash. */
+/**
+ * Build text for keyword + hash fallback when `heroImage` is missing.
+ * Generator hints (`mainIngredient`, `dishType`) and duplicated title come first so they beat a noisy description;
+ * ingredients and step instructions follow so “cake”/“salmon” still win over a random hash.
+ */
 export function recipeImageFallbackSeed(recipe: {
   title?: string;
   id?: string;
   cuisine?: string;
   description?: string;
+  mainIngredient?: string;
+  dishType?: string;
+  dietaryTags?: readonly string[] | string[];
   ingredients?: unknown;
   steps?: unknown;
 }): string {
   const r = recipe as Record<string, unknown>;
+  const mainIngredient = pickStr(recipe.mainIngredient, r.mainIngredient);
+  const dishType = pickStr(recipe.dishType, r.dishType);
   const title = pickStr(recipe.title, r.title);
   const cuisine = pickStr(recipe.cuisine, r.cuisine);
   const description = pickStr(recipe.description, r.description);
   const id = pickStr(recipe.id, r.id);
+  const dietaryTagsStr = Array.isArray(recipe.dietaryTags)
+    ? recipe.dietaryTags.filter((t): t is string => typeof t === "string" && t.length > 0).join(" ")
+    : "";
 
   const rawIng = recipe.ingredients ?? r.ingredients;
   const ingLines: string[] = [];
@@ -207,7 +219,18 @@ export function recipeImageFallbackSeed(recipe: {
       .join(" ");
   }
 
-  return [title, cuisine, description, ing, stepBlob, id]
+  return [
+    mainIngredient,
+    dishType,
+    title,
+    title,
+    cuisine,
+    dietaryTagsStr,
+    description,
+    ing,
+    stepBlob,
+    id,
+  ]
     .filter((s) => s.length > 0)
     .join(" ");
 }
@@ -364,7 +387,16 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
       image: StitchImages.discoverBurrata,
     },
     {
-      keys: ["pizza", "flatbread", "margherita", "pepperoni", "calzone", "stromboli", "focaccia"],
+      keys: [
+        "pizza",
+        "flatbread",
+        "margherita",
+        "pepperoni",
+        "calzone",
+        "stromboli",
+        "focaccia",
+        "naan pizza",
+      ],
       image: StitchImages.favoritesPizza,
     },
     {
@@ -374,8 +406,12 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
         "pasta",
         "linguine",
         "penne",
+        "rotini",
+        "fusilli",
+        "farfalle",
         "gnocchi",
         "ravioli",
+        "tortellini",
         "lasagna",
         "carbonara",
         "orzo",
@@ -384,8 +420,21 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
         "rigatoni",
         "cacio e pepe",
         "pesto",
+        "pesto pasta",
+        "alfredo",
         "vodka sauce",
         "bolognese",
+        "mac and cheese",
+        "macaroni",
+        "noodle",
+        "noodles",
+        "ramen",
+        "udon",
+        "soba",
+        "pho",
+        "lo mein",
+        "pad thai",
+        "pad see ew",
       ],
       image: StitchImages.discoverFettuccine,
     },
@@ -421,6 +470,8 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
         "fish taco",
         "gravadlax",
         "lox",
+        "seafood",
+        "oyster",
       ],
       image: StitchImages.discoverSalmon,
     },

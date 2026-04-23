@@ -112,6 +112,8 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
   const createdAt = recipe.createdAt ?? recipe.created_at;
   const updatedAt = recipe.updatedAt ?? recipe.updated_at;
   const isAiGenerated = recipe.isAiGenerated ?? recipe.is_ai_generated;
+  const mainIngredient = recipe.mainIngredient ?? recipe.main_ingredient;
+  const dishType = recipe.dishType ?? recipe.dish_type;
 
   return {
     ...recipe,
@@ -121,6 +123,8 @@ const normalizeRecipe = (recipe: Record<string, unknown>): Recipe => {
     totalTime: typeof totalTime === "number" ? totalTime : 0,
     dietaryTags: Array.isArray(dietaryTags) ? dietaryTags : [],
     isAiGenerated: typeof isAiGenerated === "boolean" ? isAiGenerated : false,
+    mainIngredient: typeof mainIngredient === "string" ? mainIngredient : undefined,
+    dishType: typeof dishType === "string" ? dishType : undefined,
     createdAt: createdAt ? new Date(String(createdAt)) : undefined,
     updatedAt: updatedAt ? new Date(String(updatedAt)) : undefined,
   } as Recipe;
@@ -164,6 +168,13 @@ export const authApi = {
   getMe: async () => {
     const { data } = await api.get("/auth/me");
     return data;
+  },
+  updatePreferences: async (dietaryPreferences: string[]): Promise<string[]> => {
+    const { data } = await api.put<{ dietary_preferences: string[] }>(
+      "/auth/preferences",
+      { dietaryPreferences }
+    );
+    return Array.isArray(data?.dietary_preferences) ? data.dietary_preferences : dietaryPreferences;
   },
 };
 

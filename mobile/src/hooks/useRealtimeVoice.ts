@@ -46,6 +46,11 @@ export function useRealtimeVoice(
   const dcRef = useRef<any>(null);
   const localStreamRef = useRef<any>(null);
 
+  // Gate sendNarration: true while the model is mid-response.
+  const responseActiveRef = useRef(false);
+  const pendingNarrationRef = useRef<string | null>(null);
+  const sendNarrationRef = useRef<(text: string) => void>(() => {});
+
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
 
@@ -60,12 +65,28 @@ export function useRealtimeVoice(
         setIsListening(false);
         break;
 
+      case "response.created":
+        responseActiveRef.current = true;
+        break;
+
       case "response.audio.started":
         setIsSpeaking(true);
         break;
 
       case "response.audio.done":
         setIsSpeaking(false);
+        break;
+
+      case "response.done":
+      case "response.cancelled":
+      case "response.failed":
+        setIsSpeaking(false);
+        responseActiveRef.current = false;
+        if (pendingNarrationRef.current) {
+          const queued = pendingNarrationRef.current;
+          pendingNarrationRef.current = null;
+          sendNarrationRef.current(queued);
+        }
         break;
 
       case "conversation.item.input_audio_transcription.completed":
@@ -93,12 +114,21 @@ export function useRealtimeVoice(
         break;
       }
 
-      case "error":
-        setError(event.error?.message || "Realtime API error");
-        callbacksRef.current.onError?.(
-          new Error(event.error?.message || "Realtime API error")
-        );
+      case "error": {
+        const msg = event.error?.message || "Realtime API error";
+        const code = event.error?.code;
+        const benign =
+          /active response|already has an active response|conversation_already_has_active_response/i.test(
+            msg
+          ) || code === "conversation_already_has_active_response";
+        if (benign) {
+          console.warn("[realtime] benign error suppressed:", msg);
+          break;
+        }
+        setError(msg);
+        callbacksRef.current.onError?.(new Error(msg));
         break;
+      }
     }
   }, []);
 
@@ -119,6 +149,8 @@ export function useRealtimeVoice(
     setIsConnecting(false);
     setIsListening(false);
     setIsSpeaking(false);
+    responseActiveRef.current = false;
+    pendingNarrationRef.current = null;
   }, []);
 
   const sendToolResult = useCallback((callId: string, result: unknown) => {
@@ -134,7 +166,45 @@ export function useRealtimeVoice(
       },
     };
     dc.send(JSON.stringify(event));
-    dc.send(JSON.stringify({ type: "response.create" }));
+    if (!responseActiveRef.current) {
+      responseActiveRef.current = true;
+      dc.send(JSON.stringify({ type: "response.create" }));
+    }
+  }, []);
+
+  const sendNarration = useCallback((text: string) => {
+    const dc = dcRef.current;
+    const trimmed = text?.trim();
+    if (!dc || !trimmed) return;
+    // Queue if the model is mid-response — the handler flushes on response.done.
+    if (responseActiveRef.current) {
+      pendingNarrationRef.current = trimmed;
+      return;
+    }
+    responseActiveRef.current = true;
+    dc.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+          instructions:
+            `Read the following cooking instruction aloud, clearly and at a calm pace. ` +
+            `Do not add commentary or rephrase it. Just say it:\n\n${trimmed}`,
+        },
+      })
+    );
+  }, []);
+  sendNarrationRef.current = sendNarration;
+
+  const updateInstructions = useCallback((instructions: string) => {
+    const dc = dcRef.current;
+    if (!dc) return;
+    dc.send(
+      JSON.stringify({
+        type: "session.update",
+        session: { instructions },
+      })
+    );
   }, []);
 
   const connect = useCallback(async () => {
@@ -241,5 +311,7 @@ export function useRealtimeVoice(
     connect,
     disconnect,
     sendToolResult,
+    sendNarration,
+    updateInstructions,
   };
 }

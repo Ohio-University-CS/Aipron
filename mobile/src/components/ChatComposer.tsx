@@ -15,6 +15,9 @@ interface ChatComposerProps {
   onSend: (message: string) => void;
   onVoicePress?: () => void;
   isRecording?: boolean;
+  onLiveVoicePress?: () => void;
+  liveVoiceActive?: boolean;
+  liveVoiceConnecting?: boolean;
   isLoading?: boolean;
   placeholder?: string;
   disabled?: boolean;
@@ -24,6 +27,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onSend,
   onVoicePress,
   isRecording = false,
+  onLiveVoicePress,
+  liveVoiceActive = false,
+  liveVoiceConnecting = false,
   isLoading = false,
   placeholder = "What would you like to cook?",
   disabled = false,
@@ -39,14 +45,42 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }
   };
 
+  const liveActiveOrConnecting = liveVoiceActive || liveVoiceConnecting;
+
   return (
     <View style={styles.container}>
       <View style={styles.bar}>
+        {onLiveVoicePress ? (
+          <TouchableOpacity
+            onPress={onLiveVoicePress}
+            disabled={disabled || isLoading}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              liveActiveOrConnecting ? "Stop live voice" : "Start live voice"
+            }
+            style={[
+              styles.liveVoiceButton,
+              liveActiveOrConnecting && styles.liveVoiceButtonActive,
+              (disabled || isLoading) && styles.liveVoiceButtonDisabled,
+            ]}
+          >
+            {liveVoiceConnecting ? (
+              <ActivityIndicator size="small" color={c.primary} />
+            ) : (
+              <MaterialIcons
+                name={liveVoiceActive ? "stop-circle" : "graphic-eq"}
+                size={22}
+                color={liveVoiceActive ? c.onPrimaryContainer : c.primary}
+              />
+            )}
+          </TouchableOpacity>
+        ) : null}
         {onVoicePress ? (
           <VoiceButton
             onPress={onVoicePress}
             isRecording={isRecording}
-            disabled={disabled || isLoading}
+            disabled={disabled || isLoading || liveActiveOrConnecting}
           />
         ) : (
           <View style={styles.attachButton} pointerEvents="none" />
@@ -125,5 +159,22 @@ const getStyles = (c: ThemeColors) => StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: c.outlineVariant,
+  },
+  liveVoiceButton: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.full,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: c.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: c.outlineVariant + "33",
+  },
+  liveVoiceButtonActive: {
+    backgroundColor: c.primaryContainer,
+    borderColor: c.primary,
+  },
+  liveVoiceButtonDisabled: {
+    opacity: 0.5,
   },
 });
