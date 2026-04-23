@@ -28,6 +28,7 @@ import {
   pickFallbackPhoto,
   recipeImageFallbackSeed,
 } from "../../src/constants/StitchImages";
+import { localRecipeHeroUris } from "../../src/constants/localRecipeHeroImages";
 import { Recipe } from "@aipron/shared";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -171,7 +172,7 @@ export default function HomeScreen() {
     suggested?.heroImage ||
     (suggested
       ? pickFallbackPhoto(recipeImageFallbackSeed(suggested))
-      : StitchImages.chatFeaturedDish);
+      : localRecipeHeroUris.pancakes);
 
   const suggestedTitle = suggested?.title ?? "Lemon Ricotta Pancakes";
   const suggestedMeta = suggested
