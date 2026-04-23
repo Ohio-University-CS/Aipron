@@ -154,6 +154,7 @@ export const fallbackFoodPhotos = [
   StitchImages.favoritesDonuts,
   StitchImages.favoritesPasta,
   localRecipeHeroUris.pancakes,
+  localRecipeHeroUris.chocolateChipCookies,
   StitchImages.pantryLemonRicottaDish,
   UnsplashCategoryHeroes.chickenMain,
 ] as const;
@@ -315,6 +316,14 @@ function pickKeywordFoodPhoto(haystack: string): string | null {
     {
       keys: ["pancake", "waffle", "french toast", "cinnamon roll", "cinnamon bun"],
       image: localRecipeHeroUris.pancakes,
+    },
+    {
+      keys: [
+        "chocolate chip cookie",
+        "chocolate chip cookies",
+        "chocolate-chip cookie",
+      ],
+      image: localRecipeHeroUris.chocolateChipCookies,
     },
     {
       keys: [
