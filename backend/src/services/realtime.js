@@ -17,7 +17,37 @@ You can:
 
 Be concise, clear, and encouraging.`;
 
+// Tools available in the Chef AI live-voice session.
+// COOKING_TOOLS (next_step, repeat_step, start_timer, ingredient_substitution)
+// are only needed inside CookingSessionView — the session there receives
+// updateInstructions which can narrow the active tool set. We include
+// create_recipe here so the Chef AI tab voice session can save recipes.
 const SESSION_TOOLS = [
+  {
+    type: "function",
+    name: "create_recipe",
+    description:
+      "Generate and save a recipe for the user. Call this whenever the user asks for a recipe, wants to save or cook a specific dish, or says something like 'make me a recipe for...'. Do not describe the recipe in chat — call this tool instead and let the app handle displaying it.",
+    parameters: {
+      type: "object",
+      properties: {
+        description: {
+          type: "string",
+          description: "What the recipe should be — the dish name and any requirements the user mentioned (e.g. 'vegan pasta with mushrooms, serves 2').",
+        },
+        servings: {
+          type: "number",
+          description: "Number of servings (default 4).",
+        },
+        skillLevel: {
+          type: "string",
+          enum: ["beginner", "intermediate", "advanced"],
+          description: "Skill level of the cook (default intermediate).",
+        },
+      },
+      required: ["description"],
+    },
+  },
   {
     type: "function",
     name: "next_step",
@@ -80,10 +110,15 @@ function buildSessionConfig(instructions) {
     input_audio_transcription: { model: "whisper-1" },
     turn_detection: {
       type: "server_vad",
-      threshold: 0.5,
+      // Slightly higher threshold so kitchen clatter / the model's own audio
+      // bleeding back through the mic doesn't register as speech. Combined
+      // with `interrupt_response: false` this stops the assistant from
+      // cutting itself off mid-sentence when narrating a step.
+      threshold: 0.6,
       prefix_padding_ms: 300,
       silence_duration_ms: 1500,
       create_response: true,
+      interrupt_response: false,
     },
     tools: SESSION_TOOLS,
   };

@@ -49,6 +49,7 @@ export function useRealtimeVoice(
   // Gate sendNarration: true while the model is mid-response.
   const responseActiveRef = useRef(false);
   const pendingNarrationRef = useRef<string | null>(null);
+  const pendingResponseCreateRef = useRef(false);
   const sendNarrationRef = useRef<(text: string) => void>(() => {});
 
   const callbacksRef = useRef(options);
@@ -82,6 +83,12 @@ export function useRealtimeVoice(
       case "response.failed":
         setIsSpeaking(false);
         responseActiveRef.current = false;
+        if (pendingResponseCreateRef.current) {
+          pendingResponseCreateRef.current = false;
+          responseActiveRef.current = true;
+          dcRef.current?.send(JSON.stringify({ type: "response.create" }));
+          break;
+        }
         if (pendingNarrationRef.current) {
           const queued = pendingNarrationRef.current;
           pendingNarrationRef.current = null;
@@ -151,6 +158,7 @@ export function useRealtimeVoice(
     setIsSpeaking(false);
     responseActiveRef.current = false;
     pendingNarrationRef.current = null;
+    pendingResponseCreateRef.current = false;
   }, []);
 
   const sendToolResult = useCallback((callId: string, result: unknown) => {
@@ -169,6 +177,8 @@ export function useRealtimeVoice(
     if (!responseActiveRef.current) {
       responseActiveRef.current = true;
       dc.send(JSON.stringify({ type: "response.create" }));
+    } else {
+      pendingResponseCreateRef.current = true;
     }
   }, []);
 
@@ -188,8 +198,10 @@ export function useRealtimeVoice(
         response: {
           modalities: ["audio", "text"],
           instructions:
-            `Read the following cooking instruction aloud, clearly and at a calm pace. ` +
-            `Do not add commentary or rephrase it. Just say it:\n\n${trimmed}`,
+            `Say ONLY the following text, word for word, at a clear and calm pace. ` +
+            `Do not add any introduction, confirmation, rephrasing, or follow-up. ` +
+            `Do not say "Sure", "Of course", "Step", or anything else. ` +
+            `Start speaking the text immediately:\n\n${trimmed}`,
         },
       })
     );
@@ -254,7 +266,14 @@ export function useRealtimeVoice(
       });
 
       const stream = await mediaDevices.getUserMedia({
-        audio: true,
+        // Echo cancellation + noise suppression stop the mic from picking up
+        // the assistant's own speech, which otherwise trips server VAD and
+        // cuts narration off mid-sentence.
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: false,
       });
       localStreamRef.current = stream;

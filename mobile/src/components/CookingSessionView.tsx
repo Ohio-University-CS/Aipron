@@ -102,6 +102,11 @@ export function CookingSessionView({
   const flowRef = useRef<FlowPhase>("mise");
   const phaseIndexRef = useRef<number>(1);
 
+  // "forward" means the user advanced to a new step (auto-narrate).
+  // "backward" means they went back (don't auto-narrate — they've already
+  // heard it; they can say "repeat" if they need it again).
+  const navDirectionRef = useRef<"forward" | "backward">("forward");
+
   const isLocalCatalogRecipe = useMemo(
     () => !!findLocalCatalogRecipeById(recipeId),
     [recipeId],
@@ -213,6 +218,7 @@ export function CookingSessionView({
   }, [timerRunning, timerSeconds]);
 
   const handleLeaveMise = () => {
+    navDirectionRef.current = "forward";
     if (prepSteps.length > 0) {
       setFlow("prep");
       setPhaseStepIndex(1);
@@ -226,6 +232,7 @@ export function CookingSessionView({
 
   const handleNextStep = () => {
     if (!recipe) return;
+    navDirectionRef.current = "forward";
     if (flow === "mise") {
       handleLeaveMise();
       return;
@@ -257,6 +264,7 @@ export function CookingSessionView({
 
   const handlePreviousStep = () => {
     if (flow === "mise") return;
+    navDirectionRef.current = "backward";
     if (flow === "prep") {
       if (phaseStepIndex > 1) {
         const prev = phaseStepIndex - 1;
@@ -324,6 +332,13 @@ export function CookingSessionView({
   // once on connect) can trigger the latest behavior on each invocation.
   const nextStepRef = useRef<() => void>(() => {});
 
+  // Sibling ref so the tool-call handler can fire a fresh narration when the
+  // user says "repeat". Wired below alongside sendToolResultRef.
+  const sendNarrationRef = useRef<((text: string) => void) | null>(null);
+  // Clears the narration-dedupe signature so the next step's narration runs
+  // even if we just replayed the same one via "repeat".
+  const resetNarrationMemoRef = useRef<() => void>(() => {});
+
   const handleToolCall = useCallback(
     (toolCall: RealtimeToolCall) => {
       const respond = (result: unknown) => {
@@ -341,10 +356,15 @@ export function CookingSessionView({
         case "repeat_step": {
           const instruction = getCurrentStepInstruction();
           if (instruction) {
-            // The narration helper re-uses the same response channel, so just
-            // echo the text back through the tool result — the model will
-            // speak it as part of its confirmation.
-            respond({ ok: true, instruction });
+            // Don't trust the model to re-speak the step verbatim from the
+            // tool output — it tends to paraphrase or drop a clause. Instead
+            // acknowledge the tool call with a short payload and fire a fresh
+            // narration so the same deterministic TTS path that handles
+            // step-advance also handles "repeat". sendNarration queues until
+            // the current response wraps up, so this is safe to call inline.
+            respond({ ok: true });
+            resetNarrationMemoRef.current();
+            sendNarrationRef.current?.(instruction);
           } else {
             respond({ ok: false, error: "no active step" });
           }
@@ -404,30 +424,45 @@ export function CookingSessionView({
     onError: (err) => console.warn("[cooking] realtime error:", err.message),
   });
   sendToolResultRef.current = voice.sendToolResult;
+  sendNarrationRef.current = voice.sendNarration;
+
+  // Extract stable primitives / callbacks so the narration and instructions
+  // effects only re-run when something meaningful changes. Using the full
+  // `voice` object as a dep causes re-runs on every isSpeaking / isListening
+  // flip, which is what caused the double-narration bug.
+  const voiceIsConnected = voice.isConnected;
+  const voiceSendNarration = voice.sendNarration;       // useCallback — stable
+  const voiceUpdateInstructions = voice.updateInstructions; // useCallback — stable
 
   // Narration gate — tracked here (not after the loading-guard return) so the
   // hooks order stays consistent across the pre- and post-recipe-load renders.
   const lastNarratedRef = useRef<string>("");
+  // Expose a reset to the tool-call handler so "repeat" can force re-narration
+  // (otherwise the signature would match and early-return would block it).
+  resetNarrationMemoRef.current = () => {
+    lastNarratedRef.current = "";
+  };
 
-  // Narrate each step (including Mise en Place) as the user advances. Gated on
-  // `(flow, phaseStepIndex)` signature so unrelated re-renders do not retrigger.
+  // Narrate each step as the user moves forward. Going backward is silent —
+  // the user already heard it; they can say "repeat" if they need it again.
   useEffect(() => {
-    if (!voice.isConnected || !recipe) return;
+    if (!voiceIsConnected || !recipe) return;
+    if (navDirectionRef.current === "backward") return;
     const signature = `${flow}-${phaseStepIndex}`;
+    // Guard is set synchronously before sendNarration so even if the effect
+    // fires multiple times in the same render cycle (React Strict Mode double-
+    // invoke, state-flush batching, etc.) only one narration goes out.
     if (lastNarratedRef.current === signature) return;
     const instruction = getCurrentStepInstruction();
-    if (instruction) {
-      voice.sendNarration(instruction);
-      lastNarratedRef.current = signature;
-    }
-  }, [voice, flow, phaseStepIndex, recipe, getCurrentStepInstruction]);
+    if (!instruction) return;
+    lastNarratedRef.current = signature;          // set BEFORE the async call
+    voiceSendNarration(instruction);
+  }, [voiceIsConnected, flow, phaseStepIndex, recipe, getCurrentStepInstruction, voiceSendNarration]);
 
-  // Refresh session instructions with the current recipe, tool-use policy,
-  // AND the user's live dietary preferences, so toggling a pref mid-cook (or
-  // reconnecting after a change) immediately affects spoken suggestions and
-  // substitutions.
+  // Push session instructions whenever the recipe loads or dietary prefs
+  // change. Not triggered by speaking/listening state changes.
   useEffect(() => {
-    if (!voice.isConnected || !recipe) return;
+    if (!voiceIsConnected || !recipe) return;
     const stepsSummary = recipe.steps
       .map((s) => `${s.stepNumber}. ${s.instruction}`)
       .join("\n");
@@ -438,20 +473,20 @@ export function CookingSessionView({
       dietaryTags.length > 0
         ? `\nDIETARY PREFERENCES (must respect): ${dietaryTags.join(", ")}. If the user asks for a substitution, only suggest ingredients that comply with these preferences.\n`
         : "\nDIETARY PREFERENCES: none set.\n";
-    voice.updateInstructions(
+    voiceUpdateInstructions(
       `You are the user's voice-guided cooking companion for "${recipe.title}".\n\n` +
         `INGREDIENTS:\n${ingredientsSummary}\n\n` +
         `STEPS:\n${stepsSummary}\n` +
         prefsLine +
         `\nGuidance:\n` +
-        `- When the user says "next", "continue", "move on", or similar, CALL the next_step tool.\n` +
-        `- When they say "repeat", "what was that", or "say it again", CALL the repeat_step tool.\n` +
+        `- When the user says "next", "continue", "move on", "what's next", "ready", "okay", or similar, CALL the next_step tool. Do not speak before calling it.\n` +
+        `- When the user says "repeat", "repeat step", "repeat that", "say that again", "what was that", "again", "one more time", or anything that means replay, CALL the repeat_step tool. After calling it, DO NOT speak at all — our app will replay the exact step text itself. Stay completely silent until the user talks again.\n` +
         `- When they ask to start a timer or when a step needs one, CALL the start_timer tool.\n` +
         `- When they ask for a substitute for an ingredient, CALL the ingredient_substitution tool.\n` +
         `- Do NOT read the whole recipe unprompted; narrate one step at a time, only when the UI asks you (via a narration request) or the user asks to repeat.\n` +
         `- Keep spoken replies short and calm. Never apologize for pausing — this is a hands-busy cooking flow.`
     );
-  }, [voice, recipe, dietaryTags]);
+  }, [voiceIsConnected, recipe, dietaryTags, voiceUpdateInstructions]);
 
   const topBarHeight = insets.top + 56;
 
