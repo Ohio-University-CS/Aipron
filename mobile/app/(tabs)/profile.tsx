@@ -23,6 +23,8 @@ import { Chip } from "../../src/components/Chip";
 import { TopBar } from "../../src/components/TopBar";
 import { RecipeCard } from "../../src/components/RecipeCard";
 import { useAuthStore } from "../../src/store/useAuthStore";
+import { useUserPrefsStore } from "../../src/store/useUserPrefsStore";
+import { DIETARY_OPTIONS } from "../../src/constants/DietaryOptions";
 import { recipeApi } from "../../src/services/api";
 
 interface ProfileScreenProps {
@@ -37,12 +39,6 @@ interface ProfileScreenProps {
   /** Web Preview: open recipe inside preview instead of navigating away. */
   onRecipePress?: (recipeId: string) => void;
 }
-
-const DEFAULT_DIETARY: { label: string; icon: string }[] = [
-  { label: "Vegetarian", icon: "eco" },
-  { label: "Gluten-Free", icon: "grain" },
-  { label: "Dairy-Free", icon: "egg" },
-];
 
 function formatJoinLabel(createdAt?: string | null): string {
   if (!createdAt) return "CHEF SINCE 2026";
@@ -70,13 +66,13 @@ export default function ProfileScreen({
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
   const { user, logout } = useAuthStore();
+  const dietaryTags = useUserPrefsStore((s) => s.dietaryPreferences);
+  const toggleDietaryTag = useUserPrefsStore((s) => s.toggle);
+  const hydrateDietary = useUserPrefsStore((s) => s.hydrateFromServer);
 
   const metadata = (user?.user_metadata ?? {}) as Record<string, unknown>;
   const name = (metadata.name as string | undefined) ?? undefined;
   const avatarUrl = (metadata.avatar_url as string | undefined) ?? undefined;
-  const storedDietary = Array.isArray(metadata.dietary_preferences)
-    ? (metadata.dietary_preferences as string[])
-    : undefined;
   const displayName = name || user?.email?.split("@")[0] || "Welcome";
   const isSignedIn = !!user;
   const joinLabel = isSignedIn
@@ -117,6 +113,14 @@ export default function ProfileScreen({
   useEffect(() => {
     loadProfileData();
   }, [loadProfileData]);
+
+  // Pull the authoritative dietary list from the server once the user is known
+  // so chips reflect the same state Settings shows.
+  useEffect(() => {
+    if (user?.id) {
+      hydrateDietary();
+    }
+  }, [user?.id, hydrateDietary]);
 
   const stats = useMemo(
     () => [
@@ -173,10 +177,7 @@ export default function ProfileScreen({
 
   const topBarHeight = insets.top + spacing.sm + 56;
 
-  const dietaryChips: { label: string; icon?: string }[] =
-    storedDietary && storedDietary.length > 0
-      ? storedDietary.map((label) => ({ label }))
-      : DEFAULT_DIETARY;
+  const isDietaryActive = (tag: string) => dietaryTags.includes(tag);
 
   const avatarSource = avatarUrl ?? null;
 
@@ -287,30 +288,22 @@ export default function ProfileScreen({
                 Kitchen Preferences
               </Text>
               <Text style={[styles.sectionSubtitle, { color: theme.onSurfaceVariant }]}>
-                Recipes tuned to your palette and pantry.
+                Tap a chip to turn a preference on or off. Changes sync to every recipe suggestion.
               </Text>
               <View style={styles.chipWrap}>
-                {dietaryChips.map((pref) => (
-                  <Chip
-                    key={pref.label}
-                    label={pref.label}
-                    icon={pref.icon}
-                    variant="tonal"
-                  />
-                ))}
-                <TouchableOpacity
-                  onPress={goSettings}
-                  activeOpacity={0.7}
-                  style={[
-                    styles.addChip,
-                    { borderColor: theme.outlineVariant },
-                  ]}
-                >
-                  <MaterialIcons name="add" size={16} color={theme.onSurface} />
-                  <Text style={[styles.addChipLabel, { color: theme.onSurface }]}>
-                    Add
-                  </Text>
-                </TouchableOpacity>
+                {DIETARY_OPTIONS.map((pref) => {
+                  const active = isDietaryActive(pref.tag);
+                  return (
+                    <Chip
+                      key={pref.tag}
+                      label={pref.label}
+                      icon={active ? "check" : pref.icon}
+                      selected={active}
+                      variant={active ? "filled" : "outlined"}
+                      onPress={() => toggleDietaryTag(pref.tag)}
+                    />
+                  );
+                })}
               </View>
             </View>
           )}

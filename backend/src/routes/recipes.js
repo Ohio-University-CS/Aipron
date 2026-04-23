@@ -4,6 +4,7 @@ import { authenticateToken, optionalAuth } from "../middleware/auth.js";
 import { generateRecipe, getSubstitutions } from "../services/openai.js";
 import { supabaseAdmin } from "../db/supabase.js";
 import { ensureLegacyUserRow } from "../services/legacyUsers.js";
+import { fetchDietaryContext } from "../services/userContext.js";
 
 export const recipesRouter = express.Router();
 
@@ -129,6 +130,7 @@ recipesRouter.post(
         skillLevel,
         availableIngredients,
         usePantry: Boolean(usePantry),
+        userId: req.user.id,
       });
 
       // Self-heal legacy public.users FK. No-op once schema is migrated.
@@ -157,6 +159,18 @@ recipesRouter.post(
 
       if (error) {
         return res.status(500).json({ error: "Failed to save recipe" });
+      }
+
+      // Auto-upsert into saved_recipes so the user sees it in their Saved tab
+      // immediately. Failure here is non-fatal — the recipe still exists.
+      const { error: saveErr } = await req.supabase
+        .from("saved_recipes")
+        .upsert(
+          { user_id: req.user.id, recipe_id: data.id },
+          { onConflict: "user_id,recipe_id" }
+        );
+      if (saveErr) {
+        console.warn("[recipes/generate] auto-save failed:", saveErr.message || saveErr);
       }
 
       res.json({
@@ -323,7 +337,18 @@ recipesRouter.post(
       }
 
       const { ingredient, dietaryFilters = [] } = req.body;
-      const substitutions = await getSubstitutions(ingredient, dietaryFilters);
+
+      // Merge caller-supplied filters with the user's saved dietary
+      // preferences so substitutions always respect the live pref set even
+      // when the client doesn't explicitly forward them.
+      const profilePrefs = await fetchDietaryContext(req.user.id);
+      const mergedDietary = Array.from(
+        new Set([
+          ...(Array.isArray(dietaryFilters) ? dietaryFilters : []),
+          ...profilePrefs,
+        ])
+      );
+      const substitutions = await getSubstitutions(ingredient, mergedDietary);
 
       res.json({ ingredient, substitutions });
     } catch (error) {
