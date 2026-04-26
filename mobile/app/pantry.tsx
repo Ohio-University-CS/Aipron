@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "../src/components/LinearGradient";
 import { pantryApi, recipeApi } from "../src/services/api";
+import { reschedulePantryNotifications } from "../src/services/pantryNotifications";
 import {
   borderRadius,
   fonts,
@@ -21,10 +22,6 @@ import {
 } from "../src/constants/DesignTokens";
 import { useThemeColors } from "../src/hooks/useThemeColors";
 import { TopBar } from "../src/components/TopBar";
-import {
-  StitchImages,
-  pickFallbackPhoto,
-} from "../src/constants/StitchImages";
 import { useRouter } from "expo-router";
 import axios from "axios";
 
@@ -53,13 +50,6 @@ const SPICE_PLACEHOLDERS: { name: string; icon: MdIconName }[] = [
   { name: "Cumin Seed", icon: "grass" },
 ];
 
-/** Pick a hero image for a fresh item by index (first two are fixed). */
-function freshImageFor(index: number, id: string): string {
-  if (index === 0) return StitchImages.pantryRicottaBowl;
-  if (index === 1) return StitchImages.pantryLemonsBowl;
-  return pickFallbackPhoto(id);
-}
-
 export default function PantryScreen(
   props: {
     onOpenCookingId?: (id: string) => void;
@@ -84,6 +74,13 @@ export default function PantryScreen(
   const theme = useThemeColors();
   const [items, setItems] = useState<PantryItem[]>([]);
   const [newItem, setNewItem] = useState("");
+  const [newExpiresText, setNewExpiresText] = useState("");
+  const [expiresDraftById, setExpiresDraftById] = useState<Record<string, string>>(
+    {},
+  );
+  const [quantityDraftById, setQuantityDraftById] = useState<Record<string, string>>(
+    {},
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<PantrySuggestion[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -91,17 +88,179 @@ export default function PantryScreen(
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
   const [addingVisible, setAddingVisible] = useState(false);
 
+  const sortByName = useCallback((list: PantryItem[]) => {
+    return [...list].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+  }, []);
+
+  const getDaysLeft = useCallback((item: PantryItem): number | null => {
+    if (!item.expiresAt) return null;
+    const exp = new Date(item.expiresAt);
+    if (Number.isNaN(exp.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    exp.setHours(0, 0, 0, 0);
+    return Math.ceil((exp.getTime() - today.getTime()) / 86400000);
+  }, []);
+
+  const getExpiryBadge = useCallback((item: PantryItem) => {
+    const daysLeft = getDaysLeft(item);
+    if (daysLeft == null) return null;
+    if (daysLeft < 0) {
+      return { label: "Expired", tone: "expired" as const };
+    }
+    if (daysLeft <= 3) {
+      if (daysLeft === 0) return { label: "Expires today", tone: "soon" as const };
+      if (daysLeft === 1) return { label: "Expires in 1 day", tone: "soon" as const };
+      return { label: `Expires in ${daysLeft} days`, tone: "soon" as const };
+    }
+    return null;
+  }, [getDaysLeft]);
+
   useEffect(() => {
     loadPantry();
+  }, []);
+
+  const normalizePantryItem = useCallback((raw: any): PantryItem => {
+    const expiresRaw = raw?.expires_at ?? raw?.expiresAt;
+    const expiresAt =
+      typeof expiresRaw === "string" || expiresRaw instanceof Date
+        ? new Date(expiresRaw)
+        : undefined;
+    return {
+      id: String(raw?.id ?? ""),
+      name: String(raw?.name ?? ""),
+      quantity:
+        raw?.quantity == null
+          ? 1
+          : typeof raw.quantity === "number"
+            ? raw.quantity
+            : Number(raw.quantity),
+      unit: typeof raw?.unit === "string" ? raw.unit : undefined,
+      expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : undefined,
+    };
   }, []);
 
   const loadPantry = async () => {
     try {
       const data = await pantryApi.getAll();
-      setItems(data);
+      const normalized = Array.isArray(data) ? data.map(normalizePantryItem) : [];
+      const sorted = sortByName(normalized);
+      setItems(sorted);
+      // Keep notifications in sync with server state.
+      reschedulePantryNotifications(sorted).catch(() => {});
     } catch (error) {
       console.error("Failed to load pantry:", error);
     }
+  };
+
+  const parseExpiresInput = (text: string): Date | undefined => {
+    const t = text.trim();
+    if (!t) return undefined;
+    // Accept YYYY-MM-DD (recommended)
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+    if (!m) return undefined;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return undefined;
+    const dt = new Date(y, mo - 1, d);
+    if (Number.isNaN(dt.getTime())) return undefined;
+    // normalize to local date (midnight)
+    dt.setHours(0, 0, 0, 0);
+    return dt;
+  };
+
+  const parseQuantityInput = (text: string): number | undefined => {
+    const t = text.trim();
+    if (!t) return undefined;
+    const n = Number(t);
+    if (!Number.isFinite(n)) return undefined;
+    if (n < 0) return 0;
+    return n;
+  };
+
+  const getExpiresText = useCallback((item: PantryItem) => {
+    if (expiresDraftById[item.id] != null) return expiresDraftById[item.id];
+    return item.expiresAt ? item.expiresAt.toISOString().slice(0, 10) : "";
+  }, [expiresDraftById]);
+
+  const getQuantityText = useCallback((item: PantryItem) => {
+    if (quantityDraftById[item.id] != null) return quantityDraftById[item.id];
+    const q = typeof item.quantity === "number" ? item.quantity : 1;
+    return String(q);
+  }, [quantityDraftById]);
+
+  const handleSetQuantity = async (id: string, qtyText: string) => {
+    const parsed = parseQuantityInput(qtyText);
+    if (parsed == null) return;
+    try {
+      const updated = await pantryApi.update(id, { quantity: parsed });
+      const normalized = normalizePantryItem(updated);
+      setItems((prev) => {
+        const next = sortByName(
+          prev.map((i) => (i.id === id ? { ...i, quantity: normalized.quantity } : i)),
+        );
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to update quantity:", error);
+    }
+  };
+
+  const commitQuantityEdit = async (item: PantryItem) => {
+    const draft = (quantityDraftById[item.id] ?? "").trim();
+    const current = String(typeof item.quantity === "number" ? item.quantity : 1);
+
+    if (draft === current) return;
+
+    const parsed = parseQuantityInput(draft);
+    if (parsed == null) {
+      // Revert invalid edits.
+      setQuantityDraftById((prev) => ({ ...prev, [item.id]: current }));
+      return;
+    }
+
+    await handleSetQuantity(item.id, String(parsed));
+    setQuantityDraftById((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+  };
+
+  const commitExpirationEdit = async (item: PantryItem) => {
+    const draft = (expiresDraftById[item.id] ?? "").trim();
+    const current = item.expiresAt ? item.expiresAt.toISOString().slice(0, 10) : "";
+
+    // If unchanged, no-op.
+    if (draft === current) return;
+
+    // Empty string clears the expiration date.
+    if (!draft) {
+      await handleSetExpiration(item.id, "");
+      setExpiresDraftById((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      return;
+    }
+
+    // Invalid format: revert to current value.
+    const parsed = parseExpiresInput(draft);
+    if (!parsed) {
+      setExpiresDraftById((prev) => ({ ...prev, [item.id]: current }));
+      return;
+    }
+
+    await handleSetExpiration(item.id, draft);
+    setExpiresDraftById((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
   };
 
   const handleAddItem = async () => {
@@ -109,10 +268,14 @@ export default function PantryScreen(
 
     setIsLoading(true);
     try {
-      const item = await pantryApi.add({ name: newItem.trim() });
-      setItems((prev) => [...prev, item]);
+      const expiresAt = parseExpiresInput(newExpiresText);
+      const created = await pantryApi.add({ name: newItem.trim(), quantity: 1, expiresAt });
+      const normalized = normalizePantryItem(created);
+      setItems((prev) => sortByName([...prev, normalized]));
       setNewItem("");
+      setNewExpiresText("");
       setAddingVisible(false);
+      reschedulePantryNotifications(sortByName([...items, normalized])).catch(() => {});
     } catch (error) {
       console.error("Failed to add item:", error);
     } finally {
@@ -123,23 +286,45 @@ export default function PantryScreen(
   const handleDeleteItem = async (id: string) => {
     try {
       await pantryApi.delete(id);
-      setItems((prev) => prev.filter((item) => item.id !== id));
+      setItems((prev) => {
+        const next = prev.filter((item) => item.id !== id);
+        reschedulePantryNotifications(next).catch(() => {});
+        return next;
+      });
     } catch (error) {
       console.error("Failed to delete item:", error);
     }
   };
 
-  // Backend currently has no PATCH for pantry items — adjust locally so the
-  // steppers give tactile feedback until the update endpoint lands.
-  const handleAdjustQuantity = (id: string, delta: number) => {
+  const handleSetExpiration = async (id: string, expiresText: string) => {
+    const expiresAt = parseExpiresInput(expiresText);
+    try {
+      const updated = await pantryApi.update(id, { expiresAt: expiresAt ?? null });
+      const normalized = normalizePantryItem(updated);
+      setItems((prev) => {
+        const next = sortByName(
+          prev.map((i) => (i.id === id ? { ...i, expiresAt: normalized.expiresAt } : i)),
+        );
+        reschedulePantryNotifications(next).catch(() => {});
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to update expiration:", error);
+    }
+  };
+
+  const handleAdjustQuantity = async (id: string, delta: number) => {
+    let nextQty = 1;
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
         const current = typeof item.quantity === "number" ? item.quantity : 1;
-        const next = Math.max(0, current + delta);
-        return { ...item, quantity: next };
+        nextQty = Math.max(0, current + delta);
+        return { ...item, quantity: nextQty };
       }),
     );
+    // Best-effort persist.
+    await handleSetQuantity(id, String(nextQty));
   };
 
   const handleSuggestRecipes = async () => {
@@ -206,11 +391,30 @@ export default function PantryScreen(
     }
   };
 
-  const { freshItems, pantryStaples } = useMemo(() => {
-    const fresh = items.slice(0, Math.min(3, items.length));
-    const staples = items.slice(fresh.length);
-    return { freshItems: fresh, pantryStaples: staples };
-  }, [items]);
+  const { freshItems, expiringItems, expiredItems } = useMemo(() => {
+    const fresh: PantryItem[] = [];
+    const expiring: PantryItem[] = [];
+    const expired: PantryItem[] = [];
+
+    for (const item of items) {
+      const daysLeft = getDaysLeft(item);
+      if (daysLeft == null) {
+        fresh.push(item);
+      } else if (daysLeft < 0) {
+        expired.push(item);
+      } else if (daysLeft <= 3) {
+        expiring.push(item);
+      } else {
+        fresh.push(item);
+      }
+    }
+
+    return {
+      freshItems: sortByName(fresh),
+      expiringItems: sortByName(expiring),
+      expiredItems: sortByName(expired),
+    };
+  }, [getDaysLeft, items, sortByName]);
 
   const topBarHeight = insets.top + spacing.sm + 56;
 
@@ -267,15 +471,7 @@ export default function PantryScreen(
         </Text>
 
         <Text style={[styles.bentoBodyText, { color: theme.onSurfaceVariant }]}>
-          Based on your fresh{" "}
-          <Text style={{ color: theme.primary, fontFamily: fonts.sansBold }}>
-            Ricotta
-          </Text>{" "}
-          and seasonal{" "}
-          <Text style={{ color: theme.primary, fontFamily: fonts.sansBold }}>
-            Lemons
-          </Text>
-          , we suggest:
+          Based on your ingredients, we suggest:
         </Text>
 
         <View
@@ -288,11 +484,18 @@ export default function PantryScreen(
             shadows.sm,
           ]}
         >
-          <Image
-            source={{ uri: StitchImages.pantryLemonRicottaDish }}
-            style={styles.bentoSuggestionImg}
-            resizeMode="cover"
-          />
+          <View
+            style={[
+              styles.bentoSuggestionIcon,
+              { backgroundColor: theme.surfaceContainer },
+            ]}
+          >
+            <MaterialIcons
+              name="restaurant-menu"
+              size={22}
+              color={theme.onSurfaceVariant}
+            />
+          </View>
           <View style={{ flex: 1 }}>
             <Text
               style={[
@@ -300,7 +503,7 @@ export default function PantryScreen(
                 { color: theme.onSurface },
               ]}
             >
-              Lemon Ricotta Linguine
+              Tap to get suggestions
             </Text>
             <Text
               style={[
@@ -308,7 +511,7 @@ export default function PantryScreen(
                 { color: theme.onSurfaceVariant },
               ]}
             >
-              25 mins · Intermediate · 98% Match
+              We’ll generate recipes from your pantry
             </Text>
           </View>
           <MaterialIcons
@@ -325,26 +528,6 @@ export default function PantryScreen(
             style={{ marginTop: spacing.md }}
           />
         )}
-      </View>
-
-      <View style={styles.bentoImageWrap}>
-        <View style={styles.bentoImageInner}>
-          <Image
-            source={{ uri: StitchImages.pantryHeroLemons }}
-            style={styles.bentoImage}
-            resizeMode="cover"
-          />
-          <LinearGradient
-            colors={[
-              "transparent",
-              theme.surfaceContainerLow + "CC",
-              theme.surfaceContainerLow,
-            ]}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0.5, y: 0.4 }}
-            end={{ x: 0.5, y: 1 }}
-          />
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -478,11 +661,24 @@ export default function PantryScreen(
           color={theme.onSurfaceVariant}
         />
       </TouchableOpacity>
-      <Text style={[styles.stepperValue, { color: theme.onSurface }]}>
-        {item.quantity != null
-          ? `${item.quantity}${item.unit ? item.unit : ""}`
-          : "—"}
-      </Text>
+      <View
+        style={[
+          styles.stepperValuePill,
+          { backgroundColor: theme.surfaceContainer },
+        ]}
+      >
+        <TextInput
+          style={[styles.stepperValueInput, { color: theme.onSurface }]}
+          value={getQuantityText(item)}
+          onChangeText={(t) => setQuantityDraftById((prev) => ({ ...prev, [item.id]: t }))}
+          onBlur={() => commitQuantityEdit(item)}
+          onSubmitEditing={() => commitQuantityEdit(item)}
+          keyboardType="numeric"
+          returnKeyType="done"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+      </View>
       <TouchableOpacity
         style={[
           styles.stepperBtn,
@@ -499,32 +695,18 @@ export default function PantryScreen(
         />
       </TouchableOpacity>
       <TouchableOpacity
-        style={styles.deleteBtn}
+        style={[styles.stepperBtn, { backgroundColor: theme.surfaceContainer }]}
         onPress={() => handleDeleteItem(item.id)}
+        activeOpacity={0.8}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityLabel={`Delete ${item.name}`}
       >
-        <MaterialIcons name="delete-outline" size={20} color={theme.error} />
+        <MaterialIcons name="delete-outline" size={18} color={theme.error} />
       </TouchableOpacity>
     </View>
   );
 
-  const renderFreshItem = (item: PantryItem, index: number) => (
-    <View key={item.id} style={styles.freshCard}>
-      <View style={styles.freshHeader}>
-        <Text style={[styles.freshName, { color: theme.onSurface }]}>
-          {item.name}
-        </Text>
-        {renderStepper(item)}
-      </View>
-      <Image
-        source={{ uri: freshImageFor(index, item.id) }}
-        style={styles.freshImage}
-        resizeMode="cover"
-      />
-    </View>
-  );
-
-  const renderStapleItem = (item: PantryItem) => (
+  const renderPantryItemCard = (item: PantryItem) => (
     <View
       key={item.id}
       style={[
@@ -535,51 +717,59 @@ export default function PantryScreen(
         },
       ]}
     >
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.stapleName, { color: theme.onSurface }]}>
-          {item.name}
-        </Text>
-        <Text style={[styles.stapleSub, { color: theme.secondary }]}>
-          {item.quantity != null
-            ? `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
-            : "Remaining: 60%"}
-        </Text>
+      <View style={styles.cardTopRow}>
+        <View style={styles.cardHeaderLeft}>
+          <Text style={[styles.stapleName, { color: theme.onSurface }]}>
+            {item.name}
+          </Text>
+          {(() => {
+            const badge = getExpiryBadge(item);
+            if (!badge) return null;
+            const bg =
+              badge.tone === "expired"
+                ? theme.errorContainer
+                : theme.tertiaryContainer;
+            const fg =
+              badge.tone === "expired" ? theme.onSurface : theme.onTertiaryContainer;
+            return (
+              <View style={[styles.badge, { backgroundColor: bg }]}>
+                <Text style={[styles.badgeText, { color: fg }]}>
+                  {badge.label}
+                </Text>
+              </View>
+            );
+          })()}
+        </View>
+        {renderStepper(item)}
       </View>
-      <View style={styles.stapleBtns}>
-        <TouchableOpacity
-          style={styles.stapleIconBtn}
-          activeOpacity={0.7}
-          onPress={() => handleAdjustQuantity(item.id, -1)}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <MaterialIcons
-            name="remove"
-            size={22}
-            color={theme.onSurfaceVariant}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.stapleIconBtn}
-          activeOpacity={0.7}
-          onPress={() => handleAdjustQuantity(item.id, 1)}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <MaterialIcons
-            name="add"
-            size={22}
-            color={theme.onSurfaceVariant}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.stapleIconBtn}
-          onPress={() => handleDeleteItem(item.id)}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons name="delete-outline" size={20} color={theme.error} />
-        </TouchableOpacity>
+
+      <View style={{ marginTop: spacing.sm }}>
+        <TextInput
+          style={[
+            styles.expInput,
+            {
+              color: theme.onSurface,
+              borderColor: theme.outlineVariant + "66",
+              backgroundColor: theme.surfaceContainerLowest,
+            },
+          ]}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={theme.onSurfaceVariant}
+          value={getExpiresText(item)}
+          onChangeText={(t) =>
+            setExpiresDraftById((prev) => ({ ...prev, [item.id]: t }))
+          }
+          onBlur={() => commitExpirationEdit(item)}
+          onSubmitEditing={() => commitExpirationEdit(item)}
+          returnKeyType="done"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
       </View>
     </View>
   );
+
+  const renderStapleItem = (item: PantryItem) => renderPantryItemCard(item);
 
   const renderSpicesGrid = () => (
     <View style={styles.spicesGrid}>
@@ -606,16 +796,31 @@ export default function PantryScreen(
         <View
           style={[styles.addInputWrap, { borderColor: theme.outlineVariant }]}
         >
-          <TextInput
-            style={[styles.addInput, { color: theme.onSurface }]}
-            placeholder="Add ingredient..."
-            placeholderTextColor={theme.onSurfaceVariant}
-            value={newItem}
-            onChangeText={setNewItem}
-            onSubmitEditing={handleAddItem}
-            returnKeyType="done"
-            autoFocus
-          />
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={[styles.addInput, { color: theme.onSurface }]}
+              placeholder="Add ingredient..."
+              placeholderTextColor={theme.onSurfaceVariant}
+              value={newItem}
+              onChangeText={setNewItem}
+              returnKeyType="next"
+              autoFocus
+            />
+            <Text style={[styles.addHelper, { color: theme.onSurfaceVariant }]}>
+              Expiration (optional)
+            </Text>
+            <TextInput
+              style={[styles.addInput, { color: theme.onSurface }]}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={theme.onSurfaceVariant}
+              value={newExpiresText}
+              onChangeText={setNewExpiresText}
+              onSubmitEditing={handleAddItem}
+              returnKeyType="done"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
           <TouchableOpacity
             style={[
               styles.addConfirmBtn,
@@ -649,6 +854,7 @@ export default function PantryScreen(
             onPress={() => {
               setAddingVisible(false);
               setNewItem("");
+              setNewExpiresText("");
             }}
             style={{ padding: spacing.sm }}
           >
@@ -694,23 +900,31 @@ export default function PantryScreen(
           {renderBento()}
           {renderRealSuggestions()}
 
-          {/* Fresh */}
-          {freshItems.length > 0 && (
+          {/* Expiring */}
+          {expiringItems.length > 0 && (
             <View style={styles.sectionBlock}>
-              {renderSectionHeader("Fresh", freshItems.length)}
-              <View style={styles.freshList}>
-                {freshItems.map((item, idx) => renderFreshItem(item, idx))}
+              {renderSectionHeader("Expiring", expiringItems.length)}
+              <View style={styles.stapleList}>
+                {expiringItems.map(renderStapleItem)}
               </View>
             </View>
           )}
 
-          {/* Pantry Staples */}
-          {pantryStaples.length > 0 && (
+          {/* Expired */}
+          {expiredItems.length > 0 && (
             <View style={styles.sectionBlock}>
-              {renderSectionHeader("Pantry Staples", pantryStaples.length)}
+              {renderSectionHeader("Expired", expiredItems.length)}
               <View style={styles.stapleList}>
-                {pantryStaples.map(renderStapleItem)}
+                {expiredItems.map(renderStapleItem)}
               </View>
+            </View>
+          )}
+
+          {/* Fresh */}
+          {freshItems.length > 0 && (
+            <View style={styles.sectionBlock}>
+              {renderSectionHeader("Fresh", freshItems.length)}
+              <View style={styles.stapleList}>{freshItems.map(renderStapleItem)}</View>
             </View>
           )}
 
@@ -846,11 +1060,12 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
   },
-  bentoSuggestionImg: {
-    width: 72,
-    height: 72,
+  bentoSuggestionIcon: {
+    width: 44,
+    height: 44,
     borderRadius: borderRadius.md,
-    backgroundColor: "#00000010",
+    alignItems: "center",
+    justifyContent: "center",
   },
   bentoSuggestionTitle: {
     fontFamily: fonts.sansBold,
@@ -861,23 +1076,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sans,
     fontSize: 12,
     lineHeight: 18,
-  },
-  bentoImageWrap: {
-    marginTop: spacing.xl,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bentoImageInner: {
-    width: "85%",
-    aspectRatio: 1,
-    borderRadius: 20,
-    overflow: "hidden",
-    transform: [{ rotate: "3deg" }],
-    ...shadows.lg,
-  },
-  bentoImage: {
-    width: "100%",
-    height: "100%",
   },
 
   // Real suggestions
@@ -940,35 +1138,29 @@ const styles = StyleSheet.create({
   },
 
   // Fresh items
-  freshList: {
-    gap: spacing.xxl,
+  cardHeaderLeft: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: spacing.lg,
+    gap: spacing.sm,
   },
-  freshCard: {
-    width: "100%",
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+    alignSelf: "flex-start",
   },
-  freshHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  freshName: {
+  badgeText: {
     fontFamily: fonts.sansBold,
-    fontSize: 18,
-    letterSpacing: -0.3,
-  },
-  freshImage: {
-    width: "100%",
-    height: 192,
-    borderRadius: borderRadius.lg,
-    backgroundColor: "#00000010",
+    fontSize: 11,
   },
 
   // Stepper
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.xs + 2,
+    flexShrink: 0,
   },
   stepperBtn: {
     width: 32,
@@ -977,44 +1169,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  stepperValue: {
+  stepperValueInput: {
     fontFamily: fonts.sansBold,
     fontSize: 13,
-    minWidth: 40,
     textAlign: "center",
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    width: 22,
+    maxWidth: 22,
+    height: 18,
   },
-  deleteBtn: {
-    padding: spacing.xs,
-    marginLeft: spacing.xs,
+  stepperValuePill: {
+    width: 44,
+    paddingHorizontal: 0,
+    height: 32,
+    borderRadius: borderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
   },
-
   // Staples
   stapleList: {
     gap: spacing.md,
   },
   stapleCard: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column",
     padding: spacing.xl,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
   },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
   stapleName: {
     fontFamily: fonts.sansBold,
     fontSize: 16,
-  },
-  stapleSub: {
-    fontFamily: fonts.sans,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  stapleBtns: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  stapleIconBtn: {
-    padding: spacing.sm,
   },
 
   // Spices grid
@@ -1070,6 +1261,29 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sans,
     fontSize: 15,
     paddingVertical: spacing.sm,
+  },
+  addHelper: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    marginTop: 2,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  expLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    marginBottom: 6,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  expInput: {
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    width: "100%",
   },
   addConfirmBtn: {
     width: 36,

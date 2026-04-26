@@ -45,6 +45,13 @@
           "microphonePermission": "Aipron needs microphone access for voice-guided cooking."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
+      ],
       "expo-font"
     ],
     "scheme": "aipron",
