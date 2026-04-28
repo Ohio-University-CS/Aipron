@@ -22,7 +22,12 @@ import { GradientButton } from "./GradientButton";
 import { cookingApi, recipeApi } from "../services/api";
 import { findLocalCatalogRecipeById } from "../data/localCatalog";
 import { useThemeColors } from "../hooks/useThemeColors";
-import { useRealtimeVoice, type RealtimeToolCall } from "../hooks/useRealtimeVoice";
+import {
+  useRealtimeVoice,
+  type RealtimeToolCall,
+  type SendNarrationOptions,
+  type SendToolResultOptions,
+} from "../hooks/useRealtimeVoice";
 import { useUserPrefsStore } from "../store/useUserPrefsStore";
 import {
   borderRadius,
@@ -32,6 +37,11 @@ import {
   typography,
 } from "../constants/DesignTokens";
 import { pickFallbackPhoto, recipeImageFallbackSeed } from "../constants/StitchImages";
+
+/** Do not queue `response.create` after these tools — avoids the model chaining next_step or reading all steps aloud. */
+const COOKING_TOOL_SILENT: SendToolResultOptions = {
+  requestModelFollowUp: false,
+};
 
 function formatClock(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
@@ -304,18 +314,6 @@ export function CookingSessionView({
     }
   };
 
-  // Keep refs in sync so Realtime tool-call handlers (see onToolCall below)
-  // always see the latest flow state without re-subscribing.
-  useEffect(() => {
-    recipeRef.current = recipe;
-  }, [recipe]);
-  useEffect(() => {
-    flowRef.current = flow;
-  }, [flow]);
-  useEffect(() => {
-    phaseIndexRef.current = phaseStepIndex;
-  }, [phaseStepIndex]);
-
   const getCurrentStepInstruction = useCallback((): string | null => {
     const r = recipeRef.current;
     if (!r) return null;
@@ -334,23 +332,54 @@ export function CookingSessionView({
 
   // Sibling ref so the tool-call handler can fire a fresh narration when the
   // user says "repeat". Wired below alongside sendToolResultRef.
-  const sendNarrationRef = useRef<((text: string) => void) | null>(null);
+  const sendNarrationRef = useRef<
+    ((text: string, options?: SendNarrationOptions) => void) | null
+  >(null);
   // Clears the narration-dedupe signature so the next step's narration runs
   // even if we just replayed the same one via "repeat".
   const resetNarrationMemoRef = useRef<() => void>(() => {});
+  /** Blocks batched next_step tool calls from advancing multiple UI steps at once. */
+  const lastVoiceNextAtMsRef = useRef(0);
 
   const handleToolCall = useCallback(
     (toolCall: RealtimeToolCall) => {
-      const respond = (result: unknown) => {
-        // sendToolResult is captured below via the hook's return value, so we
-        // set it on a ref to avoid a forward-declaration cycle with the hook.
-        sendToolResultRef.current?.(toolCall.callId, result);
+      const respond = (result: unknown, opts?: SendToolResultOptions) => {
+        sendToolResultRef.current?.(toolCall.callId, result, opts);
       };
 
       switch (toolCall.name) {
         case "next_step": {
+          if (flowRef.current === "mise") {
+            respond(
+              {
+                ok: false,
+                error: "mise_phase_use_start_button",
+              },
+              COOKING_TOOL_SILENT,
+            );
+            return;
+          }
+          const now = Date.now();
+          if (now - lastVoiceNextAtMsRef.current < 720) {
+            respond({ ok: false, error: "only_one_next_per_utterance" }, COOKING_TOOL_SILENT);
+            return;
+          }
+          lastVoiceNextAtMsRef.current = now;
           nextStepRef.current();
-          respond({ ok: true });
+          respond({ ok: true }, COOKING_TOOL_SILENT);
+          const readNewStep = () => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                const instruction = getCurrentStepInstruction();
+                if (!instruction) return;
+                const sig = `${flowRef.current}-${phaseIndexRef.current}`;
+                if (lastNarratedRef.current === sig) return;
+                lastNarratedRef.current = sig;
+                sendNarrationRef.current?.(instruction, { preempt: true });
+              });
+            });
+          };
+          readNewStep();
           return;
         }
         case "repeat_step": {
@@ -362,11 +391,11 @@ export function CookingSessionView({
             // narration so the same deterministic TTS path that handles
             // step-advance also handles "repeat". sendNarration queues until
             // the current response wraps up, so this is safe to call inline.
-            respond({ ok: true });
+            respond({ ok: true }, COOKING_TOOL_SILENT);
             resetNarrationMemoRef.current();
-            sendNarrationRef.current?.(instruction);
+            sendNarrationRef.current?.(instruction, { preempt: true });
           } else {
-            respond({ ok: false, error: "no active step" });
+            respond({ ok: false, error: "no active step" }, COOKING_TOOL_SILENT);
           }
           return;
         }
@@ -376,16 +405,16 @@ export function CookingSessionView({
             setTimerInitial(duration);
             setTimerSeconds(duration);
             setTimerRunning(true);
-            respond({ ok: true, duration });
+            respond({ ok: true, duration }, COOKING_TOOL_SILENT);
           } else {
-            respond({ ok: false, error: "invalid duration" });
+            respond({ ok: false, error: "invalid duration" }, COOKING_TOOL_SILENT);
           }
           return;
         }
         case "ingredient_substitution": {
           const ingredient = String(toolCall.args?.ingredient ?? "").trim();
           if (!ingredient) {
-            respond({ ok: false, error: "missing ingredient" });
+            respond({ ok: false, error: "missing ingredient" }, COOKING_TOOL_SILENT);
             return;
           }
           recipeApi
@@ -403,11 +432,11 @@ export function CookingSessionView({
               }
               respond({ ok: true, ingredient, substitutions: topThree });
             })
-            .catch(() => respond({ ok: false, error: "lookup failed" }));
+            .catch(() => respond({ ok: false, error: "lookup failed" }, COOKING_TOOL_SILENT));
           return;
         }
         default:
-          respond({ ok: false, error: "unknown tool" });
+          respond({ ok: false, error: "unknown tool" }, COOKING_TOOL_SILENT);
       }
     },
     [getCurrentStepInstruction]
@@ -416,10 +445,16 @@ export function CookingSessionView({
   // Ref used inside handleToolCall to call sendToolResult without creating a
   // circular dependency on the hook's return value.
   const sendToolResultRef = useRef<
-    ((callId: string, result: unknown) => void) | null
+    | ((
+        callId: string,
+        result: unknown,
+        options?: SendToolResultOptions,
+      ) => void)
+    | null
   >(null);
 
   const voice = useRealtimeVoice({
+    manualVoiceTurns: true,
     onToolCall: handleToolCall,
     onError: (err) => console.warn("[cooking] realtime error:", err.message),
   });
@@ -479,16 +514,21 @@ export function CookingSessionView({
         `STEPS:\n${stepsSummary}\n` +
         prefsLine +
         `\nGuidance:\n` +
-        `- When the user says "next", "continue", "move on", "what's next", "ready", "okay", or similar, CALL the next_step tool. Do not speak before calling it.\n` +
+        `- When the user wants the next step — e.g. "next", "next step", "continue", "go on", "move on", "what's next", "okay", "ok", "ready", "done", "let's go", "go ahead" — call the next_step tool exactly once. Wait until they speak again before calling it again.\n` +
         `- When the user says "repeat", "repeat step", "repeat that", "say that again", "what was that", "again", "one more time", or anything that means replay, CALL the repeat_step tool. After calling it, DO NOT speak at all — our app will replay the exact step text itself. Stay completely silent until the user talks again.\n` +
         `- When they ask to start a timer or when a step needs one, CALL the start_timer tool.\n` +
         `- When they ask for a substitute for an ingredient, CALL the ingredient_substitution tool.\n` +
+        `- Never read, list, or summarize multiple steps or the full recipe aloud. The app TTS reads each step; you only use tools and short replies.\n` +
         `- Do NOT read the whole recipe unprompted; narrate one step at a time, only when the UI asks you (via a narration request) or the user asks to repeat.\n` +
         `- Keep spoken replies short and calm. Never apologize for pausing — this is a hands-busy cooking flow.`
     );
   }, [voiceIsConnected, recipe, dietaryTags, voiceUpdateInstructions]);
 
   const topBarHeight = insets.top + 56;
+
+  recipeRef.current = recipe;
+  flowRef.current = flow;
+  phaseIndexRef.current = phaseStepIndex;
 
   if (!recipe) {
     return (

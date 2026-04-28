@@ -1,15 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { realtimeApi } from "../services/api";
-import type { UseRealtimeVoiceOptions, UseRealtimeVoiceReturn } from "./useRealtimeVoice.types";
+import type { UseRealtimeVoiceOptions, UseRealtimeVoiceReturn, SendToolResultOptions, SendNarrationOptions } from "./useRealtimeVoice.types";
 
 export type {
   RealtimeToolCall,
+  SendNarrationOptions,
+  SendToolResultOptions,
   UseRealtimeVoiceOptions,
   UseRealtimeVoiceReturn,
 } from "./useRealtimeVoice.types";
 
 const OPENAI_REALTIME_URL = "https://api.openai.com/v1/realtime";
+
+/** Matches backend `buildSessionConfig` VAD; `create_response: false` stops duplicate auto-replies in cooking mode. */
+function sendCookingVoiceTurnPatch(dc: { send: (s: string) => void }) {
+  dc.send(
+    JSON.stringify({
+      type: "session.update",
+      session: {
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.6,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 1300,
+          create_response: false,
+          interrupt_response: false,
+        },
+      },
+    })
+  );
+}
+
+/** After assistant audio, ignore very-early mic tails; keep short so real "next" is not dropped. */
+const POST_ASSISTANT_INPUT_GRACE_MS = 280;
 
 const EXPO_GO_VOICE_MSG =
   "Voice needs a development build (npx expo run:ios / run:android). It does not run in Expo Go.";
@@ -50,7 +74,15 @@ export function useRealtimeVoice(
   const responseActiveRef = useRef(false);
   const pendingNarrationRef = useRef<string | null>(null);
   const pendingResponseCreateRef = useRef(false);
-  const sendNarrationRef = useRef<(text: string) => void>(() => {});
+  const sendNarrationRef = useRef<(text: string, options?: SendNarrationOptions) => void>(
+    () => {},
+  );
+  /** `speech_started` raised this turn; ignore stray `speech_stopped`. */
+  const userVadTurnOpenRef = useRef(false);
+  /** Timestamp from `response.done` — grace blocks bogus user turns after TTS. */
+  const lastAssistantOutputEndedAtRef = useRef(0);
+  /** User finished speaking while a response was still active (e.g. during step TTS). */
+  const pendingDeferredUserTurnRef = useRef(false);
 
   const callbacksRef = useRef(options);
   callbacksRef.current = options;
@@ -60,10 +92,38 @@ export function useRealtimeVoice(
       case "input_audio_buffer.speech_started":
         setIsListening(true);
         setIsSpeaking(false);
+        if (callbacksRef.current.manualVoiceTurns) {
+          userVadTurnOpenRef.current = true;
+        }
         break;
 
       case "input_audio_buffer.speech_stopped":
         setIsListening(false);
+        if (callbacksRef.current.manualVoiceTurns) {
+          if (!userVadTurnOpenRef.current) {
+            break;
+          }
+          // If the model or step narration is still in-flight, do not drop the
+          // user's command — run it once the current response completes.
+          if (responseActiveRef.current) {
+            pendingDeferredUserTurnRef.current = true;
+            userVadTurnOpenRef.current = false;
+            break;
+          }
+          userVadTurnOpenRef.current = false;
+          const lastEnd = lastAssistantOutputEndedAtRef.current;
+          if (
+            lastEnd > 0 &&
+            Date.now() - lastEnd < POST_ASSISTANT_INPUT_GRACE_MS
+          ) {
+            break;
+          }
+          const dc = dcRef.current;
+          if (dc) {
+            responseActiveRef.current = true;
+            dc.send(JSON.stringify({ type: "response.create" }));
+          }
+        }
         break;
 
       case "response.created":
@@ -83,6 +143,7 @@ export function useRealtimeVoice(
       case "response.failed":
         setIsSpeaking(false);
         responseActiveRef.current = false;
+        lastAssistantOutputEndedAtRef.current = Date.now();
         if (pendingResponseCreateRef.current) {
           pendingResponseCreateRef.current = false;
           responseActiveRef.current = true;
@@ -93,6 +154,13 @@ export function useRealtimeVoice(
           const queued = pendingNarrationRef.current;
           pendingNarrationRef.current = null;
           sendNarrationRef.current(queued);
+          break;
+        }
+        if (pendingDeferredUserTurnRef.current) {
+          pendingDeferredUserTurnRef.current = false;
+          responseActiveRef.current = true;
+          dcRef.current?.send(JSON.stringify({ type: "response.create" }));
+          break;
         }
         break;
 
@@ -159,11 +227,20 @@ export function useRealtimeVoice(
     responseActiveRef.current = false;
     pendingNarrationRef.current = null;
     pendingResponseCreateRef.current = false;
+    userVadTurnOpenRef.current = false;
+    lastAssistantOutputEndedAtRef.current = 0;
+    pendingDeferredUserTurnRef.current = false;
   }, []);
 
-  const sendToolResult = useCallback((callId: string, result: unknown) => {
+  const sendToolResult = useCallback((
+    callId: string,
+    result: unknown,
+    opts?: SendToolResultOptions,
+  ) => {
     const dc = dcRef.current;
     if (!dc) return;
+
+    const followUp = opts?.requestModelFollowUp !== false;
 
     const event = {
       type: "conversation.item.create",
@@ -174,6 +251,28 @@ export function useRealtimeVoice(
       },
     };
     dc.send(JSON.stringify(event));
+    if (!followUp) {
+      if (callbacksRef.current.manualVoiceTurns) {
+        // Silent tool output (e.g. next_step). The session can keep
+        // responseActiveRef true until response.done; step narration queued from
+        // React then never plays. Nudge flush shortly after when audio is pending.
+        setTimeout(() => {
+          const q = pendingNarrationRef.current;
+          if (!q) return;
+          pendingNarrationRef.current = null;
+          responseActiveRef.current = false;
+          sendNarrationRef.current(q);
+        }, 120);
+        setTimeout(() => {
+          const q = pendingNarrationRef.current;
+          if (!q) return;
+          pendingNarrationRef.current = null;
+          responseActiveRef.current = false;
+          sendNarrationRef.current(q);
+        }, 320);
+      }
+      return;
+    }
     if (!responseActiveRef.current) {
       responseActiveRef.current = true;
       dc.send(JSON.stringify({ type: "response.create" }));
@@ -182,10 +281,14 @@ export function useRealtimeVoice(
     }
   }, []);
 
-  const sendNarration = useCallback((text: string) => {
+  const sendNarration = useCallback((text: string, opts?: SendNarrationOptions) => {
     const dc = dcRef.current;
     const trimmed = text?.trim();
     if (!dc || !trimmed) return;
+    if (opts?.preempt) {
+      pendingNarrationRef.current = null;
+      responseActiveRef.current = false;
+    }
     // Queue if the model is mid-response — the handler flushes on response.done.
     if (responseActiveRef.current) {
       pendingNarrationRef.current = trimmed;
@@ -243,6 +346,11 @@ export function useRealtimeVoice(
       dcRef.current = dc;
 
       dc.addEventListener("open", () => {
+        if (callbacksRef.current.manualVoiceTurns) {
+          sendCookingVoiceTurnPatch(dc);
+          lastAssistantOutputEndedAtRef.current = Date.now();
+          userVadTurnOpenRef.current = false;
+        }
         setIsConnected(true);
         setIsConnecting(false);
       });
