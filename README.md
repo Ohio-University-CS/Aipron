@@ -174,12 +174,11 @@ Authenticated `POST /api/recipes/generate` with a JSON body such as:
 
 | Name              | Role / responsibility                                      |
 |-------------------|------------------------------------------------------------|
-| *Your name*       | *e.g. Mobile UI, Expo Router, state*                         |
-| *Teammate 2*      | *e.g. Backend API, Supabase schema, auth*                   |
-| *Teammate 3*      | *e.g. AI integration, chat tools, recipe generation*       |
-| *Teammate 4*      | *e.g. QA, README, demos, CI*                               |
+| *Devin*       | *Expo routing, UI, database work*                         |
+| *Mike*      | *Recipe generation*                   |
+| *Alex*      | *AI, login*       |
+| *Rowan*      | *Pantry*                               |
 
-*Replace the placeholder rows above with real Ohio University team members and roles before submitting your README link.*
 
 ---
 
