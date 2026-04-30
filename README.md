@@ -1,6 +1,6 @@
 # Aipron
 
-**AI-powered cooking assistant** — recipe generation, pantry-aware suggestions, search across a public catalog and your own saves, step-by-step cooking mode, and optional voice guidance via the OpenAI Realtime API.
+**Repository:** [github.com/Ohio-University-CS/Aipron](https://github.com/Ohio-University-CS/Aipron)
 
 ![AI-Powered](https://img.shields.io/badge/AI-Powered-orange?style=flat&logo=openai)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat)
@@ -8,308 +8,234 @@
 
 ---
 
-## What is Aipron?
+## Project description
 
-Aipron helps you plan and cook with:
+Aipron is an **AI-powered cooking assistant** for planning and preparing meals. The project’s purpose is to give home cooks a single place to **discover and generate recipes**, **track what they have in the pantry**, **save favorites**, and **walk through cooking step-by-step**—with optional **voice** help via the OpenAI Realtime API when the stack is configured.
 
-- **Conversational recipe help** on the **Chat** tab, with **saved chat threads** and a model that can **create recipes** (saved to your library automatically when generated from chat tools).
-- **Search** with filters: browse a **curated public catalog** (and, when signed in, **your own generated recipes**), with cuisine and dietary tags and full-text style matching.
-- **Favorites** and **Recipes** tabs for quick access to saved and owned recipes, with hero imagery and card layouts tuned for mobile.
-- **Pantry** for ingredients you have at home, including **“use my pantry”** hints when generating new recipes.
-- **Cooking mode** for focused, step-by-step sessions tied to a recipe.
-- **Profile & settings**: dietary preferences synced to the server, **app language**, notifications-related toggles, help/about, and sign-in state.
-
-Whether you are learning basics or iterating on weeknight meals, the app is built around a single product surface: the **Expo (React Native) app** (including **Expo web** for local browser preview).
+The **primary product** is the **Expo (React Native) app** in `mobile/` (including **Expo web** for browser preview). A **Node.js + Express** API in `backend/` connects to **Supabase** (Postgres, auth, RLS) and **OpenAI** for chat, recipe generation, substitutions, and realtime sessions. The `web/` Next.js package is **legacy** and not the main release surface.
 
 ---
 
-## Feature overview
+## Features
 
-| Area | What you get |
-|------|----------------|
-| **Chat** | Multi-turn assistant, optional **voice (Realtime)**, user context from **profile + pantry**, **persistent conversations** (list, open, message, delete). |
-| **Recipe generation** | `POST /api/recipes/generate` with **servings**, **skill level**, **dietary filters**, and optional **use pantry** to steer ingredients. |
-| **Search** | `GET /api/recipes/search` — public recipes for anonymous users; **public + your recipes** when authenticated. Optional `q`, `dietaryTag`, `cuisine`, pagination. **Offline/nearline**: local catalog slice for instant UI when the API is away. |
-| **Library** | **Save / unsave** recipes, **Favorites** tab, list **saved IDs** for fast UI, scale servings and **substitution** suggestions that **merge** profile dietary prefs. |
-| **Pantry** | List / add / remove items, **suggest recipes** from what you have. |
-| **Cooking** | Start and advance **cooking sessions**, complete steps, **active session** query. |
-| **Account** | **Supabase Auth** (register, login, **me**), **PUT preferences** for `profiles.dietary_preferences`. |
-| **Realtime (voice)** | Create **Realtime sessions**, **WebRTC negotiate** for web, **cleanup** of expired server-side session records. |
-| **Quality of life** | Onboarding, login gating, **light/dark** styling via design tokens, **Rate limiting** and **Helmet** on the API, **Vitest** + Supertest for backend. |
+- **Chat assistant** — Multi-turn cooking help, saved conversation threads, recipe creation from chat tools (recipes can be saved to your library).
+- **Recipe search** — Filter by cuisine, dietary tags, and text; **public catalog** plus **your own recipes** when signed in; local catalog slice for more resilient UI when the network is poor.
+- **Recipe generation** — Server-side generation with servings, skill level, dietary filters, and optional **use my pantry** steering.
+- **Library** — **Recipes** and **Favorites** tabs; save/unsave; scale servings; **ingredient substitution** suggestions that respect profile dietary preferences.
+- **Pantry** — Add/remove ingredients at home; suggestions based on what you have.
+- **Cooking mode** — Step-by-step sessions tied to a recipe (start, advance steps, complete).
+- **Account & profile** — Supabase Auth (register, login); dietary preferences synced to the server; settings (e.g. language, notifications-related options), help/about, onboarding.
+- **Voice (optional)** — Realtime session creation and WebRTC negotiation for web voice when enabled and configured.
+- **API quality-of-life** — Rate limiting, Helmet, CORS; Vitest + Supertest tests on the backend.
 
 ---
 
-## Architecture
+## Installation
 
-- **Product app**: **React Native (Expo SDK 54)** + **Expo Router** — this is what you run day to day. Use `npx expo start --web` for a **localhost browser** preview; use a device or simulator for the full native experience.
-- **Backend**: **Node.js** + **Express** (ESM), `PORT` default **3001** — see `GET /health`.
-- **Data & auth**: **Supabase** — **Postgres**, **Row Level Security**, **Auth** (JWT access tokens validated on the API). The backend uses the **service role** for admin tasks and a **per-user Supabase client** for RLS-scoped work.
-- **AI**: **OpenAI** (chat completion for assistant + recipe tools, **substitutions**, and **Realtime** for voice sessions). API keys stay on the **server** only.
-- **`web/` (Next.js)**: **Legacy / non–product** — not the primary release surface; the README focuses on `mobile/` + `backend/`.
-- **`shared/`**: Shared **TypeScript types** (e.g. `Recipe`) for mobile and tooling.
+**Prerequisites**
 
----
+- **Node.js 18+**
+- A **Supabase** project (URL, anon key, service role key)
+- An **OpenAI API key** (chat, generation, substitutions, Realtime as applicable)
+- This repo does **not** include production secrets—copy **`.env.example` → `.env`** in `backend/` and `mobile/` and fill in your own values.
 
-## Prerequisites
-
-- **Node.js 18+** (backend tooling aligns with current Node LTS usage).
-- A **Supabase** project (URL, anon key, service role key).
-- An **OpenAI API key** (required for generation, chat AI, substitutions, and Realtime).
-- This repo does **not** ship real secrets: copy **`.env.example` → `.env`** in `backend/` and `mobile/` and fill in your own values.
-
----
-
-## Getting started
-
-You can run in two modes: **UI-focused** (minimal backend) or **full stack** (recommended for end-to-end behavior).
-
-### Option A — UI only (quickest; limited API)
-
-1. `cd mobile && npm install`
-2. `npx expo start --web` (or `npm run dev` / press `w` for web).
-3. Screens render; **search**, **chat**, and **auth** flows need a running backend + Supabase to behave fully.
-
-### Option B — Full stack (backend + mobile)
-
-**1. Install dependencies**
+**1. Clone the repository**
 
 ```bash
-cd C:\Aipron\backend
-npm install
-
-cd C:\Aipron\mobile
-npm install
+git clone https://github.com/Ohio-University-CS/Aipron.git
+cd Aipron
 ```
 
-**2. Backend environment**
+**2. Install dependencies (full stack)**
+
+From the repository root:
 
 ```bash
-cd C:\Aipron\backend
-copy .env.example .env
+cd backend && npm install
+cd ../mobile && npm install
 ```
 
-Set at minimum:
+Alternatively, from root: `npm run install:all` (installs mobile, backend, and shared per root `package.json`).
 
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
-- Optional: `PORT` (default `3001`), `NODE_ENV`, `ALLOWED_ORIGINS` (for production CORS; dev allows common localhost and LAN patterns)
+**3. Database setup**
 
-**3. Run the API**
+Apply the SQL in Supabase as described in-repo (for example `backend/src/db/schema.sql` and `backend/src/db/migrations/001_conversations.sql`) so profiles, recipes, pantry, chat, cooking, and related tables exist. Use backend seed scripts (see `backend/package.json`, e.g. `npm run seed` where available) after migrations if you need **public recipe** data for search.
+
+**4. Environment files**
+
+- **Backend:** `cd backend` → copy `.env.example` to `.env`. Set at minimum `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `OPENAI_API_KEY`. Optional: `PORT` (default `3001`), `NODE_ENV`, `ALLOWED_ORIGINS` for production CORS.
+- **Mobile:** `cd mobile` → copy `.env.example` to `.env`. Set `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_URL` (e.g. `http://localhost:3001` for web; for a **physical device**, use your machine’s **LAN IP** and port, e.g. `http://192.168.x.x:3001`).
+
+---
+
+## How to run
+
+**Backend API**
 
 ```bash
-cd C:\Aipron\backend
+cd backend
 npm run dev
 ```
 
-Expect: server listening (e.g. port **3001**). `GET http://localhost:3001/health` should return `{"status":"ok",...}`.
+Confirm: open or `curl` `http://localhost:3001/health` — expect JSON like `{"status":"ok",...}` (exact shape may vary slightly by version).
 
-**4. Mobile environment**
-
-```bash
-cd C:\Aipron\mobile
-copy .env.example .env
-```
-
-Set:
-
-- `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` (client-side; anon only)
-- `EXPO_PUBLIC_API_URL` — e.g. `http://localhost:3001` for web; for a **physical device**, use your computer’s **LAN IP** (e.g. `http://192.168.x.x:3001`) and ensure the phone and PC share a network. The backend can bind to all interfaces by default so LAN access works (see `BIND_HOST` in examples if you need to lock it down).
-
-**5. Start the app**
+**Mobile app (Expo — web or device)**
 
 ```bash
-cd C:\Aipron\mobile
+cd mobile
 npx expo start --web
 ```
 
-Or open iOS/Android simulators from the Expo CLI. Sign in, then use **Chat**, **Search**, **Recipes**, **Favorites**, **Profile**, and **Pantry** as usual.
+Or start the dev server and press `w` for web, or open iOS/Android simulators from the Expo CLI. For **full** chat, search, auth, and generation, keep the backend running with valid Supabase and OpenAI configuration.
 
-**6. Optional: seed / catalog data**
+**UI-only quick preview (limited)**
 
-The backend includes **seed scripts** for local development (e.g. `npm run seed` / catalog helpers — see `backend/package.json`). Use these after migrations are applied in Supabase so **public recipes** and search have content to show.
+You can run `cd mobile && npm install && npx expo start --web` without the API; screens may render but **auth, live search, and chat** need the backend + Supabase to behave end-to-end.
 
----
-
-## Project structure
-
-```
-Aipron/
-├── mobile/                 # Expo app (primary product)
-│   ├── app/                # Expo Router: tabs, recipe, cooking, pantry, settings, …
-│   ├── src/
-│   │   ├── components/     # UI (chat, cooking, cards, …)
-│   │   ├── services/       # API clients (Supabase + REST)
-│   │   ├── store/          # Zustand (auth, settings, preferences, …)
-│   │   ├── hooks/          # e.g. Realtime voice, theme
-│   │   ├── constants/      # Design tokens, dietary options, images
-│   │   └── data/           # e.g. local catalog for resilient Search UI
-│   └── package.json
-├── backend/                # Express API
-│   ├── src/
-│   │   ├── routes/         # auth, recipes, pantry, chat, cooking, realtime
-│   │   ├── services/       # OpenAI, Realtime, user context, …
-│   │   ├── middleware/     # auth, errors, request context
-│   │   └── db/             # Supabase client, schema reference, seeds
-│   ├── unit_tests/         # Vitest
-│   └── package.json
-├── web/                    # Next.js (legacy; not the main app)
-├── shared/                 # Shared types
-└── package.json            # Workspaces (mobile, web, backend, shared)
-```
-
-Root scripts (see root `package.json`): `dev:mobile`, `dev:backend`, `install:all`, `check:react`.
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|--------|------------|
-| Mobile | React Native, Expo 54, Expo Router, React 19, Zustand |
-| Styling | Design tokens, StyleSheet, Plus Jakarta Sans / Noto Serif (Expo Google Fonts) |
-| Backend | Node (ESM), Express, express-validator, Helmet, express-rate-limit |
-| Data | Supabase (Postgres, Auth, RLS) |
-| AI | OpenAI (chat & tools, substitutions, Realtime) |
-| Tests | Vitest, Supertest (`backend/`) |
-
----
-
-## Main mobile surfaces
-
-| Screen / area | Role |
-|---------------|------|
-| **Chat** | Chef assistant, **voice** hookup, **recipe cards** in-thread, **new recipe** from AI tools. |
-| **Search** | Query + filters, blend of **API** and **local catalog**; opens recipe detail. |
-| **Recipes** | Your generated/saved collection. |
-| **Favorites** | Hearted recipes. |
-| **Profile** | Account and navigation into **Settings**, **Help**, **About**, **Onboarding** replay as needed. |
-| **Pantry** | Full-screen pantry management (tab stack / modal flow depending on entry). |
-| **Recipe detail** | `recipe/[id]` — view, save, start cooking. |
-| **Cooking** | `cooking/[id]` — `CookingSessionView` for step focus. |
-| **Login** | Auth gate before tab shell. |
-
----
-
-## HTTP API (summary)
-
-**General**
-
-- `GET /health` — liveness
-
-**Auth** (`/api/auth`)
-
-- `POST /register` — create user (returns `token`)
-- `POST /login` — sign in
-- `GET /me` — profile + dietary preferences
-- `PUT /preferences` — persist `dietaryPreferences` array
-
-**Recipes** (`/api/recipes`)
-
-- `GET /search` — **optional auth**: public only, or public + your recipes; query params: `q`, `dietaryTag`, `cuisine`, `limit`, `offset`
-- `POST /generate` — authenticated; body: `prompt`, optional `dietaryFilters`, `servings`, `skillLevel`, `usePantry`
-- `GET /saved`, `GET /saved/ids` — saved lists
-- `GET /`, `GET /:id` — your recipes; single recipe
-- `POST /:id/scale` — scale by `servings`
-- `POST /substitutions` — `ingredient` + optional `dietaryFilters` (merged with profile)
-- `POST /:id/save`, `DELETE /:id/save` — favorite toggle
-
-**Pantry** (`/api/pantry`)
-
-- `GET /`, `POST /`, `DELETE /:id`, `POST /recipes` (suggest from pantry)
-
-**Chat** (`/api/chat`)
-
-- `POST /` — stateless one-shot chat (optional `Authorization` for user context)
-- `GET /conversations` — list threads
-- `POST /conversations` — new thread
-- `GET /conversations/:id/messages`, `POST /conversations/:id/messages` — history + send (persists, runs assistant with `create_recipe` tool on server)
-- `DELETE /conversations/:id`
-
-**Cooking** (`/api/cooking`)
-
-- `POST /sessions` — start
-- `GET /sessions/active`
-- `PATCH /sessions/:id/step` — advance
-- `POST /sessions/:id/complete`
-
-**Realtime** (`/api/realtime`)
-
-- `POST /session` — create client session payload
-- `POST /negotiate` — WebRTC SDP exchange for web voice
-- `POST /cleanup` — expire old session rows (cron/call manually)
-
-> **Note:** Route order matters on the server (e.g. `/search` and `/saved` before `/:id`). Client apps should use the same paths as above.
-
----
-
-## Security
-
-- **Supabase JWT** validation on protected routes; user-scoped Supabase client for RLS.
-- **No OpenAI or service role keys in the mobile bundle** — only public Supabase keys where needed.
-- **Rate limiting** on `/api/*` (e.g. 100 requests / 15 minutes per IP), **Helmet** headers, **CORS** with dev-friendly localhost/LAN and configurable `ALLOWED_ORIGINS` in production.
-- **Input validation** on mutating routes (`express-validator`).
-
----
-
-## Database
-
-Authoritative **Postgres** schema and RLS patterns live in **Supabase**. In-repo references:
-
-- `backend/src/db/schema.sql` — core tables: `profiles`, `recipes` (including `search_vector`, `is_public`, `is_ai_generated`), `pantry_items`, `cooking_sessions`, `saved_recipes`, `realtime_sessions`
-- `backend/src/db/migrations/001_conversations.sql` — **`conversations`** and **`conversation_messages`** for persisted chat
-
-Apply these in **Supabase** (SQL editor, or your migration pipeline) before expecting search, profile, or chat to work end-to-end. A helper script `backend/src/db/run-migration.js` can print the SQL for `001_conversations.sql` if the automated path is not available.
-
----
-
-## Development
-
-**Backend tests**
+**Backend tests (optional)**
 
 ```bash
-cd C:\Aipron\backend
+cd backend
 npm test
 ```
 
-**Mobile typecheck**
+**Mobile typecheck (optional)**
 
 ```bash
-cd C:\Aipron\mobile
+cd mobile
 npm run typecheck
 ```
 
 ---
 
-## Roadmap and ideas
+## Usage examples
 
-**Recently shipped (high level):** tabbed app with **Search**, **Favorites**, **saved conversations**, **profile dietary sync**, **optional auth** on recipe search, **Real-time voice** plumbing, and **cooking sessions**.
+**Example 1 — Health check**
 
-**Future ideas (not committed):** meal planning, grocery integrations, deeper accessibility passes, analytics, and expanded languages — track these in your own planning docs or issues.
+- **Input:** `GET http://localhost:3001/health`
+- **Output (conceptual):** `200 OK` with a small JSON body including `"status":"ok"`.
+
+**Example 2 — Chat (via app)**
+
+- **Input:** Open the **Chat** tab after signing in, send: *“Suggest a vegetarian dinner under 400 calories using rice and beans.”*
+- **Output:** Assistant reply with suggestions; if tools create a recipe, it can appear in-thread and be saved depending on flow and auth.
+
+**Example 3 — Recipe search (via app)**
+
+- **Input:** **Search** tab → optional query text → choose filters (e.g. dietary tag).
+- **Output:** List of recipe cards from the catalog and/or your library; tap for detail and cooking.
+
+**Example 4 — Generate recipe (API shape, illustrative)**
+
+Authenticated `POST /api/recipes/generate` with a JSON body such as:
+
+```json
+{
+  "prompt": "Weeknight chickpea curry for two",
+  "servings": 2,
+  "skillLevel": "easy",
+  "dietaryFilters": ["vegetarian"],
+  "usePantry": true
+}
+```
+
+- **Output (conceptual):** `201` with generated recipe payload as implemented by the server (IDs, ingredients, steps, etc.).
+
+**Screenshots**
+
+*Add screenshots here for grading (e.g. Search, Chat, Recipe detail, Cooking mode, Pantry)—place images in the repo or link from team docs as your instructor allows.*
 
 ---
 
-## Contributing
+## Known issues
 
-1. Fork the repository
-2. Branch: `git checkout -b feature/your-feature-name`
-3. Commit with clear messages
-4. Open a pull request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+- **Secrets & environment:** Nothing works end-to-end until `.env` files are populated; missing or wrong Supabase/OpenAI keys show as auth or API failures in the UI.
+- **Physical devices:** `EXPO_PUBLIC_API_URL` must reach your dev machine on the LAN; firewall or wrong IP breaks mobile ↔ API calls.
+- **Empty database:** Without migrations and optional seeds, search may show little or no public catalog content.
+- **`web/` Next.js:** Retained as **legacy**; the documented product path is **`mobile/` + `backend/`** (see Architecture below).
+- **Offline / degraded network:** Search can fall back to a **local catalog slice**; results may not match the live server until back online.
 
 ---
 
-## License
+## Future work
 
-[MIT](LICENSE)
+- Meal planning and shopping lists aligned with pantry and dietary prefs.
+- Deeper integrations (e.g. grocery delivery APIs) where product and policy allow.
+- Stronger **accessibility** (screen reader labeling, contrast, motion).
+- Expanded **localization** beyond current language settings.
+- Performance work: caching, background jobs for cleanup, optional Redis for sessions (ideas reflected in historical planning docs).
+- Analytics and error reporting for production deployments (privacy-reviewed).
+
+*(Adjust this list to match your team roadmap and issue tracker.)*
+
+---
+
+## Contributors
+
+| Name              | Role / responsibility                                      |
+|-------------------|------------------------------------------------------------|
+| *Your name*       | *e.g. Mobile UI, Expo Router, state*                         |
+| *Teammate 2*      | *e.g. Backend API, Supabase schema, auth*                   |
+| *Teammate 3*      | *e.g. AI integration, chat tools, recipe generation*       |
+| *Teammate 4*      | *e.g. QA, README, demos, CI*                               |
+
+*Replace the placeholder rows above with real Ohio University team members and roles before submitting your README link.*
+
+---
+
+## Architecture (reference)
+
+- **Mobile:** React Native (**Expo SDK 54**) + **Expo Router**, Zustand, design tokens (`mobile/`).
+- **Backend:** Node (ESM) + Express, `PORT` default **3001** (`backend/`).
+- **Data & auth:** Supabase Postgres + RLS + JWT validated on API routes.
+- **AI:** OpenAI server-side only (chat, tools, substitutions, Realtime).
+- **Shared:** TypeScript types in `shared/` for mobile and tooling.
+
+**Project structure (abbreviated)**
+
+```
+Aipron/
+├── mobile/          # Primary Expo app
+├── backend/         # Express API + Vitest tests
+├── web/             # Next.js — legacy / not primary product
+├── shared/          # Shared TS types
+└── package.json     # Workspace helpers (e.g. install:all)
+```
+
+---
+
+## HTTP API (summary)
+
+- `GET /health` — liveness  
+- **`/api/auth`** — register, login, `/me`, `PUT /preferences`  
+- **`/api/recipes`** — search, generate, saved lists, detail, scale, substitutions, save/unsave  
+- **`/api/pantry`** — CRUD-style pantry + suggest recipes  
+- **`/api/chat`** — conversations + messages (persistent threads)  
+- **`/api/cooking`** — sessions (start, active, step, complete)  
+- **`/api/realtime`** — session creation, negotiate (WebRTC), cleanup  
+
+See route comments in `backend/src/` for exact paths and validation.
+
+---
+
+## Security (brief)
+
+Supabase JWT on protected routes; **no** OpenAI or service-role keys in the mobile bundle; rate limiting on `/api/*`; Helmet; CORS configurable via `ALLOWED_ORIGINS` in production.
+
+---
+
+## Contributing & license
+
+- Contributing workflow: fork, branch, PR — see [CONTRIBUTING.md](CONTRIBUTING.md).
+- License: [MIT](LICENSE).
 
 ---
 
 ## Acknowledgments
 
-- [OpenAI](https://openai.com/) for API and Realtime
-- [Expo](https://expo.dev/) and the React Native community
-- [Supabase](https://supabase.com/) for managed Postgres and Auth
+- [OpenAI](https://openai.com/) — API and Realtime  
+- [Expo](https://expo.dev/) & React Native community  
+- [Supabase](https://supabase.com/) — Postgres and Auth  
 
 ---
 
