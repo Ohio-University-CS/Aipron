@@ -141,9 +141,6 @@ Authenticated `POST /api/recipes/generate` with a JSON body such as:
 
 - **Output (conceptual):** `201` with generated recipe payload as implemented by the server (IDs, ingredients, steps, etc.).
 
-**Screenshots**
-
-*Add screenshots here for grading (e.g. Search, Chat, Recipe detail, Cooking mode, Pantry)—place images in the repo or link from team docs as your instructor allows.*
 
 ---
 
@@ -166,7 +163,7 @@ Authenticated `POST /api/recipes/generate` with a JSON body such as:
 - Performance work: caching, background jobs for cleanup, optional Redis for sessions (ideas reflected in historical planning docs).
 - Analytics and error reporting for production deployments (privacy-reviewed).
 
-*(Adjust this list to match your team roadmap and issue tracker.)*
+
 
 ---
 
