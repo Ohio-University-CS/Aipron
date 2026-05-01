@@ -1,6 +1,6 @@
 <<<<<<< HEAD
 # 👨‍🍳 AIpron
-
+ 
 **Your AI-powered cooking assistant** — get personalized recipes, step-by-step guidance, and smart kitchen help, all in one place.
 
 ![Aipron Banner](https://img.shields.io/badge/AI-Powered-orange?style=for-the-badge&logo=openai)
