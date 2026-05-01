@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      # Class / fork workflow: run CI on assignment branches without merging to main.
+      - "assignment_*"
   pull_request:
     branches: [main]
 
