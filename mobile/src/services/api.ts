@@ -259,6 +259,13 @@ export const pantryApi = {
     const { data } = await api.post("/pantry", item);
     return data;
   },
+  update: async (
+    id: string,
+    patch: { quantity?: number | null; unit?: string | null; expiresAt?: Date | string | null },
+  ) => {
+    const { data } = await api.patch(`/pantry/${id}`, patch);
+    return data;
+  },
   delete: async (id: string) => {
     const { data } = await api.delete(`/pantry/${id}`);
     return data;

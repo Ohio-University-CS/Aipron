@@ -85,6 +85,52 @@ pantryRouter.delete("/:id", authenticateToken, async (req, res, next) => {
   }
 });
 
+pantryRouter.patch(
+  "/:id",
+  authenticateToken,
+  [
+    body("quantity").optional({ nullable: true }).isFloat({ min: 0 }),
+    body("unit").optional({ nullable: true }).trim(),
+    // Accept ISO strings or null to clear expiration date.
+    body("expiresAt").optional({ nullable: true }).custom((value) => {
+      if (value == null) return true;
+      const d = new Date(value);
+      return !Number.isNaN(d.getTime());
+    }),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { id } = req.params;
+      const { quantity, unit, expiresAt } = req.body;
+
+      const patch = {};
+      if (quantity !== undefined) patch.quantity = quantity;
+      if (unit !== undefined) patch.unit = unit;
+      if (expiresAt !== undefined) patch.expires_at = expiresAt;
+
+      const { data, error } = await req.supabase
+        .from("pantry_items")
+        .update(patch)
+        .eq("id", id)
+        .select("*")
+        .single();
+
+      if (error) {
+        return res.status(500).json({ error: "Failed to update pantry item" });
+      }
+
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 pantryRouter.post(
   "/recipes",
   authenticateToken,
